@@ -13,10 +13,10 @@ export default function InputBar() {
     const trimmed = input.trim();
     if (!trimmed) return;
 
-    let convId = activeConversationId;
+    const convId = activeConversationId;
     if (!convId) {
       createNewChat();
-      // Note: in a real app we'd await state update. For the mock this is fine.
+      setInput("");
       return;
     }
 

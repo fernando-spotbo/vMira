@@ -47,7 +47,7 @@ export default function Sidebar() {
           <button
             onClick={() => {
               createNewChat();
-              setSidebarOpen(false);
+              if (window.innerWidth < 768) setSidebarOpen(false);
             }}
             className="flex h-10 w-10 items-center justify-center rounded-lg text-gpt-gray-400 hover:bg-gpt-gray-700"
             title="New chat"
@@ -64,7 +64,7 @@ export default function Sidebar() {
                 key={conv.id}
                 onClick={() => {
                   setActiveConversationId(conv.id);
-                  setSidebarOpen(false);
+                  if (window.innerWidth < 768) setSidebarOpen(false);
                 }}
                 className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors
                   ${

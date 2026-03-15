@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
+import hljs from "highlight.js";
 
 interface CodeBlockProps {
   language: string;
@@ -11,10 +12,25 @@ interface CodeBlockProps {
 export default function CodeBlock({ language, code }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
+  const highlightedHtml = useMemo(() => {
+    try {
+      if (language && hljs.getLanguage(language)) {
+        return hljs.highlight(code, { language }).value;
+      }
+      return hljs.highlightAuto(code).value;
+    } catch {
+      return code;
+    }
+  }, [code, language]);
+
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API not available
+    }
   };
 
   return (
@@ -39,12 +55,13 @@ export default function CodeBlock({ language, code }: CodeBlockProps) {
           )}
         </button>
       </div>
-      {/* Code (rendered by rehype-highlight via the parent pre>code) */}
+      {/* Syntax highlighted code */}
       <div className="overflow-x-auto bg-gpt-gray-900 p-4 text-sm leading-relaxed">
         <pre>
-          <code className={language ? `hljs language-${language}` : ""}>
-            {code}
-          </code>
+          <code
+            className={`hljs language-${language}`}
+            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+          />
         </pre>
       </div>
     </div>

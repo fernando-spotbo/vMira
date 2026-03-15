@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import rehypeHighlight from "rehype-highlight";
 import { Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Message } from "@/lib/types";
 import CodeBlock from "./CodeBlock";
@@ -12,31 +11,34 @@ export default function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API not available
+    }
   };
 
   return (
     <div className={`group py-4 ${isUser ? "flex justify-end" : ""}`}>
-      <div className={`max-w-3xl ${isUser ? "max-w-[70%]" : "w-full"}`}>
+      <div className={isUser ? "max-w-[70%]" : "w-full max-w-3xl"}>
         {/* Message content */}
         <div
-          className={`
-            ${isUser ? "rounded-3xl bg-gpt-gray-700 px-5 py-3" : ""}
-          `}
+          className={
+            isUser ? "rounded-3xl bg-gpt-gray-700 px-5 py-3" : ""
+          }
         >
           {isUser ? (
             <p className="whitespace-pre-wrap text-[15px] leading-7">{message.content}</p>
           ) : (
             <div className="markdown-body text-[15px] leading-7">
               <ReactMarkdown
-                rehypePlugins={[rehypeHighlight]}
                 components={{
-                  pre({ children, ...props }) {
+                  pre({ children }) {
                     return <>{children}</>;
                   },
-                  code({ className, children, ...props }) {
+                  code({ className, children }) {
                     const match = /language-(\w+)/.exec(className || "");
                     const code = String(children).replace(/\n$/, "");
 
@@ -45,7 +47,7 @@ export default function MessageBubble({ message }: { message: Message }) {
                     }
 
                     return (
-                      <code className="rounded bg-gpt-gray-900 px-1.5 py-0.5 text-sm" {...props}>
+                      <code className="rounded bg-gpt-gray-900 px-1.5 py-0.5 text-sm">
                         {children}
                       </code>
                     );

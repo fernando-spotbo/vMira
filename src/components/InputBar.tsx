@@ -8,7 +8,7 @@ import { getRandomMockResponse } from "@/lib/mock-responses";
 export default function InputBar() {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { activeConversationId, addMessage, createNewChat } = useChat();
+  const { activeConversationId, addMessage, createNewChat, setIsThinking } = useChat();
 
   const handleSubmit = () => {
     const trimmed = input.trim();
@@ -33,15 +33,20 @@ export default function InputBar() {
       textareaRef.current.style.height = "auto";
     }
 
-    // Add mock assistant response after delay
+    // Simulate thinking + response
+    setIsThinking(true);
+
     const response = getRandomMockResponse();
+    const thinkingDuration = 1500 + Math.random() * 2000;
+
     setTimeout(() => {
+      setIsThinking(false);
       addMessage(convId, {
         id: `asst-${Date.now()}`,
         role: "assistant",
         content: response,
       });
-    }, 1200);
+    }, thinkingDuration);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

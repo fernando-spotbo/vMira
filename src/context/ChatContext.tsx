@@ -17,10 +17,12 @@ interface ChatContextType {
   activeConversation: Conversation | null;
   sidebarOpen: boolean;
   selectedModel: string;
+  isThinking: boolean;
   setActiveConversationId: (id: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setSelectedModel: (model: string) => void;
+  setIsThinking: (thinking: boolean) => void;
   createNewChat: () => void;
   addMessage: (conversationId: string, message: Message) => void;
   replaceMessage: (conversationId: string, messageId: string, newMessage: Message) => void;
@@ -36,6 +38,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   >("1");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState("GPT-4o");
+  const [isThinking, setIsThinking] = useState(false);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
@@ -97,10 +100,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         activeConversation,
         sidebarOpen,
         selectedModel,
+        isThinking,
         setActiveConversationId,
         setSidebarOpen,
         toggleSidebar,
         setSelectedModel,
+        setIsThinking,
         createNewChat,
         addMessage,
         replaceMessage,

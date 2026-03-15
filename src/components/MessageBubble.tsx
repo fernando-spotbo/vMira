@@ -5,11 +5,28 @@ import ReactMarkdown from "react-markdown";
 import { Copy, Check, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Message } from "@/lib/types";
 import CodeBlock from "./CodeBlock";
+import { useStreamingText } from "@/hooks/useStreamingText";
 
-export default function MessageBubble({ message }: { message: Message }) {
+interface MessageBubbleProps {
+  message: Message;
+  isNew?: boolean;
+  isStreaming?: boolean;
+}
+
+export default function MessageBubble({
+  message,
+  isNew = false,
+  isStreaming = false,
+}: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
-  const isTyping = message.content === "●●●";
+
+  const { displayedText, isComplete } = useStreamingText(
+    message.content,
+    isStreaming && !isUser
+  );
+
+  const contentToRender = isStreaming && !isUser ? displayedText : message.content;
 
   const handleCopy = async () => {
     try {
@@ -22,18 +39,17 @@ export default function MessageBubble({ message }: { message: Message }) {
   };
 
   return (
-    <div className={`group py-4 ${isUser ? "flex justify-end" : ""}`}>
+    <div
+      className={`group py-4 ${isUser ? "flex justify-end" : ""} ${isNew ? "animate-fade-in-up" : ""}`}
+    >
       <div className={isUser ? "max-w-[70%]" : "w-full max-w-3xl"}>
-        {/* Message content */}
         <div
-          className={
-            isUser ? "rounded-3xl bg-gpt-gray-700 px-5 py-3" : ""
-          }
+          className={isUser ? "rounded-3xl bg-gpt-gray-700 px-5 py-3" : ""}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap text-[15px] leading-7">{message.content}</p>
-          ) : isTyping ? (
-            <p className="typing-indicator text-2xl tracking-widest text-gpt-gray-400">●●●</p>
+            <p className="whitespace-pre-wrap text-[15px] leading-7">
+              {message.content}
+            </p>
           ) : (
             <div className="markdown-body text-[15px] leading-7">
               <ReactMarkdown
@@ -57,14 +73,18 @@ export default function MessageBubble({ message }: { message: Message }) {
                   },
                 }}
               >
-                {message.content}
+                {contentToRender}
               </ReactMarkdown>
+              {/* Streaming cursor */}
+              {isStreaming && !isComplete && (
+                <span className="inline-block h-4 w-0.5 animate-pulse bg-gpt-gray-300 ml-0.5 align-middle" />
+              )}
             </div>
           )}
         </div>
 
-        {/* Action buttons (assistant only, not on typing indicator) */}
-        {!isUser && !isTyping && (
+        {/* Action buttons (assistant only, show after streaming completes) */}
+        {!isUser && (!isStreaming || isComplete) && (
           <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               onClick={handleCopy}

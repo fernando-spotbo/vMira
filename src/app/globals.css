@@ -1,0 +1,97 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@import "highlight.js/styles/github-dark.css";
+
+@theme inline {
+  --color-gpt-gray-50: #f7f7f8;
+  --color-gpt-gray-100: #ececec;
+  --color-gpt-gray-200: #e3e3e3;
+  --color-gpt-gray-300: #cdcdcd;
+  --color-gpt-gray-400: #999696;
+  --color-gpt-gray-500: #595959;
+  --color-gpt-gray-600: #424242;
+  --color-gpt-gray-700: #2f2f2f;
+  --color-gpt-gray-800: #212121;
+  --color-gpt-gray-850: #171717;
+  --color-gpt-gray-900: #0d0d0d;
+  --color-gpt-green: #10a37f;
+}
+
+:root {
+  --sidebar-width: 260px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #212121;
+  color: #ececec;
+  overflow: hidden;
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Markdown code block styling */
+.markdown-body pre {
+  background-color: #0d0d0d;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.markdown-body pre code {
+  display: block;
+  padding: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.markdown-body code:not(pre code) {
+  background-color: #0d0d0d;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.markdown-body p {
+  margin-bottom: 0.75rem;
+  line-height: 1.75;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body li {
+  margin-bottom: 0.25rem;
+  line-height: 1.75;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Textarea auto-resize */
+textarea {
+  field-sizing: content;
+}

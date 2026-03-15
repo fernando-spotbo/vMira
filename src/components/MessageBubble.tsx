@@ -9,6 +9,7 @@ import CodeBlock from "./CodeBlock";
 export default function MessageBubble({ message }: { message: Message }) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
+  const isTyping = message.content === "●●●";
 
   const handleCopy = async () => {
     try {
@@ -31,6 +32,8 @@ export default function MessageBubble({ message }: { message: Message }) {
         >
           {isUser ? (
             <p className="whitespace-pre-wrap text-[15px] leading-7">{message.content}</p>
+          ) : isTyping ? (
+            <p className="typing-indicator text-2xl tracking-widest text-gpt-gray-400">●●●</p>
           ) : (
             <div className="markdown-body text-[15px] leading-7">
               <ReactMarkdown
@@ -58,8 +61,8 @@ export default function MessageBubble({ message }: { message: Message }) {
           )}
         </div>
 
-        {/* Action buttons (assistant only) */}
-        {!isUser && (
+        {/* Action buttons (assistant only, not on typing indicator) */}
+        {!isUser && !isTyping && (
           <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               onClick={handleCopy}

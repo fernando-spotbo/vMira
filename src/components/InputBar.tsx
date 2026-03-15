@@ -3,11 +3,12 @@
 import { useState, useRef, useCallback } from "react";
 import { ArrowUp, Paperclip } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
+import { getRandomMockResponse } from "@/lib/mock-responses";
 
 export default function InputBar() {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { activeConversationId, addMessage, createNewChat } = useChat();
+  const { activeConversationId, addMessage, replaceMessage, createNewChat } = useChat();
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim();
@@ -26,15 +27,22 @@ export default function InputBar() {
       content: trimmed,
     });
 
-    // Simulate assistant response after short delay
+    // Simulate assistant typing + response
+    const typingId = `typing-${Date.now()}`;
+    addMessage(convId, {
+      id: typingId,
+      role: "assistant",
+      content: "●●●",
+    });
+
     setTimeout(() => {
-      addMessage(convId!, {
+      // Replace typing indicator with actual response
+      replaceMessage(convId, typingId, {
         id: `asst-${Date.now()}`,
         role: "assistant",
-        content:
-          "This is a mock response. In a real implementation, this would be connected to an AI API.",
+        content: getRandomMockResponse(),
       });
-    }, 500);
+    }, 1000 + Math.random() * 1500);
 
     setInput("");
 
@@ -42,7 +50,7 @@ export default function InputBar() {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [input, activeConversationId, addMessage, createNewChat]);
+  }, [input, activeConversationId, addMessage, replaceMessage, createNewChat]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {

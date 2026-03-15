@@ -23,6 +23,7 @@ interface ChatContextType {
   setSelectedModel: (model: string) => void;
   createNewChat: () => void;
   addMessage: (conversationId: string, message: Message) => void;
+  replaceMessage: (conversationId: string, messageId: string, newMessage: Message) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -70,6 +71,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const replaceMessage = useCallback(
+    (conversationId: string, messageId: string, newMessage: Message) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === messageId ? newMessage : m
+                ),
+              }
+            : c
+        )
+      );
+    },
+    []
+  );
+
   return (
     <ChatContext.Provider
       value={{
@@ -84,6 +103,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setSelectedModel,
         createNewChat,
         addMessage,
+        replaceMessage,
       }}
     >
       {children}

@@ -127,3 +127,13 @@ body {
 textarea {
   field-sizing: content;
 }
+
+/* Typing indicator animation */
+@keyframes typing-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.typing-indicator {
+  animation: typing-pulse 1.4s ease-in-out infinite;
+}

@@ -1,7 +1,15 @@
+import { ChatProvider } from "@/context/ChatContext";
+import Sidebar from "@/components/Sidebar";
+
 export default function Home() {
   return (
-    <div className="flex h-screen w-screen bg-gpt-gray-800 text-gpt-gray-100">
-      <p className="m-auto text-gpt-gray-400">ChatGPT Clone — scaffold working</p>
-    </div>
+    <ChatProvider>
+      <div className="flex h-screen w-screen overflow-hidden bg-gpt-gray-800">
+        <Sidebar />
+        <main className="flex flex-1 flex-col items-center justify-center">
+          <p className="text-gpt-gray-400">Chat area coming next</p>
+        </main>
+      </div>
+    </ChatProvider>
   );
 }

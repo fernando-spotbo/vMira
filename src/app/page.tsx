@@ -3,6 +3,7 @@ import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import ChatArea from "@/components/ChatArea";
 import InputBar from "@/components/InputBar";
+import LandingState from "@/components/LandingState";
 
 export default function Home() {
   return (
@@ -12,6 +13,7 @@ export default function Home() {
         <main className="flex flex-1 flex-col min-w-0">
           <TopBar />
           <ChatArea />
+          <LandingState />
           <InputBar />
         </main>
       </div>

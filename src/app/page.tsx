@@ -1,6 +1,8 @@
 import { ChatProvider } from "@/context/ChatContext";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import ChatArea from "@/components/ChatArea";
+import InputBar from "@/components/InputBar";
 
 export default function Home() {
   return (
@@ -9,9 +11,8 @@ export default function Home() {
         <Sidebar />
         <main className="flex flex-1 flex-col min-w-0">
           <TopBar />
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <p className="text-gpt-gray-400">Chat area coming next</p>
-          </div>
+          <ChatArea />
+          <InputBar />
         </main>
       </div>
     </ChatProvider>

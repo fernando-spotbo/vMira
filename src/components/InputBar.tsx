@@ -7,8 +7,7 @@ import { useChat } from "@/context/ChatContext";
 export default function InputBar() {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { activeConversationId, addMessage, createNewChat, activeConversation } =
-    useChat();
+  const { activeConversationId, addMessage, createNewChat } = useChat();
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim();

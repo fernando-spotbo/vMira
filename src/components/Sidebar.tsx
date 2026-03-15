@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@/context/ChatContext";
-import { Plus, MessageSquare, Ellipsis, X } from "lucide-react";
+import { Plus, Ellipsis } from "lucide-react";
 
 export default function Sidebar() {
   const {

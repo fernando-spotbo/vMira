@@ -56,7 +56,9 @@ export default function MessageBubble({ message }: { message: Message }) {
                     );
                   },
                 }}
-              />
+              >
+                {message.content}
+              </ReactMarkdown>
             </div>
           )}
         </div>

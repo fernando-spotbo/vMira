@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { ArrowUp, Paperclip } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { getRandomMockResponse } from "@/lib/mock-responses";
@@ -8,9 +8,9 @@ import { getRandomMockResponse } from "@/lib/mock-responses";
 export default function InputBar() {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { activeConversationId, addMessage, replaceMessage, createNewChat } = useChat();
+  const { activeConversationId, addMessage, createNewChat } = useChat();
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
@@ -21,36 +21,28 @@ export default function InputBar() {
       return;
     }
 
+    // Add user message
     addMessage(convId, {
       id: `user-${Date.now()}`,
       role: "user",
       content: trimmed,
     });
 
-    // Simulate assistant typing + response
-    const typingId = `typing-${Date.now()}`;
-    addMessage(convId, {
-      id: typingId,
-      role: "assistant",
-      content: "●●●",
-    });
-
-    setTimeout(() => {
-      // Replace typing indicator with actual response
-      replaceMessage(convId, typingId, {
-        id: `asst-${Date.now()}`,
-        role: "assistant",
-        content: getRandomMockResponse(),
-      });
-    }, 1000 + Math.random() * 1500);
-
     setInput("");
-
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [input, activeConversationId, addMessage, replaceMessage, createNewChat]);
+
+    // Add mock assistant response after delay
+    const response = getRandomMockResponse();
+    setTimeout(() => {
+      addMessage(convId, {
+        id: `asst-${Date.now()}`,
+        role: "assistant",
+        content: response,
+      });
+    }, 1200);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -61,7 +53,6 @@ export default function InputBar() {
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    // Auto-resize
     const el = e.target;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, window.innerHeight * 0.45) + "px";
@@ -71,7 +62,6 @@ export default function InputBar() {
     <div className="w-full px-2 pb-4 pt-2 md:px-4">
       <div className="mx-auto max-w-3xl">
         <div className="relative flex items-end rounded-3xl border border-gpt-gray-600 bg-gpt-gray-700 px-3 py-2 shadow-lg focus-within:border-gpt-gray-500 transition-colors">
-          {/* Attachment button */}
           <button
             className="mb-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gpt-gray-400 hover:bg-gpt-gray-600 transition-colors"
             title="Attach file"
@@ -79,7 +69,6 @@ export default function InputBar() {
             <Paperclip size={18} />
           </button>
 
-          {/* Textarea */}
           <textarea
             ref={textareaRef}
             value={input}
@@ -90,7 +79,6 @@ export default function InputBar() {
             className="max-h-[45vh] flex-1 resize-none bg-transparent px-2 py-2 text-[15px] text-gpt-gray-100 placeholder-gpt-gray-400 focus:outline-none"
           />
 
-          {/* Send button */}
           <button
             onClick={handleSubmit}
             disabled={!input.trim()}
@@ -107,7 +95,6 @@ export default function InputBar() {
           </button>
         </div>
 
-        {/* Footer text */}
         <p className="mt-2 text-center text-xs text-gpt-gray-500">
           ChatGPT can make mistakes. Check important info.
         </p>

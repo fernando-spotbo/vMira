@@ -7,17 +7,23 @@ import MessageBubble from "./MessageBubble";
 export default function ChatArea() {
   const { activeConversation } = useChat();
   const bottomRef = useRef<HTMLDivElement>(null);
-  const isEmptyState =
-    !activeConversation || activeConversation.messages.length === 0;
+  const hasMessages =
+    activeConversation && activeConversation.messages.length > 0;
 
   useEffect(() => {
-    if (!isEmptyState) {
+    if (hasMessages) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [activeConversation?.messages, isEmptyState]);
+  }, [activeConversation?.messages, hasMessages]);
 
-  if (isEmptyState) {
-    return null;
+  if (!hasMessages) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <h1 className="text-3xl font-semibold text-gpt-gray-100">
+          What can I help with?
+        </h1>
+      </div>
+    );
   }
 
   return (

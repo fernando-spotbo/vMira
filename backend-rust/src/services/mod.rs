@@ -1,6 +1,8 @@
 pub mod ai_proxy;
 pub mod audit;
+pub mod billing;
 pub mod moderation;
+pub mod payment;
 pub mod queue;
 pub mod rate_limit;
 pub mod sanitize;

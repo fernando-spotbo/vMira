@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { BookOpen, Settings, HelpCircle, LogOut, ChevronDown, LayoutDashboard, BarChart3, Key, FileText } from "lucide-react";
+import { BookOpen, Settings, HelpCircle, LogOut, ChevronDown, LayoutDashboard, BarChart3, Key, FileText, Wallet } from "lucide-react";
 
 function getSections() {
   return [
@@ -15,6 +15,7 @@ function getSections() {
       items: [
         { href: "/platform/dashboard", label: t("platform.dashboard"), icon: LayoutDashboard },
         { href: "/platform/usage", label: t("platform.usage"), icon: BarChart3 },
+        { href: "/platform/billing", label: "Биллинг", icon: Wallet },
       ],
     },
     {

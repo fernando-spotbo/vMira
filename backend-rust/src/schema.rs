@@ -376,6 +376,61 @@ pub struct HealthResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  Billing DTOs
+// ═══════════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize)]
+pub struct BalanceResponse {
+    pub balance_kopecks: i64,
+    pub balance_rubles: String,
+    pub spending: crate::services::billing::SpendingSummary,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TransactionResponse {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub amount_kopecks: i64,
+    pub amount_rubles: String,
+    pub balance_after_kopecks: i64,
+    pub description: Option<String>,
+    pub model: Option<String>,
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+    pub payment_method: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TopupRequest {
+    pub amount_rubles: f64,
+    pub return_url: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TopupResponse {
+    pub payment_url: String,
+    pub payment_id: String,
+    pub amount_kopecks: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PricingResponse {
+    pub models: Vec<ModelPricingResponse>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ModelPricingResponse {
+    pub model: String,
+    pub display_name: String,
+    pub input_price_per_1k_rubles: String,
+    pub output_price_per_1k_rubles: String,
+    pub thinking_surcharge_percent: i32,
+    pub min_plan: String,
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  Shared validation regex (lazy-static via std::sync::LazyLock)
 // ═══════════════════════════════════════════════════════════════
 

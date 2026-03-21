@@ -28,6 +28,9 @@ pub enum AppError {
 
     #[error("{0}")]
     Unprocessable(String),
+
+    #[error("{0}")]
+    PaymentRequired(String),
 }
 
 impl IntoResponse for AppError {
@@ -50,6 +53,7 @@ impl IntoResponse for AppError {
                 )
             }
             AppError::Unprocessable(msg) => (StatusCode::UNPROCESSABLE_ENTITY, msg.clone()),
+            AppError::PaymentRequired(msg) => (StatusCode::PAYMENT_REQUIRED, msg.clone()),
         };
 
         let mut response = (status, axum::Json(json!({ "detail": detail }))).into_response();

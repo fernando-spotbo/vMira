@@ -42,6 +42,11 @@ pub struct User {
     pub consent_marketing: bool,
     pub consent_marketing_at: Option<DateTime<Utc>>,
 
+    // Billing
+    pub balance_kopecks: i64,
+    pub total_spent_kopecks: i64,
+    pub total_topped_up_kopecks: i64,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

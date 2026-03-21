@@ -49,6 +49,10 @@ pub struct Config {
 
     // ── HMAC gateway verification ────────────────────────────
     pub hmac_secret: String,
+
+    // ── YooKassa payment ──────────────────────────────────────
+    pub yookassa_shop_id: String,
+    pub yookassa_secret_key: String,
 }
 
 impl Config {
@@ -144,6 +148,9 @@ impl Config {
                 .unwrap_or(50),
 
             hmac_secret,
+
+            yookassa_shop_id: env_or("YOOKASSA_SHOP_ID", ""),
+            yookassa_secret_key: env_or("YOOKASSA_SECRET_KEY", ""),
         }
     }
 }

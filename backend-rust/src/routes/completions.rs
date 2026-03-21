@@ -27,6 +27,7 @@ use crate::schema::{
 };
 use crate::services::ai_proxy::{self, ChatMessage};
 use crate::services::audit::log_api_event;
+use crate::services::billing;
 use crate::services::moderation;
 use crate::services::queue;
 use crate::services::rate_limit;
@@ -70,12 +71,19 @@ async fn chat_completions(
 
     // Validate model against allowlist
     match body.model.as_str() {
-        "mira" | "mira-pro" | "mira-max" => {}
+        "mira" | "mira-thinking" | "mira-pro" | "mira-max" => {}
         _ => {
             return Err(AppError::BadRequest(
-                "Invalid model. Must be one of: mira, mira-pro, mira-max".to_string(),
+                "Invalid model. Must be one of: mira, mira-thinking, mira-pro, mira-max".to_string(),
             ));
         }
+    }
+
+    // Pre-check: paid plan users must have a positive balance
+    if user.plan != "free" && user.balance_kopecks <= 0 {
+        return Err(AppError::PaymentRequired(
+            "Insufficient balance. Please top up your account.".to_string(),
+        ));
     }
 
     // Rate limit user
@@ -208,6 +216,7 @@ async fn chat_completions(
         let model_clone = model.clone();
         let state_clone = state.clone();
         let user_id = user.id;
+        let user_plan = user.plan.clone();
         let cancel_token = CancellationToken::new();
         let cancel_clone = cancel_token.clone();
         let request_id_clone = request_id.clone();
@@ -416,6 +425,36 @@ async fn chat_completions(
                 tracing::error!(error = %e, "failed to record usage");
             }
 
+            // ── Billing charge (paid plans only) ──────────────────
+            if status == "completed" && user_plan != "free" {
+                match billing::get_pricing(&state_clone.db, &model_clone).await {
+                    Ok(pricing) => {
+                        let charge = billing::calculate_charge(&pricing, input_tokens, output_tokens_count);
+                        if charge > 0 {
+                            let desc = format!(
+                                "{} — {} in / {} out tokens",
+                                pricing.display_name, input_tokens, output_tokens_count
+                            );
+                            if let Err(e) = billing::charge_user(
+                                &state_clone.db,
+                                user_id,
+                                charge,
+                                &desc,
+                                Some(record.id),
+                                &model_clone,
+                                input_tokens,
+                                output_tokens_count,
+                            ).await {
+                                tracing::warn!(error = %e, user_id = %user_id, "billing charge failed (non-fatal)");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, model = %model_clone, "no pricing for model (billing skipped)");
+                    }
+                }
+            }
+
             // Release concurrent stream counter
             if let Ok(mut conn) = state_clone.redis.get_multiplexed_async_connection().await {
                 let script = redis::Script::new(r#"
@@ -560,6 +599,36 @@ async fn chat_completions(
 
         if let Err(e) = usage::record_usage(&state.db, &record).await {
             tracing::error!(error = %e, "failed to record usage");
+        }
+
+        // ── Billing charge (paid plans only) ──────────────────
+        if user.plan != "free" {
+            match billing::get_pricing(&state.db, &model).await {
+                Ok(pricing) => {
+                    let charge = billing::calculate_charge(&pricing, prompt_tokens as i32, completion_tokens as i32);
+                    if charge > 0 {
+                        let desc = format!(
+                            "{} — {} in / {} out tokens",
+                            pricing.display_name, prompt_tokens, completion_tokens
+                        );
+                        if let Err(e) = billing::charge_user(
+                            &state.db,
+                            user.id,
+                            charge,
+                            &desc,
+                            Some(record.id),
+                            &model,
+                            prompt_tokens as i32,
+                            completion_tokens as i32,
+                        ).await {
+                            tracing::warn!(error = %e, user_id = %user.id, "billing charge failed (non-fatal)");
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, model = %model, "no pricing for model (billing skipped)");
+                }
+            }
         }
 
         let response = ChatCompletionResponse::new(

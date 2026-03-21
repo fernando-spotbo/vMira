@@ -30,6 +30,7 @@ use crate::schema::{
 };
 use crate::services::ai_proxy::{self, ChatMessage};
 use crate::services::audit::{log_api_event, log_security_event};
+use crate::services::billing;
 use crate::services::moderation::{self, block_message};
 use crate::services::queue;
 use crate::services::rate_limit;
@@ -321,12 +322,20 @@ async fn send_message(
 
     // Validate model against allowlist to prevent arbitrary upstream model usage
     match body.model.as_str() {
-        "mira" | "mira-pro" | "mira-max" => {}
+        "mira" | "mira-thinking" | "mira-pro" | "mira-max" => {}
         _ => {
             return Err(AppError::BadRequest(
-                "Invalid model. Must be one of: mira, mira-pro, mira-max".to_string(),
+                "Invalid model. Must be one of: mira, mira-thinking, mira-pro, mira-max".to_string(),
             ));
         }
+    }
+
+    // Pre-check: paid plan users must have a positive balance
+    // Free users use the daily limit system and don't need balance.
+    if user.plan != "free" && user.balance_kopecks <= 0 {
+        return Err(AppError::PaymentRequired(
+            "Insufficient balance. Please top up your account.".to_string(),
+        ));
     }
 
     // Rate limit user
@@ -512,6 +521,7 @@ async fn send_message(
     let model_name = body.model.clone();
     let conversation_id = conv.id;
     let user_id = user.id;
+    let user_plan = user.plan.clone();
     let _user_language = user.language.clone();
     let state_clone = state.clone();
     let stream_key_clone = stream_key.clone();
@@ -794,7 +804,39 @@ async fn send_message(
             tracing::error!(error = %e, "failed to record usage");
         }
 
-        // ── Step 5: Send done event ────────────────────────────────
+        // ── Step 5: Billing charge (paid plans only) ──────────────
+        let mut charge_kopecks: i64 = 0;
+        if status == "completed" && user_plan != "free" {
+            // Paid users are charged per-token from their balance
+            match billing::get_pricing(&state_clone.db, &model_name).await {
+                Ok(pricing) => {
+                    charge_kopecks = billing::calculate_charge(&pricing, input_tokens, output_tokens);
+                    if charge_kopecks > 0 {
+                        let desc = format!(
+                            "{} — {} in / {} out tokens",
+                            pricing.display_name, input_tokens, output_tokens
+                        );
+                        if let Err(e) = billing::charge_user(
+                            &state_clone.db,
+                            user_id,
+                            charge_kopecks,
+                            &desc,
+                            Some(record.id),
+                            &model_name,
+                            input_tokens,
+                            output_tokens,
+                        ).await {
+                            tracing::warn!(error = %e, user_id = %user_id, "billing charge failed (non-fatal)");
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, model = %model_name, "no pricing for model (billing skipped)");
+                }
+            }
+        }
+
+        // ── Step 6: Send done event ────────────────────────────────
         if status == "completed" {
             let done_data = serde_json::json!({
                 "type": "done",
@@ -803,6 +845,7 @@ async fn send_message(
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
                     "cost_microcents": cost,
+                    "charge_kopecks": charge_kopecks,
                 },
             });
             yield Ok(Event::default().data(serde_json::to_string(&done_data).unwrap_or_default()));

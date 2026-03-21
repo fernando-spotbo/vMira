@@ -35,29 +35,27 @@ pub async fn check_rate_limit(
     let member = Uuid::new_v4().to_string();
 
     // Atomic pipeline: ZREMRANGEBYSCORE, ZADD, ZCARD, EXPIRE
-    let result: ((), (), i64, ()) = redis::pipe()
+    // Parse all results (don't use .ignore() with .atomic() — it causes type mismatches)
+    let result: (i64, i64, i64, i64) = redis::pipe()
         .atomic()
         .cmd("ZREMRANGEBYSCORE")
         .arg(key)
         .arg("-inf")
         .arg(min_score)
-        .ignore()
         .cmd("ZADD")
         .arg(key)
         .arg(now_us)
         .arg(&member)
-        .ignore()
         .cmd("ZCARD")
         .arg(key)
         .cmd("EXPIRE")
         .arg(key)
-        .arg(window_seconds + 1) // slight buffer
-        .ignore()
+        .arg(window_seconds + 1)
         .query_async(&mut conn)
         .await
         .map_err(|e| RateLimitError::Redis(e.to_string()))?;
 
-    let count = result.2;
+    let count = result.2; // ZCARD result
     let allowed = count <= max_requests;
     let remaining = (max_requests - count).max(0);
 

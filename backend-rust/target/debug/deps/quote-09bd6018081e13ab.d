@@ -1,0 +1,11 @@
+C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps\quote-09bd6018081e13ab.d: C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\lib.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\ext.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\format.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\ident_fragment.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\to_tokens.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\runtime.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\spanned.rs
+
+C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps\libquote-09bd6018081e13ab.rmeta: C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\lib.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\ext.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\format.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\ident_fragment.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\to_tokens.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\runtime.rs C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\spanned.rs
+
+C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\lib.rs:
+C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\ext.rs:
+C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\format.rs:
+C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\ident_fragment.rs:
+C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\to_tokens.rs:
+C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\runtime.rs:
+C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\quote-1.0.45\src\spanned.rs:

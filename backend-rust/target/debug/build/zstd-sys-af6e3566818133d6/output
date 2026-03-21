@@ -1,0 +1,1124 @@
+cargo:rerun-if-env-changed=ZSTD_SYS_USE_PKG_CONFIG
+cargo:rerun-if-env-changed=CC_FORCE_DISABLE
+CC_FORCE_DISABLE = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+debug.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+entropy_common.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+error_private.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+fse_decompress.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+pool.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+threading.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_common.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+fse_compress.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+hist.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+huf_compress.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_compress.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_compress_literals.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_compress_sequences.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_compress_superblock.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_double_fast.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_fast.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_lazy.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_ldm.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_opt.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_preSplit.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstdmt_compress.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+huf_decompress.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_ddict.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+zstd_decompress.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+zstd_decompress_block.c
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+cargo:warning=cl : Command line warning D9002 : ignoring unknown option '-fvisibility=hidden'
+                   
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+cargo:rerun-if-env-changed=AR_x86_64-pc-windows-msvc
+AR_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=AR_x86_64_pc_windows_msvc
+AR_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_AR
+HOST_AR = None
+cargo:rerun-if-env-changed=AR
+AR = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=ARFLAGS
+ARFLAGS = None
+cargo:rerun-if-env-changed=HOST_ARFLAGS
+HOST_ARFLAGS = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64_pc_windows_msvc
+ARFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64-pc-windows-msvc
+ARFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=VCINSTALLDIR
+VCINSTALLDIR = None
+cargo:rerun-if-env-changed=VSTEL_MSBuildProjectFullPath
+VSTEL_MSBuildProjectFullPath = None
+cargo:rerun-if-env-changed=VCToolsVersion
+VCToolsVersion = None
+cargo:rerun-if-env-changed=VSCMD_ARG_VCVARS_SPECTRE
+VSCMD_ARG_VCVARS_SPECTRE = None
+cargo:rerun-if-env-changed=WindowsSdkDir
+WindowsSdkDir = None
+cargo:rerun-if-env-changed=WindowsSDKVersion
+WindowsSDKVersion = None
+cargo:rerun-if-env-changed=LIB
+LIB = None
+PATH = Some(C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\deps;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\ferna\bin;c:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\Google\Chrome\Application;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Common Files\Autodesk Shared\Advance\;C:\Program Files (x86)\Common Files\Autodesk Shared\Advance\;C:\Program Files\Git\cmd;C:\Program Files\Microsoft SQL Server\150\Tools\Binn\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\Wind;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\GitHub CLI\;C:\Program Files\Amazon\AWSCLIV2\;C:\Users\ferna\.cargo\bin;C:\Users\ferna\.local\bin;C:\Users\ferna\scoop\shims;C:\Users\ferna\AppData\Local\Programs\Python\Python310\Scripts\;C:\Users\ferna\AppData\Local\Programs\Python\Python310\;C:\Users\ferna\AppData\Local\Microsoft\WindowsApps;C:\Users\ferna\AppData\Local\Programs\Microsoft VS Code\bin;C:\ProgramData\ferna\GitHubDesktop\bin;C:\Users\ferna\AppData\Local\GitHubDesktop\bin;C:\Program Files\nvm;C:\Program Files\nodejs;C:\Program Files\nvm\;C:\Program Files\nodejs\;C:\Users\ferna\AppData\Local\Programs\cursor\resources\app\bin;C:\Program Files\PostgreSQL\17\bin;C:\Program Files (x86)\BrowserStackLocal\;C:\Users\ferna\AppData\Local\Programs\Windsurf\bin;C:\Users\ferna\AppData\Roaming\npm;C:\Users\ferna\AppData\Local\Programs\Ollama;C:\Users\ferna\AppData\Local\Programs\MiKTeX\miktex\bin\x64\;C:\Users\ferna\.dotnet\tools;C:\Users\ferna\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin;C:\Users\ferna\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin)
+cargo:rerun-if-env-changed=INCLUDE
+INCLUDE = None
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rustc-link-lib=static=zstd
+cargo:rustc-link-search=native=C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\build\zstd-sys-af6e3566818133d6\out
+cargo:root=C:\Users\ferna\OneDrive\Escritorio\chat\backend-rust\target\debug\build\zstd-sys-af6e3566818133d6\out
+cargo:include=C:\Users\ferna\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\zstd-sys-2.0.16+zstd.1.5.7\zstd/lib

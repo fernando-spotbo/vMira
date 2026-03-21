@@ -1,0 +1,69 @@
+[package]
+name = "mira-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+axum = { version = "0.8", features = ["macros", "ws"] }
+axum-extra = { version = "0.10", features = ["cookie", "typed-header"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+futures-util = "0.3"
+async-stream = "0.3"
+
+# Database — MUST be >= 0.8.1 (RUSTSEC-2024-0363: protocol-level SQL injection in 0.8.0)
+sqlx = { version = "0.8.1", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }
+
+# Redis
+redis = { version = "0.27", features = ["tokio-comp", "aio"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP middleware
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "compression-full", "trace", "timeout", "limit"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# URL parsing (SSRF protection)
+url = "2"
+
+# Auth / Crypto — jsonwebtoken >= 10.3.0 (CVE-2026-25537: type confusion in JWT claim validation)
+jsonwebtoken = "10"
+argon2 = "0.5"
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2"
+
+# Identifiers & time
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Random / tokens
+rand = "0.8"
+rand_core = "0.6"
+base64 = "0.22"
+
+# Validation & text
+regex = "1"
+unicode-normalization = "0.1"
+validator = { version = "0.18", features = ["derive"] }
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Config
+dotenvy = "0.15"
+
+# Errors
+thiserror = "2"
+
+# Memory safety
+zeroize = "1"

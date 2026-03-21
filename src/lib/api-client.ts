@@ -1,12 +1,11 @@
 /**
  * API client for communicating with the Mira backend.
- * Handles HMAC signing, CSRF headers, and auth token management.
  *
- * IMPORTANT: HMAC signing runs server-side only (Next.js API routes / server actions).
- * For client components, use the /api proxy routes instead.
+ * All requests go through /api/proxy/* (Next.js API route) which adds
+ * HMAC signatures server-side. The browser never talks to the backend directly.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const PROXY_URL = "/api/proxy";
 
 // ---- Auth token management (client-side) ----
 
@@ -36,7 +35,9 @@ export async function apiCall<T = unknown>(
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  // Route through Next.js proxy: /api/proxy/auth/login → backend /api/v1/auth/login
+  const proxyPath = path.startsWith("/") ? path.slice(1) : path;
+  const res = await fetch(`${PROXY_URL}/${proxyPath}`, {
     ...options,
     headers,
     credentials: "include", // Send cookies (refresh token)

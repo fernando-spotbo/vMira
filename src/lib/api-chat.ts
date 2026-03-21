@@ -4,7 +4,7 @@
 
 import { apiCall, getAccessToken } from "./api-client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const PROXY_URL = "/api/proxy";
 
 export interface ApiConversation {
   id: string;
@@ -79,7 +79,7 @@ export async function* streamMessage(
 ): AsyncGenerator<StreamEvent, void, undefined> {
   const token = getAccessToken();
 
-  const res = await fetch(`${API_URL}/chat/conversations/${conversationId}/messages`, {
+  const res = await fetch(`${PROXY_URL}/chat/conversations/${conversationId}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

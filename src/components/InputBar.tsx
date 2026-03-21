@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ArrowUp, Plus, Image, FileUp, Mic } from "lucide-react";
+import { ArrowUp, Square, Plus, Image, FileUp, Mic } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import VoiceRecording from "./VoiceRecording";
 import VoiceMode from "./VoiceMode";
@@ -58,7 +58,7 @@ export default function InputBar({ centered = false }: InputBarProps) {
   const [voiceBtnHover, setVoiceBtnHover] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
-  const { activeConversationId, createNewChat, sendMessage: sendChatMessage } = useChat();
+  const { activeConversationId, createNewChat, sendMessage: sendChatMessage, cancelMessage, isStreaming, isThinking } = useChat();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -121,6 +121,7 @@ export default function InputBar({ centered = false }: InputBarProps) {
   };
 
   const hasText = input.trim().length > 0;
+  const isGenerating = isStreaming || isThinking;
 
   // When centered (empty state), render just the input container without wrapper padding
   const inputElement = (
@@ -175,7 +176,15 @@ export default function InputBar({ centered = false }: InputBarProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {hasText ? (
+          {isGenerating ? (
+            <button
+              onClick={cancelMessage}
+              className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white text-[#161616] hover:bg-white/90 active:scale-95 transition-all duration-200"
+              title="Stop generating"
+            >
+              <Square size={14} strokeWidth={0} fill="currentColor" />
+            </button>
+          ) : hasText ? (
             <button
               onClick={handleSubmit}
               className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white text-[#161616] hover:bg-white/90 active:scale-95 transition-all duration-200"

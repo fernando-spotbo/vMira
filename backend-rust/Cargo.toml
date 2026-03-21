@@ -35,7 +35,7 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 url = "2"
 
 # Auth / Crypto — jsonwebtoken >= 10.3.0 (CVE-2026-25537: type confusion in JWT claim validation)
-jsonwebtoken = "10"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 argon2 = "0.5"
 hmac = "0.12"
 sha2 = "0.10"

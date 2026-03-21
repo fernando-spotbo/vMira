@@ -28,6 +28,7 @@ interface ChatContextType {
   selectedModel: string;
   isThinking: boolean;
   isStreaming: boolean;
+  queuePosition: number | null;
   setActiveConversationId: (id: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
@@ -41,6 +42,7 @@ interface ChatContextType {
   deleteConversation: (id: string) => void;
   starConversation: (id: string) => void;
   sendMessage: (content: string) => Promise<void>;
+  cancelMessage: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -54,6 +56,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [selectedModel, setSelectedModel] = useState("Mira");
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [queuePosition, setQueuePosition] = useState<number | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
@@ -205,25 +209,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [conversations]
   );
 
-  // Send message — creates conversation if needed, adds user message, gets AI response
+  // Cancel current streaming request
+  const cancelMessage = useCallback(() => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+    }
+    setIsThinking(false);
+    setIsStreaming(false);
+    setQueuePosition(null);
+  }, [abortController]);
+
+  // Helper: update a message in a conversation (optimistic, no re-render delay)
+  const updateMessageContent = useCallback((convId: string, msgId: string, content: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === convId
+          ? { ...c, messages: c.messages.map((m) => m.id === msgId ? { ...m, content } : m) }
+          : c
+      )
+    );
+  }, []);
+
+  // Send message — optimistic UI: show instantly, stream in background
   const sendMessage = useCallback(
     async (content: string) => {
-      // Evaluate ONCE at the start — don't re-check mid-function
       const isLive = useLiveApi();
       let convId = activeConversationId;
 
-      // Create conversation if none exists
-      if (!convId) {
-        if (isLive) {
-          const conv = await chatApi.createConversation(content.slice(0, 80));
-          if (!conv) return;
-          convId = conv.id;
-        } else {
-          convId = String(Date.now());
-        }
+      // Optimistic: show user message IMMEDIATELY (before any API call)
+      const userMsg: Message = { id: `user-${Date.now()}`, role: "user", content };
 
-        // Add new conversation WITH the user message already inside (atomic)
-        const userMsg: Message = { id: `user-${Date.now()}`, role: "user", content };
+      if (!convId) {
+        convId = `optimistic-${Date.now()}`;
+        // Show conversation immediately with optimistic ID
         setConversations((prev) => [
           {
             id: convId!,
@@ -234,54 +253,89 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           ...prev,
         ]);
         setActiveConversationId(convId);
+
+        // Create real conversation in background, swap ID
+        if (isLive) {
+          const conv = await chatApi.createConversation(content.slice(0, 80));
+          if (!conv) return;
+          const oldId = convId;
+          convId = conv.id;
+          // Swap optimistic ID with real ID (seamless, no flicker)
+          setConversations((prev) =>
+            prev.map((c) => c.id === oldId ? { ...c, id: conv.id } : c)
+          );
+          setActiveConversationId(conv.id);
+        }
       } else {
-        // Existing conversation — just add user message
-        const userMsg: Message = { id: `user-${Date.now()}`, role: "user", content };
         addMessage(convId, userMsg);
       }
 
-      // Get AI response — use the same isLive decision from above
       if (isLive) {
+        const controller = new AbortController();
+        setAbortController(controller);
         setIsThinking(true);
+        setQueuePosition(null);
         const asstId = `asst-${Date.now()}`;
-        try {
-          addMessage(convId, { id: asstId, role: "assistant", content: "" });
-          setIsThinking(false);
-          setIsStreaming(true);
 
+        // Optimistic: show empty assistant bubble IMMEDIATELY
+        addMessage(convId, { id: asstId, role: "assistant", content: "" });
+
+        try {
           let fullContent = "";
-          for await (const chunk of chatApi.streamMessage(convId, content, selectedModel.toLowerCase())) {
-            fullContent += chunk;
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === convId
-                  ? { ...c, messages: c.messages.map((m) => m.id === asstId ? { ...m, content: fullContent } : m) }
-                  : c
-              )
-            );
+
+          for await (const event of chatApi.streamMessage(convId, content, selectedModel.toLowerCase(), controller.signal)) {
+            switch (event.type) {
+              case "queue":
+                // Show queue position — user sees their place in line
+                setQueuePosition(event.position);
+                setIsThinking(true);
+                break;
+
+              case "processing":
+                // GPU slot acquired — switch from "queued" to "thinking"
+                setQueuePosition(null);
+                setIsThinking(true);
+                break;
+
+              case "token":
+                // First token: switch from thinking to streaming
+                if (!isStreaming) {
+                  setIsThinking(false);
+                  setIsStreaming(true);
+                }
+                fullContent += event.content;
+                // Update message content — batched by React, no extra re-renders
+                updateMessageContent(convId!, asstId, fullContent);
+                break;
+
+              case "done":
+                // Stream complete
+                break;
+
+              case "error":
+                updateMessageContent(convId!, asstId, event.message || "Произошла ошибка.");
+                break;
+            }
           }
+
           setIsStreaming(false);
-          // If stream returned nothing, show error in the same bubble
+          setIsThinking(false);
+          setQueuePosition(null);
+
           if (!fullContent.trim()) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === convId
-                  ? { ...c, messages: c.messages.map((m) => m.id === asstId ? { ...m, content: "Модель не ответила. Попробуйте ещё раз." } : m) }
-                  : c
-              )
-            );
+            updateMessageContent(convId, asstId, "Модель не ответила. Попробуйте ещё раз.");
           }
-        } catch {
+        } catch (err: any) {
           setIsThinking(false);
           setIsStreaming(false);
-          // Update the existing empty bubble instead of adding a new one
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === convId
-                ? { ...c, messages: c.messages.map((m) => m.id === asstId ? { ...m, content: "Произошла ошибка. Попробуйте ещё раз." } : m) }
-                : c
-            )
-          );
+          setQueuePosition(null);
+          if (err?.name === "AbortError") {
+            updateMessageContent(convId, asstId, "Запрос отменён.");
+          } else {
+            updateMessageContent(convId, asstId, "Произошла ошибка. Попробуйте ещё раз.");
+          }
+        } finally {
+          setAbortController(null);
         }
       } else {
         // Mock response
@@ -297,7 +351,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
           setConversations((prev) => {
             const found = prev.find((c) => c.id === mockConvId);
-            console.log("MOCK RESPONSE: convId=", mockConvId, "found=", !!found, "convIds=", prev.map(c => c.id));
             if (!found) return prev;
             return prev.map((c) =>
               c.id === mockConvId
@@ -308,7 +361,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }, 2000);
       }
     },
-    [activeConversationId, addMessage, selectedModel]
+    [activeConversationId, addMessage, selectedModel, isStreaming, updateMessageContent]
   );
 
   return (
@@ -334,6 +387,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         deleteConversation,
         starConversation,
         sendMessage,
+        cancelMessage,
+        queuePosition,
       }}
     >
       {children}

@@ -60,13 +60,23 @@ export async function deleteConversation(id: string): Promise<boolean> {
   return result.ok;
 }
 
-// ---- Messages (SSE streaming) ----
+// ---- SSE Event Types ----
+
+export type StreamEvent =
+  | { type: "queue"; position: number; estimated_wait: number }
+  | { type: "processing" }
+  | { type: "token"; content: string }
+  | { type: "done"; usage?: { input_tokens: number; output_tokens: number; total_tokens: number; cost_microcents: number } }
+  | { type: "error"; message: string };
+
+// ---- Messages (SSE streaming with queue support) ----
 
 export async function* streamMessage(
   conversationId: string,
   content: string,
   model: string = "mira",
-): AsyncGenerator<string, void, undefined> {
+  signal?: AbortSignal,
+): AsyncGenerator<StreamEvent, void, undefined> {
   const token = getAccessToken();
 
   const res = await fetch(`${API_URL}/chat/conversations/${conversationId}/messages`, {
@@ -78,6 +88,7 @@ export async function* streamMessage(
     },
     credentials: "include",
     body: JSON.stringify({ content, model }),
+    signal,
   });
 
   if (!res.ok || !res.body) {
@@ -99,11 +110,31 @@ export async function* streamMessage(
 
     for (const line of lines) {
       if (line.startsWith("data: ")) {
-        const data = line.slice(6);
-        if (data === "[DONE]") return;
-        if (data === "[ERROR]") throw new Error("AI response error");
-        if (data.startsWith("[")) continue; // Skip error/info messages
-        yield data;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") {
+          yield { type: "done" };
+          return;
+        }
+        if (data === "[ERROR]") {
+          yield { type: "error", message: "AI response error" };
+          return;
+        }
+
+        // Try to parse as JSON event (new format)
+        try {
+          const event = JSON.parse(data);
+          if (event.type) {
+            yield event as StreamEvent;
+            continue;
+          }
+        } catch {
+          // Not JSON — treat as raw token text (legacy format)
+        }
+
+        // Legacy: raw text chunk
+        if (data && !data.startsWith("[")) {
+          yield { type: "token", content: data };
+        }
       }
     }
   }

@@ -1,6 +1,6 @@
 //! Admin routes — protected by `is_admin = true` check.
 //!
-//! Provides user management, usage analytics, and plan management.
+//! Provides user management, usage analytics, queue monitoring, and plan management.
 
 use std::collections::HashMap;
 
@@ -20,6 +20,8 @@ use crate::middleware::auth::AuthUser;
 use crate::models::User;
 use crate::schema::{AdminUserResponse, UsageStats};
 use crate::services::audit::log_api_event;
+use crate::services::queue;
+use crate::services::usage;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Router
@@ -31,6 +33,9 @@ pub fn admin_routes() -> Router<AppState> {
         .route("/users", get(list_users))
         .route("/users/{user_id}/plan", patch(update_user_plan))
         .route("/users/{user_id}/deactivate", patch(deactivate_user))
+        .route("/usage", get(get_usage_stats))
+        .route("/usage/users", get(get_user_usage_breakdown))
+        .route("/queue", get(get_queue_stats))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -102,6 +107,60 @@ async fn get_stats(
         messages_today,
         users_by_plan,
     }))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GET /usage — global usage stats (metering)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn get_usage_stats(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> Result<Json<usage::GlobalUsageStats>, AppError> {
+    require_admin(&user)?;
+
+    let stats = usage::get_global_usage_stats(&state.db).await?;
+    Ok(Json(stats))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GET /usage/users — per-user usage breakdown
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+struct UsageUserParams {
+    #[serde(default = "default_limit")]
+    limit: i64,
+    #[serde(default)]
+    offset: i64,
+}
+
+async fn get_user_usage_breakdown(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Query(params): Query<UsageUserParams>,
+) -> Result<Json<Vec<usage::UserUsageRow>>, AppError> {
+    require_admin(&user)?;
+
+    let limit = params.limit.min(200);
+    let offset = params.offset.max(0);
+
+    let rows = usage::get_per_user_usage(&state.db, limit, offset).await?;
+    Ok(Json(rows))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GET /queue — current queue stats
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn get_queue_stats(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> Result<Json<queue::QueueStats>, AppError> {
+    require_admin(&user)?;
+
+    let stats = queue::get_queue_stats(&state.redis, &state.config).await?;
+    Ok(Json(stats))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

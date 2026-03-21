@@ -1,7 +1,7 @@
-//! Chat CRUD routes + SSE streaming for messages.
+//! Chat CRUD routes + SSE streaming with queue, cancellation, and metering.
 
 use std::convert::Infallible;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::{
     extract::{Path, Query, State},
@@ -16,13 +16,14 @@ use axum::{
 use chrono::Utc;
 use futures_util::StreamExt;
 use serde::Deserialize;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::db::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
-use crate::models::{Conversation, Message};
+use crate::models::{Conversation, Message, UsageRecord};
 use crate::schema::{
     ConversationCreate, ConversationResponse, ConversationUpdate, ConversationWithMessages,
     MessageRequest, MessageResponse,
@@ -30,8 +31,10 @@ use crate::schema::{
 use crate::services::ai_proxy::{self, ChatMessage};
 use crate::services::audit::{log_api_event, log_security_event};
 use crate::services::moderation::{self, block_message};
+use crate::services::queue;
 use crate::services::rate_limit;
 use crate::services::sanitize;
+use crate::services::usage;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Router
@@ -86,6 +89,13 @@ fn plan_limit(plan: &str) -> i64 {
         "max" | "enterprise" => -1, // unlimited
         _ => 20,
     }
+}
+
+/// Approximate token count by splitting on whitespace (rough heuristic).
+fn approx_tokens(text: &str) -> i32 {
+    // ~0.75 words per token is the common approximation; we use word count
+    // as a conservative upper bound since we lack a real tokenizer.
+    text.split_whitespace().count() as i32
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -270,7 +280,7 @@ async fn delete_conversation(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  POST /conversations/:id/messages  (SSE streaming)
+//  POST /conversations/:id/messages  (SSE streaming with queue + metering)
 // ═══════════════════════════════════════════════════════════════════════════
 
 async fn send_message(
@@ -444,6 +454,9 @@ async fn send_message(
         })
         .collect();
 
+    // Calculate input tokens from history
+    let input_tokens: i32 = history.iter().map(|m| approx_tokens(&m.content)).sum();
+
     // Increment stream counter atomically
     {
         if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
@@ -456,16 +469,214 @@ async fn send_message(
         }
     }
 
-    // Build SSE stream
+    // Build SSE stream with queue, cancellation, and metering
     let model_name = body.model.clone();
     let conversation_id = conv.id;
+    let user_id = user.id;
     let _user_language = user.language.clone();
     let state_clone = state.clone();
     let stream_key_clone = stream_key.clone();
+    let request_id = format!("req-{}", Uuid::new_v4());
+    let cancel_token = CancellationToken::new();
+    let cancel_clone = cancel_token.clone();
 
     let stream = async_stream::stream! {
+        let overall_start = Instant::now();
+        let mut queue_duration_ms: i32 = 0;
+        let mut processing_duration_ms: i32 = 0;
+        let mut status = "completed".to_string();
+        let mut error_message: Option<String> = None;
+        let mut output_tokens: i32 = 0;
+
         const MAX_RESPONSE_SIZE: usize = 256 * 1024;
         let mut full_content = String::new();
+
+        // ── Step 1: Try to acquire a GPU slot ──────────────────────
+        let queue_start = Instant::now();
+        let slot_guard = match queue::try_acquire_slot(
+            &state_clone.redis,
+            &request_id,
+            &state_clone.config,
+        ).await {
+            Ok(Some(guard)) => {
+                queue_duration_ms = queue_start.elapsed().as_millis() as i32;
+                Some(guard)
+            }
+            Ok(None) => {
+                // Check queue size limit
+                let queue_stats = queue::get_queue_stats(&state_clone.redis, &state_clone.config).await;
+                let queue_full = match &queue_stats {
+                    Ok(stats) => stats.queue_length >= state_clone.config.gpu_queue_max_size,
+                    Err(_) => false,
+                };
+
+                if queue_full {
+                    let event_data = serde_json::json!({
+                        "type": "error",
+                        "message": "Queue is full, please try again later"
+                    });
+                    yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                    status = "error".to_string();
+                    error_message = Some("Queue full".to_string());
+
+                    // Record usage with error
+                    let total_duration_ms = overall_start.elapsed().as_millis() as i32;
+                    let cost = usage::estimate_cost(&model_name, input_tokens, 0);
+                    let record = UsageRecord {
+                        id: Uuid::new_v4(),
+                        user_id,
+                        api_key_id: None,
+                        conversation_id: Some(conversation_id),
+                        request_id: request_id.clone(),
+                        model: model_name.clone(),
+                        input_tokens,
+                        output_tokens: 0,
+                        total_tokens: input_tokens,
+                        queue_duration_ms: 0,
+                        processing_duration_ms: 0,
+                        total_duration_ms,
+                        status: status.clone(),
+                        cancelled_at: None,
+                        error_message: error_message.clone(),
+                        cost_microcents: cost,
+                        created_at: Utc::now(),
+                    };
+                    let _ = usage::record_usage(&state_clone.db, &record).await;
+
+                    // Release stream counter
+                    if let Ok(mut conn) = state_clone.redis.get_multiplexed_async_connection().await {
+                        let script = redis::Script::new(r#"
+                            local val = tonumber(redis.call('GET', KEYS[1]) or '0')
+                            if val > 0 then return redis.call('DECR', KEYS[1]) end
+                            return val
+                        "#);
+                        let _: Result<i64, _> = script.key(&stream_key_clone).invoke_async(&mut conn).await;
+                    }
+                    return;
+                }
+
+                // Enqueue and stream position updates
+                let position = match queue::enqueue_request(
+                    &state_clone.redis,
+                    &request_id,
+                    &user_id.to_string(),
+                ).await {
+                    Ok(pos) => pos,
+                    Err(e) => {
+                        tracing::error!(error = %e, "failed to enqueue request");
+                        let event_data = serde_json::json!({
+                            "type": "error",
+                            "message": "Failed to enqueue request"
+                        });
+                        yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                        // Release stream counter
+                        if let Ok(mut conn) = state_clone.redis.get_multiplexed_async_connection().await {
+                            let script = redis::Script::new(r#"
+                                local val = tonumber(redis.call('GET', KEYS[1]) or '0')
+                                if val > 0 then return redis.call('DECR', KEYS[1]) end
+                                return val
+                            "#);
+                            let _: Result<i64, _> = script.key(&stream_key_clone).invoke_async(&mut conn).await;
+                        }
+                        return;
+                    }
+                };
+
+                // Send initial queue position
+                let event_data = serde_json::json!({
+                    "type": "queue",
+                    "position": position,
+                    "estimated_wait": position * 5,
+                });
+                yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+
+                // Poll for slot availability
+                let mut acquired_guard: Option<queue::SlotGuard> = None;
+                loop {
+                    if cancel_clone.is_cancelled() {
+                        let _ = queue::dequeue_request(&state_clone.redis, &request_id).await;
+                        status = "cancelled".to_string();
+                        break;
+                    }
+
+                    match queue::try_acquire_slot(&state_clone.redis, &request_id, &state_clone.config).await {
+                        Ok(Some(guard)) => {
+                            let _ = queue::dequeue_request(&state_clone.redis, &request_id).await;
+                            acquired_guard = Some(guard);
+                            break;
+                        }
+                        Ok(None) => {
+                            // Update position
+                            let pos = queue::get_queue_position(&state_clone.redis, &request_id).await.unwrap_or(0);
+                            let event_data = serde_json::json!({
+                                "type": "queue",
+                                "position": pos,
+                                "estimated_wait": pos * 5,
+                            });
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+
+                            tokio::time::sleep(Duration::from_millis(500)).await;
+                        }
+                        Err(e) => {
+                            tracing::error!(error = %e, "failed to acquire slot while waiting");
+                            tokio::time::sleep(Duration::from_millis(500)).await;
+                        }
+                    }
+                }
+
+                queue_duration_ms = queue_start.elapsed().as_millis() as i32;
+
+                if status == "cancelled" {
+                    // Handle early cancellation while queuing
+                    let total_duration_ms = overall_start.elapsed().as_millis() as i32;
+                    let cost = usage::estimate_cost(&model_name, input_tokens, 0);
+                    let record = UsageRecord {
+                        id: Uuid::new_v4(),
+                        user_id,
+                        api_key_id: None,
+                        conversation_id: Some(conversation_id),
+                        request_id: request_id.clone(),
+                        model: model_name.clone(),
+                        input_tokens,
+                        output_tokens: 0,
+                        total_tokens: input_tokens,
+                        queue_duration_ms,
+                        processing_duration_ms: 0,
+                        total_duration_ms,
+                        status: status.clone(),
+                        cancelled_at: Some(Utc::now()),
+                        error_message: None,
+                        cost_microcents: cost,
+                        created_at: Utc::now(),
+                    };
+                    let _ = usage::record_usage(&state_clone.db, &record).await;
+
+                    // Release stream counter
+                    if let Ok(mut conn) = state_clone.redis.get_multiplexed_async_connection().await {
+                        let script = redis::Script::new(r#"
+                            local val = tonumber(redis.call('GET', KEYS[1]) or '0')
+                            if val > 0 then return redis.call('DECR', KEYS[1]) end
+                            return val
+                        "#);
+                        let _: Result<i64, _> = script.key(&stream_key_clone).invoke_async(&mut conn).await;
+                    }
+                    return;
+                }
+
+                acquired_guard
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "failed to check GPU slot");
+                // Proceed without queue (degraded mode)
+                None
+            }
+        };
+
+        // ── Step 2: Stream AI response ─────────────────────────────
+        let event_data = serde_json::json!({"type": "processing"});
+        yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+
+        let processing_start = Instant::now();
 
         let ai_stream = ai_proxy::stream_ai_response(
             history,
@@ -477,18 +688,86 @@ async fn send_message(
 
         tokio::pin!(ai_stream);
 
-        while let Some(chunk) = ai_stream.next().await {
-            if full_content.len() + chunk.len() > MAX_RESPONSE_SIZE {
-                tracing::warn!("AI response exceeded maximum size, truncating");
-                break;
+        loop {
+            tokio::select! {
+                chunk_opt = ai_stream.next() => {
+                    match chunk_opt {
+                        Some(chunk) => {
+                            if full_content.len() + chunk.len() > MAX_RESPONSE_SIZE {
+                                tracing::warn!("AI response exceeded maximum size, truncating");
+                                break;
+                            }
+                            full_content.push_str(&chunk);
+                            let event_data = serde_json::json!({
+                                "type": "token",
+                                "content": chunk,
+                            });
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                        }
+                        None => break,
+                    }
+                }
+                _ = cancel_clone.cancelled() => {
+                    status = "cancelled".to_string();
+                    break;
+                }
             }
-            full_content.push_str(&chunk);
-            let event = Event::default().data(&chunk);
-            yield Ok::<_, Infallible>(event);
         }
 
-        // Send DONE marker
-        yield Ok(Event::default().data("[DONE]"));
+        processing_duration_ms = processing_start.elapsed().as_millis() as i32;
+        output_tokens = approx_tokens(&full_content);
+
+        // ── Step 3: Release GPU slot ───────────────────────────────
+        drop(slot_guard);
+
+        // ── Step 4: Record usage ───────────────────────────────────
+        let total_duration_ms = overall_start.elapsed().as_millis() as i32;
+        let total_tokens = input_tokens + output_tokens;
+        let cost = usage::estimate_cost(&model_name, input_tokens, output_tokens);
+
+        let cancelled_at = if status == "cancelled" {
+            Some(Utc::now())
+        } else {
+            None
+        };
+
+        let record = UsageRecord {
+            id: Uuid::new_v4(),
+            user_id,
+            api_key_id: None,
+            conversation_id: Some(conversation_id),
+            request_id: request_id.clone(),
+            model: model_name.clone(),
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            queue_duration_ms,
+            processing_duration_ms,
+            total_duration_ms,
+            status: status.clone(),
+            cancelled_at,
+            error_message: error_message.clone(),
+            cost_microcents: cost,
+            created_at: Utc::now(),
+        };
+
+        if let Err(e) = usage::record_usage(&state_clone.db, &record).await {
+            tracing::error!(error = %e, "failed to record usage");
+        }
+
+        // ── Step 5: Send done event ────────────────────────────────
+        if status == "completed" {
+            let done_data = serde_json::json!({
+                "type": "done",
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": total_tokens,
+                    "cost_microcents": cost,
+                },
+            });
+            yield Ok(Event::default().data(serde_json::to_string(&done_data).unwrap_or_default()));
+        }
 
         // Release stream counter atomically (decrement only if positive)
         if let Ok(mut conn) = state_clone.redis.get_multiplexed_async_connection().await {
@@ -506,7 +785,7 @@ async fn send_message(
         }
 
         // Moderate + save assistant message
-        if !full_content.is_empty() {
+        if !full_content.is_empty() && status == "completed" {
             let output_mod = moderation::moderate_output(&full_content);
             let final_content = if output_mod.blocked {
                 log_security_event("output_blocked", None, Some(&format!("category={:?}", output_mod.category)));
@@ -516,13 +795,15 @@ async fn send_message(
             };
 
             let save_result = sqlx::query(
-                "INSERT INTO messages (id, conversation_id, role, content, model, created_at)
-                 VALUES ($1, $2, 'assistant', $3, $4, $5)"
+                "INSERT INTO messages (id, conversation_id, role, content, model, input_tokens, output_tokens, created_at)
+                 VALUES ($1, $2, 'assistant', $3, $4, $5, $6, $7)"
             )
             .bind(Uuid::new_v4())
             .bind(conversation_id)
             .bind(&final_content)
             .bind(&model_name)
+            .bind(input_tokens)
+            .bind(output_tokens)
             .bind(Utc::now())
             .execute(&state_clone.db)
             .await;

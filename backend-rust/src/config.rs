@@ -43,6 +43,10 @@ pub struct Config {
     pub yandex_client_secret: String,
     pub google_client_id: String,
 
+    // ── GPU queue ──────────────────────────────────────────────
+    pub gpu_max_concurrent: i32,
+    pub gpu_queue_max_size: i32,
+
     // ── HMAC gateway verification ────────────────────────────
     pub hmac_secret: String,
 }
@@ -131,6 +135,13 @@ impl Config {
             yandex_client_id: env_or("YANDEX_CLIENT_ID", ""),
             yandex_client_secret: env_or("YANDEX_CLIENT_SECRET", ""),
             google_client_id: env_or("GOOGLE_CLIENT_ID", ""),
+
+            gpu_max_concurrent: env_or("GPU_MAX_CONCURRENT", "4")
+                .parse()
+                .unwrap_or(4),
+            gpu_queue_max_size: env_or("GPU_QUEUE_MAX_SIZE", "50")
+                .parse()
+                .unwrap_or(50),
 
             hmac_secret,
         }

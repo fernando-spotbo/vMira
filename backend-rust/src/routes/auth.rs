@@ -28,6 +28,7 @@ use crate::services::token::{
     verify_password,
 };
 use crate::services::token_revocation;
+use crate::services::usage;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Router
@@ -47,6 +48,7 @@ pub fn auth_routes() -> Router<AppState> {
         .route("/forgot-password", post(forgot_password))
         .route("/reset-password", post(reset_password))
         .route("/me", get(me).patch(update_me))
+        .route("/me/usage", get(me_usage))
         .route("/me/data-export", get(data_export))
         .route("/me/data", delete(delete_account))
 }
@@ -786,6 +788,42 @@ async fn reset_password(
 
 async fn me(AuthUser(user): AuthUser) -> Json<UserResponse> {
     Json(user_response(&user))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GET /me/usage
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn me_usage(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let daily = usage::get_user_usage_today(&state.db, user.id).await?;
+    let monthly = usage::get_user_usage_month(&state.db, user.id).await?;
+
+    // Plan-based quota info
+    let daily_limit: i64 = match user.plan.as_str() {
+        "free" => 20,
+        "pro" => 500,
+        "max" | "enterprise" => -1,
+        _ => 20,
+    };
+
+    let remaining = if daily_limit == -1 {
+        -1 // unlimited
+    } else {
+        (daily_limit - daily.total_requests).max(0)
+    };
+
+    Ok(Json(serde_json::json!({
+        "today": daily,
+        "month": monthly,
+        "quota": {
+            "daily_limit": daily_limit,
+            "remaining_today": remaining,
+            "plan": user.plan,
+        }
+    })))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

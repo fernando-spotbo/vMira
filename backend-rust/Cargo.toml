@@ -65,5 +65,8 @@ dotenvy = "0.15"
 # Errors
 thiserror = "2"
 
+# Cancellation
+tokio-util = { version = "0.7", features = ["rt"] }
+
 # Memory safety
 zeroize = "1"

@@ -15,7 +15,7 @@ futures-util = "0.3"
 async-stream = "0.3"
 
 # Database — MUST be >= 0.8.1 (RUSTSEC-2024-0363: protocol-level SQL injection in 0.8.0)
-sqlx = { version = "0.8.1", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }
+sqlx = { version = "0.8.1", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "uuid", "chrono", "json"] }
 
 # Redis
 redis = { version = "0.27", features = ["tokio-comp", "aio"] }

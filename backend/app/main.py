@@ -19,8 +19,13 @@ logger = logging.getLogger("mira")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    if not settings.debug and settings.secret_key == "CHANGE-ME-IN-PRODUCTION":
-        raise RuntimeError("SECRET_KEY must be changed in production!")
+    if not settings.debug:
+        if settings.secret_key == "CHANGE-ME-IN-PRODUCTION":
+            raise RuntimeError("SECRET_KEY must be changed in production!")
+        if settings.hmac_secret == "CHANGE-ME-IN-PRODUCTION":
+            raise RuntimeError("HMAC_SECRET must be changed in production!")
+        if "mira:mira@" in settings.database_url:
+            raise RuntimeError("Default database credentials detected in production!")
     logger.info("Mira API starting up")
     yield
     # Shutdown
@@ -128,11 +133,12 @@ async def health():
     except Exception:
         checks["db"] = "error"
 
-    # Check Redis
+    # Check Redis (read + write)
     try:
         from app.middleware.rate_limit import get_redis
         redis = await get_redis()
-        await redis.ping()
+        await redis.set("_health", "1", ex=10)
+        await redis.delete("_health")
         checks["redis"] = "ok"
     except Exception:
         checks["redis"] = "error"

@@ -1,10 +1,11 @@
 import hashlib
+import hmac as hmac_mod
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from jose import jwt, JWTError
+import jwt
 
 from app.config import get_settings
 
@@ -32,8 +33,10 @@ def verify_password(password: str, hash: str) -> bool:
 
 
 def hash_token(token: str) -> str:
-    """SHA-256 hash for tokens and API keys."""
-    return hashlib.sha256(token.encode()).hexdigest()
+    """HMAC-SHA256 hash for tokens and API keys — keyed to prevent offline precomputation."""
+    return hmac_mod.new(
+        settings.secret_key.encode(), token.encode(), hashlib.sha256
+    ).hexdigest()
 
 
 def generate_token() -> str:
@@ -68,5 +71,5 @@ def decode_access_token(token: str) -> dict | None:
         if payload.get("type") != "access":
             return None
         return payload
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None

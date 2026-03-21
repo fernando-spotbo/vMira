@@ -34,7 +34,7 @@ async def check_rate_limit(
     now = time.time()
     window_start = now - window_seconds
 
-    pipe = redis.pipeline()
+    pipe = redis.pipeline(transaction=True)
     pipe.zremrangebyscore(key, 0, window_start)
     pipe.zadd(key, {str(now): now})
     pipe.zcard(key)

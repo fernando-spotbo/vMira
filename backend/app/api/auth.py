@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,10 +56,10 @@ def _user_response(user: User) -> UserResponse:
 
 
 def _mask_phone(phone: str | None) -> str | None:
-    """Mask phone for API response: +7900***4567"""
+    """Mask phone for API response: +7***4567"""
     if not phone or len(phone) < 8:
         return phone
-    return phone[:4] + "***" + phone[-4:]
+    return phone[:2] + "***" + phone[-4:]
 
 
 async def _issue_tokens(
@@ -104,6 +104,7 @@ async def _find_or_create_oauth_user(
     email: str | None,
     name: str,
     avatar: str | None,
+    email_verified: bool = False,
 ) -> User:
     """Find existing user by provider ID or email, or create new one."""
     # 1. Try by provider ID
@@ -116,8 +117,8 @@ async def _find_or_create_oauth_user(
             user.avatar_url = avatar
         return user
 
-    # 2. Try by email (link accounts)
-    if email:
+    # 2. Try by email (link accounts) — only if provider verified the email
+    if email and email_verified:
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if user:
@@ -126,14 +127,12 @@ async def _find_or_create_oauth_user(
                 user.avatar_url = avatar
             return user
 
-    # 3. Create new
+    # 3. Create new — consent must be confirmed by the caller
     user = User(
-        email=email,
+        email=email if email_verified else None,
         name=name,
         avatar_url=avatar,
-        is_verified=True,
-        consent_personal_data=True,
-        consent_personal_data_at=datetime.now(timezone.utc),
+        is_verified=email_verified,
     )
     setattr(user, f"{provider}_id", provider_id)
     db.add(user)
@@ -333,8 +332,12 @@ async def vk_auth(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed")
 
     user = await _find_or_create_oauth_user(
-        db, "vk", oauth_user.provider_id, oauth_user.email, oauth_user.name, oauth_user.avatar
+        db, "vk", oauth_user.provider_id, oauth_user.email, oauth_user.name, oauth_user.avatar,
+        email_verified=bool(oauth_user.email),
     )
+    if not user.consent_personal_data:
+        user.consent_personal_data = True
+        user.consent_personal_data_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
 
@@ -362,8 +365,12 @@ async def yandex_auth(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed")
 
     user = await _find_or_create_oauth_user(
-        db, "yandex", oauth_user.provider_id, oauth_user.email, oauth_user.name, oauth_user.avatar
+        db, "yandex", oauth_user.provider_id, oauth_user.email, oauth_user.name, oauth_user.avatar,
+        email_verified=bool(oauth_user.email),
     )
+    if not user.consent_personal_data:
+        user.consent_personal_data = True
+        user.consent_personal_data_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
 
@@ -395,7 +402,11 @@ async def google_auth(
 
     user = await _find_or_create_oauth_user(
         db, "google", idinfo["sub"], idinfo.get("email"), idinfo.get("name", "User"), idinfo.get("picture"),
+        email_verified=idinfo.get("email_verified", False),
     )
+    if not user.consent_personal_data:
+        user.consent_personal_data = True
+        user.consent_personal_data_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
 
@@ -557,20 +568,29 @@ async def update_me(
 # ---- 152-FZ Data subject rights ----
 
 @router.get("/me/data-export")
-async def export_data(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """152-FZ: Right of access — export all user data."""
+async def export_data(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=100, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    """152-FZ: Right of access — export user data (paginated)."""
     from app.models.conversation import Conversation
     from app.models.message import Message
     from sqlalchemy.orm import selectinload
+    from fastapi.responses import JSONResponse
 
     result = await db.execute(
         select(Conversation)
         .options(selectinload(Conversation.messages))
         .where(Conversation.user_id == user.id)
+        .order_by(Conversation.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     conversations = result.scalars().all()
 
-    return {
+    data = {
         "user": {
             "id": str(user.id),
             "name": user.name,
@@ -591,7 +611,12 @@ async def export_data(user: User = Depends(get_current_user), db: AsyncSession =
             }
             for c in conversations
         ],
+        "pagination": {"limit": limit, "offset": offset},
     }
+    return JSONResponse(
+        content=data,
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
 
 
 @router.delete("/me/data", status_code=status.HTTP_204_NO_CONTENT)

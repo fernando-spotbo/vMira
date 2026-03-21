@@ -1,9 +1,20 @@
-"""Audit logging — tracks security-relevant actions."""
+"""Audit logging — tracks security-relevant actions.
 
+PII (email, IP) is hashed in logs for 152-FZ compliance.
+"""
+
+import hashlib
 import logging
 from datetime import datetime, timezone
 
 logger = logging.getLogger("mira.audit")
+
+
+def _hash_pii(value: str | None) -> str:
+    """Hash PII for audit logs — preserves traceability without storing plaintext."""
+    if not value or value == "-":
+        return "-"
+    return hashlib.sha256(value.encode()).hexdigest()[:16]
 
 
 def log_auth_event(
@@ -17,14 +28,13 @@ def log_auth_event(
 ):
     """Log authentication events (login, register, logout, refresh, failed attempts)."""
     logger.info(
-        "AUTH | action=%s user_id=%s email=%s ip=%s success=%s detail=%s ua=%s",
+        "AUTH | action=%s user_id=%s email_h=%s ip_h=%s success=%s detail=%s",
         action,
         user_id or "-",
-        email or "-",
-        ip or "-",
+        _hash_pii(email),
+        _hash_pii(ip),
         success,
         detail or "-",
-        (user_agent or "-")[:100],
     )
 
 
@@ -38,12 +48,12 @@ def log_api_event(
 ):
     """Log API actions (create, delete, update on resources)."""
     logger.info(
-        "API | action=%s user_id=%s resource=%s resource_id=%s ip=%s detail=%s",
+        "API | action=%s user_id=%s resource=%s resource_id=%s ip_h=%s detail=%s",
         action,
         user_id,
         resource or "-",
         resource_id or "-",
-        ip or "-",
+        _hash_pii(ip),
         detail or "-",
     )
 
@@ -55,9 +65,9 @@ def log_security_event(
 ):
     """Log security events (rate limit hit, suspicious activity, invalid tokens)."""
     logger.warning(
-        "SECURITY | event=%s ip=%s detail=%s time=%s",
+        "SECURITY | event=%s ip_h=%s detail=%s time=%s",
         event,
-        ip or "-",
+        _hash_pii(ip),
         detail or "-",
         datetime.now(timezone.utc).isoformat(),
     )

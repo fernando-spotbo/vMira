@@ -4,7 +4,7 @@ import json
 import time
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,7 +42,6 @@ async def chat_completions(
     if last_user_msg:
         mod_result = moderate_input(last_user_msg.content)
         if mod_result.blocked:
-            from fastapi import HTTPException
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"error": "content_blocked", "category": mod_result.category},
@@ -88,6 +87,12 @@ async def chat_completions(
         history, model=body.model, temperature=body.temperature, max_tokens=body.max_tokens
     ):
         full_content += chunk
+
+    # Moderate + sanitize output
+    output_mod = moderate_output(full_content)
+    if output_mod.blocked:
+        full_content = "I cannot provide that response."
+    full_content = sanitize_output(full_content)
 
     return ChatCompletionResponse(
         id=f"chatcmpl-{uuid.uuid4().hex[:24]}",

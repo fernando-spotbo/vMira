@@ -10,8 +10,8 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://mira:mira@localhost:5432/mira"
-    db_pool_size: int = 20
-    db_max_overflow: int = 10
+    db_pool_size: int = 10
+    db_max_overflow: int = 5
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"

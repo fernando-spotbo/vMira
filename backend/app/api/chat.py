@@ -1,5 +1,8 @@
+import logging
 import uuid
 from datetime import datetime, timezone
+
+logger = logging.getLogger("mira.chat")
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -239,10 +242,12 @@ async def send_message(
         finally:
             yield "data: [DONE]\n\n"
 
-            # Release stream counter
+            # Release stream counter (only if > 0 to prevent negative)
             try:
                 _redis = await get_redis()
-                await _redis.decr(stream_key)
+                current = await _redis.get(stream_key)
+                if current and int(current) > 0:
+                    await _redis.decr(stream_key)
             except Exception:
                 pass
 
@@ -253,21 +258,25 @@ async def send_message(
                     full_content = BLOCK_MESSAGES.get("ru", BLOCK_MESSAGES["ru"])
                     log_security_event("output_blocked", detail=f"category={output_mod.category}")
                 sanitized = sanitize_output(full_content)
-                async with AsyncSessionLocal() as save_db:
-                    asst_msg = Message(
-                        conversation_id=conversation_id,
-                        role="assistant",
-                        content=sanitized,
-                        model=body.model,
-                    )
-                    save_db.add(asst_msg)
-                    result = await save_db.execute(
-                        select(Conversation).where(Conversation.id == conversation_id)
-                    )
-                    save_conv = result.scalar_one_or_none()
-                    if save_conv:
-                        save_conv.updated_at = datetime.now(timezone.utc)
-                    await save_db.commit()
+                try:
+                    async with AsyncSessionLocal() as save_db:
+                        asst_msg = Message(
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            content=sanitized,
+                            model=body.model,
+                        )
+                        save_db.add(asst_msg)
+                        result = await save_db.execute(
+                            select(Conversation).where(Conversation.id == conversation_id)
+                        )
+                        save_conv = result.scalar_one_or_none()
+                        if save_conv:
+                            save_conv.updated_at = datetime.now(timezone.utc)
+                        await save_db.commit()
+                except Exception as save_err:
+                    logger.error("Failed to save assistant message for conv=%s: %s",
+                                conversation_id, str(save_err)[:200])
 
     return StreamingResponse(
         event_stream(),

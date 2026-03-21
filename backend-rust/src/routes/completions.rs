@@ -59,6 +59,25 @@ async fn chat_completions(
     // Validate request
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
+    // Validate individual message content length (same limit as chat endpoint: 32KB)
+    for msg in &body.messages {
+        if msg.content.len() > 32000 {
+            return Err(AppError::Unprocessable(
+                "Individual message content must not exceed 32000 characters".to_string(),
+            ));
+        }
+    }
+
+    // Validate model against allowlist
+    match body.model.as_str() {
+        "mira" | "mira-pro" | "mira-max" => {}
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invalid model. Must be one of: mira, mira-pro, mira-max".to_string(),
+            ));
+        }
+    }
+
     // Rate limit user
     rate_limit::rate_limit_user(&state.redis, &user.id.to_string(), &state.config)
         .await
@@ -69,6 +88,79 @@ async fn chat_completions(
             rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
         })?;
 
+    // Daily message limit (same logic as chat routes — prevents free-tier abuse via API keys)
+    let daily_limit: i64 = match user.plan.as_str() {
+        "free" => 20,
+        "pro" => 500,
+        "max" | "enterprise" => -1,
+        _ => 20,
+    };
+    if daily_limit != -1 {
+        let now = chrono::Utc::now();
+        let mut tx = state.db.begin().await?;
+
+        let locked_user = sqlx::query_as::<_, crate::models::User>(
+            "SELECT * FROM users WHERE id = $1 FOR UPDATE"
+        )
+        .bind(user.id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let mut daily_used = locked_user.daily_messages_used;
+
+        if locked_user.daily_reset_at.date_naive() < now.date_naive() {
+            daily_used = 0;
+            sqlx::query("UPDATE users SET daily_messages_used = 0, daily_reset_at = $1 WHERE id = $2")
+                .bind(now)
+                .bind(user.id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        if daily_used >= daily_limit as i32 {
+            tx.commit().await?;
+            return Err(AppError::RateLimited { retry_after: 3600 });
+        }
+
+        sqlx::query("UPDATE users SET daily_messages_used = daily_messages_used + 1 WHERE id = $1")
+            .bind(user.id)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+    }
+
+    // Concurrent stream limit (same as chat routes)
+    let stream_key = format!("streams:{}", user.id);
+    let max_streams = state.config.max_concurrent_streams_per_user as i64;
+    let stream_acquired: bool = {
+        match state.redis.get_multiplexed_async_connection().await {
+            Ok(mut conn) => {
+                let script = redis::Script::new(r#"
+                    local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+                    if current < tonumber(ARGV[1]) then
+                        redis.call('INCR', KEYS[1])
+                        redis.call('EXPIRE', KEYS[1], 300)
+                        return 1
+                    end
+                    return 0
+                "#);
+                script
+                    .key(&stream_key)
+                    .arg(max_streams)
+                    .invoke_async::<i32>(&mut conn)
+                    .await
+                    .map(|v| v == 1)
+                    .unwrap_or(true)
+            }
+            Err(_) => true,
+        }
+    };
+
+    if !stream_acquired {
+        return Err(AppError::RateLimited { retry_after: 5 });
+    }
+
     log_api_event(
         "chat_completion",
         &user.id,
@@ -78,14 +170,10 @@ async fn chat_completions(
         Some(&format!("model={} stream={}", body.model, body.stream)),
     );
 
-    // Moderate + sanitize the last user message
-    let last_user_msg = body
-        .messages
-        .iter()
-        .rev()
-        .find(|m| m.role == "user");
-
-    if let Some(msg) = last_user_msg {
+    // Moderate ALL messages, not just the last user message.
+    // Attackers can embed prohibited content in system/assistant role messages
+    // or in earlier user messages to bypass moderation.
+    for msg in &body.messages {
         let mod_result = moderation::moderate_input(&msg.content);
         if mod_result.blocked {
             return Err(AppError::Unprocessable(
@@ -109,7 +197,7 @@ async fn chat_completions(
 
     let model = body.model.clone();
     let temperature = body.temperature;
-    let max_tokens = body.max_tokens.unwrap_or(4096);
+    let max_tokens = body.max_tokens.unwrap_or(4096).min(16384); // Cap at 16K to prevent cost amplification
 
     // Calculate input tokens from messages
     let input_tokens: i32 = history.iter().map(|m| approx_tokens(&m.content)).sum();
@@ -123,6 +211,7 @@ async fn chat_completions(
         let cancel_token = CancellationToken::new();
         let cancel_clone = cancel_token.clone();
         let request_id_clone = request_id.clone();
+        let stream_key_clone = stream_key.clone();
 
         let stream = async_stream::stream! {
             let overall_start = Instant::now();
@@ -326,6 +415,16 @@ async fn chat_completions(
             if let Err(e) = usage::record_usage(&state_clone.db, &record).await {
                 tracing::error!(error = %e, "failed to record usage");
             }
+
+            // Release concurrent stream counter
+            if let Ok(mut conn) = state_clone.redis.get_multiplexed_async_connection().await {
+                let script = redis::Script::new(r#"
+                    local val = tonumber(redis.call('GET', KEYS[1]) or '0')
+                    if val > 0 then return redis.call('DECR', KEYS[1]) end
+                    return val
+                "#);
+                let _: Result<i64, _> = script.key(&stream_key_clone).invoke_async(&mut conn).await;
+            }
         };
 
         Ok(Sse::new(stream)
@@ -481,6 +580,16 @@ async fn chat_completions(
                 total_tokens: prompt_tokens + completion_tokens,
             },
         );
+
+        // Release concurrent stream counter for non-streaming path
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+            let script = redis::Script::new(r#"
+                local val = tonumber(redis.call('GET', KEYS[1]) or '0')
+                if val > 0 then return redis.call('DECR', KEYS[1]) end
+                return val
+            "#);
+            let _: Result<i64, _> = script.key(&stream_key).invoke_async(&mut conn).await;
+        }
 
         Ok(Json(response).into_response())
     }

@@ -94,6 +94,32 @@ async fn issue_tokens(
 
     let (raw_refresh, refresh_hash, expires_at) = create_refresh_token(&user.id, &state.config);
 
+    // Cap the number of active sessions per user. If the user has too many,
+    // evict the oldest non-password-reset sessions to prevent session flooding.
+    const MAX_SESSIONS_PER_USER: i64 = 20;
+    let session_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1 AND (user_agent IS NULL OR user_agent != 'password-reset')"
+    )
+    .bind(user.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if session_count >= MAX_SESSIONS_PER_USER {
+        // Delete the oldest sessions to make room
+        sqlx::query(
+            "DELETE FROM refresh_tokens WHERE id IN (
+                SELECT id FROM refresh_tokens
+                WHERE user_id = $1 AND (user_agent IS NULL OR user_agent != 'password-reset')
+                ORDER BY created_at ASC
+                LIMIT $2
+            )"
+        )
+        .bind(user.id)
+        .bind(session_count - MAX_SESSIONS_PER_USER + 1)
+        .execute(&state.db)
+        .await?;
+    }
+
     sqlx::query(
         "INSERT INTO refresh_tokens (id, user_id, token_hash, user_agent, ip_address, expires_at, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)"
@@ -517,9 +543,11 @@ async fn refresh(
 
     let token_hash = hash_token(&raw_token, &state.config.secret_key);
 
-    // Look up token
+    // Atomic lookup + delete in a single statement using DELETE ... RETURNING
+    // This prevents race conditions where two concurrent refresh requests
+    // both read the same token before either deletes it.
     let rt = sqlx::query_as::<_, crate::models::RefreshToken>(
-        "SELECT * FROM refresh_tokens WHERE token_hash = $1"
+        "DELETE FROM refresh_tokens WHERE token_hash = $1 RETURNING *"
     )
     .bind(&token_hash)
     .fetch_optional(&state.db)
@@ -527,6 +555,9 @@ async fn refresh(
 
     match rt {
         None => {
+            // Token not found — either already consumed (race) or never existed.
+            // Treat as potential token theft: if someone replayed a rotated token,
+            // the legitimate holder already consumed it.
             return Err(AppError::Unauthorized("Not authenticated".to_string()));
         }
         Some(ref rt) if rt.expires_at < Utc::now() => {
@@ -565,18 +596,23 @@ async fn refresh(
 
     let user_id = rt.user_id;
 
-    // Delete old refresh token (rotation)
-    sqlx::query("DELETE FROM refresh_tokens WHERE id = $1")
-        .bind(rt.id)
-        .execute(&state.db)
-        .await?;
-
     // Load user to create new tokens
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::Unauthorized("Not authenticated".to_string()))?;
+
+    // Check that the user account is still active.
+    // Without this, deactivated users can continue refreshing tokens indefinitely.
+    if !user.is_active {
+        // Revoke all remaining tokens for the deactivated user
+        sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
+            .bind(user.id)
+            .execute(&state.db)
+            .await?;
+        return Err(AppError::Unauthorized("Not authenticated".to_string()));
+    }
 
     let (token_response, raw_refresh) =
         issue_tokens(&user, &client_ip, user_agent.as_deref(), &state).await?;
@@ -660,6 +696,15 @@ async fn forgot_password(
 
     if let Some(ref user) = user {
         if user.password_hash.is_some() {
+            // Delete any existing password-reset tokens for this user to prevent
+            // token flooding attacks and ensure only one reset is active at a time.
+            sqlx::query(
+                "DELETE FROM refresh_tokens WHERE user_id = $1 AND user_agent = 'password-reset'"
+            )
+            .bind(user.id)
+            .execute(&state.db)
+            .await?;
+
             let raw_token = generate_token();
             let token_hash = hash_token(&raw_token, &state.config.secret_key);
             let expires_at = Utc::now() + Duration::hours(1);

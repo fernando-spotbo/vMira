@@ -152,6 +152,28 @@ async fn create_conversation(
 ) -> Result<impl IntoResponse, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
+    // Limit total conversations per user to prevent storage abuse
+    let conv_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM conversations WHERE user_id = $1"
+    )
+    .bind(user.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    let max_conversations: i64 = match user.plan.as_str() {
+        "free" => 100,
+        "pro" => 1000,
+        "max" | "enterprise" => 10000,
+        _ => 100,
+    };
+
+    if conv_count >= max_conversations {
+        return Err(AppError::BadRequest(format!(
+            "Maximum {} conversations reached for your plan",
+            max_conversations
+        )));
+    }
+
     let now = Utc::now();
     let conv = sqlx::query_as::<_, Conversation>(
         "INSERT INTO conversations (id, user_id, title, model, starred, archived, created_at, updated_at)
@@ -256,25 +278,31 @@ async fn delete_conversation(
     AuthUser(user): AuthUser,
     Path(conv_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    // Use a transaction to atomically verify ownership and delete.
+    // The SELECT ... FOR UPDATE locks the conversation row, preventing
+    // concurrent message inserts from creating orphaned rows.
+    let mut tx = state.db.begin().await?;
+
     let _conv = sqlx::query_as::<_, Conversation>(
-        "SELECT * FROM conversations WHERE id = $1 AND user_id = $2"
+        "SELECT * FROM conversations WHERE id = $1 AND user_id = $2 FOR UPDATE"
     )
     .bind(conv_id)
     .bind(user.id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
-    // Delete messages first, then conversation
     sqlx::query("DELETE FROM messages WHERE conversation_id = $1")
         .bind(conv_id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
 
     sqlx::query("DELETE FROM conversations WHERE id = $1")
         .bind(conv_id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -291,6 +319,16 @@ async fn send_message(
 ) -> Result<impl IntoResponse, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
+    // Validate model against allowlist to prevent arbitrary upstream model usage
+    match body.model.as_str() {
+        "mira" | "mira-pro" | "mira-max" => {}
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invalid model. Must be one of: mira, mira-pro, mira-max".to_string(),
+            ));
+        }
+    }
+
     // Rate limit user
     rate_limit::rate_limit_user(&state.redis, &user.id.to_string(), &state.config)
         .await
@@ -301,25 +339,36 @@ async fn send_message(
             rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
         })?;
 
-    // Check concurrent SSE streams
+    // Atomically check-and-increment concurrent SSE streams using a Lua script.
+    // This prevents TOCTOU race conditions where two requests both read the
+    // counter before either increments it.
     let stream_key = format!("streams:{}", user.id);
-    let active_streams: i64 = {
+    let max_streams = state.config.max_concurrent_streams_per_user as i64;
+    let stream_acquired: bool = {
         match state.redis.get_multiplexed_async_connection().await {
             Ok(mut conn) => {
-                redis::cmd("GET")
-                    .arg(&stream_key)
-                    .query_async::<Option<String>>(&mut conn)
+                let script = redis::Script::new(r#"
+                    local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+                    if current < tonumber(ARGV[1]) then
+                        redis.call('INCR', KEYS[1])
+                        redis.call('EXPIRE', KEYS[1], 300)
+                        return 1
+                    end
+                    return 0
+                "#);
+                script
+                    .key(&stream_key)
+                    .arg(max_streams)
+                    .invoke_async::<i32>(&mut conn)
                     .await
-                    .ok()
-                    .flatten()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0)
+                    .map(|v| v == 1)
+                    .unwrap_or(true) // fail open if Redis is down
             }
-            Err(_) => 0,
+            Err(_) => true, // fail open
         }
     };
 
-    if active_streams >= state.config.max_concurrent_streams_per_user as i64 {
+    if !stream_acquired {
         return Err(AppError::RateLimited { retry_after: 5 });
     }
 
@@ -457,17 +506,7 @@ async fn send_message(
     // Calculate input tokens from history
     let input_tokens: i32 = history.iter().map(|m| approx_tokens(&m.content)).sum();
 
-    // Increment stream counter atomically
-    {
-        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
-            let _: Result<(i64, bool), _> = redis::pipe()
-                .atomic()
-                .cmd("INCR").arg(&stream_key)
-                .cmd("EXPIRE").arg(&stream_key).arg(300)
-                .query_async(&mut conn)
-                .await;
-        }
-    }
+    // Stream counter was already atomically incremented above.
 
     // Build SSE stream with queue, cancellation, and metering
     let model_name = body.model.clone();

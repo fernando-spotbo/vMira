@@ -13,7 +13,7 @@ export default function ThinkingIndicator() {
     const start = Date.now();
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - start) / 1000));
-    }, 100);
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 

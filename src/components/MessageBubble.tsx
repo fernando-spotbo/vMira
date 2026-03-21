@@ -228,6 +228,20 @@ export default function MessageBubble({
   }
 
   const markdownComponents = {
+    a({ href, children, ...props }: { href?: string; children?: React.ReactNode; [key: string]: any }) {
+      const isSafe = href && !/^(javascript|data|vbscript):/i.test(href);
+      return (
+        <a
+          href={isSafe ? href : "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-400 hover:text-blue-300 underline"
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
     pre({ children }: { children?: React.ReactNode }) {
       return <>{children}</>;
     },

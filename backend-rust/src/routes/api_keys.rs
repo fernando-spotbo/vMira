@@ -74,25 +74,30 @@ async fn create_api_key(
 ) -> Result<impl IntoResponse, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
-    // Check max active keys
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM api_keys WHERE user_id = $1 AND is_active = true"
-    )
-    .bind(user.id)
-    .fetch_one(&state.db)
-    .await?;
-
-    if count >= 10 {
-        return Err(AppError::BadRequest(
-            "Maximum 10 active API keys".to_string(),
-        ));
-    }
-
+    // Atomic check-and-insert in a transaction with advisory lock to prevent
+    // race conditions where concurrent requests all see count < 10.
     let raw_key = generate_api_key();
     let key_hash = hash_token(&raw_key, &state.config.secret_key);
     let key_prefix = &raw_key[..raw_key.len().min(16)];
     let now = Utc::now();
     let key_id = Uuid::new_v4();
+
+    let mut tx = state.db.begin().await?;
+
+    // Lock the user's api_keys rows to serialize concurrent creates
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM api_keys WHERE user_id = $1 AND is_active = true FOR UPDATE"
+    )
+    .bind(user.id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if count >= 10 {
+        tx.rollback().await?;
+        return Err(AppError::BadRequest(
+            "Maximum 10 active API keys".to_string(),
+        ));
+    }
 
     let api_key = sqlx::query_as::<_, ApiKey>(
         "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, is_active,
@@ -106,8 +111,10 @@ async fn create_api_key(
     .bind(&key_hash)
     .bind(key_prefix)
     .bind(now)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     let response = ApiKeyCreatedResponse {
         id: api_key.id,

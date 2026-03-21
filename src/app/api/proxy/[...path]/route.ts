@@ -43,6 +43,16 @@ async function proxyRequest(
   const backendPath = `${API_PREFIX}/${joinedPath}`;
   const method = req.method;
 
+  // CSRF protection — require XMLHttpRequest header on state-changing methods
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    if (!req.headers.get("x-requested-with")?.includes("XMLHttpRequest")) {
+      return new Response(JSON.stringify({ detail: "Forbidden" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
   // Read body for non-GET requests with size limit
   let body = "";
   if (method !== "GET" && method !== "HEAD") {
@@ -173,10 +183,18 @@ async function proxyRequest(
 }
 
 async function handleOptions(req: NextRequest): Promise<Response> {
+  const ALLOWED_ORIGINS = [
+    "https://vmira.ai",
+    "https://www.vmira.ai",
+    "http://localhost:3000",
+  ];
+  const origin = req.headers.get("origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "";
+
   return new Response(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
+      "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
       "Access-Control-Allow-Credentials": "true",

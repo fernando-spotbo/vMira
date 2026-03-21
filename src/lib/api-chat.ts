@@ -117,6 +117,15 @@ export async function* streamMessage(
       lastActivity = Date.now();
 
       buffer += decoder.decode(value, { stream: true });
+
+      const MAX_BUFFER_SIZE = 1_048_576; // 1MB
+      if (buffer.length > MAX_BUFFER_SIZE) {
+        clearInterval(timeoutChecker);
+        reader.cancel();
+        yield { type: "error", message: "Response too large" } as StreamEvent;
+        return;
+      }
+
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
 
@@ -134,9 +143,19 @@ export async function* streamMessage(
 
           // Try to parse as JSON event (new format)
           try {
-            const event = JSON.parse(data);
-            if (event.type) {
-              yield event as StreamEvent;
+            const parsed = JSON.parse(data);
+            const validTypes = ["queue", "processing", "token", "done", "error"];
+            if (parsed && typeof parsed.type === "string" && validTypes.includes(parsed.type)) {
+              const event: StreamEvent = parsed.type === "token"
+                ? { type: "token", content: String(parsed.content || "") }
+                : parsed.type === "queue"
+                ? { type: "queue", position: Number(parsed.position || 0), estimated_wait: Number(parsed.estimated_wait || 0) }
+                : parsed.type === "done"
+                ? { type: "done", usage: parsed.usage }
+                : parsed.type === "error"
+                ? { type: "error", message: String(parsed.message || "Unknown error") }
+                : { type: "processing" };
+              yield event;
               continue;
             }
           } catch {

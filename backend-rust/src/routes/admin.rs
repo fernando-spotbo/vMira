@@ -298,11 +298,31 @@ async fn deactivate_user(
 ) -> Result<impl IntoResponse, AppError> {
     require_admin(&admin)?;
 
+    // Prevent admin from deactivating themselves
+    if admin.id == user_id {
+        return Err(AppError::BadRequest("Cannot deactivate your own account".to_string()));
+    }
+
     sqlx::query("UPDATE users SET is_active = false, updated_at = $1 WHERE id = $2")
         .bind(Utc::now())
         .bind(user_id)
         .execute(&state.db)
         .await?;
+
+    // Immediately revoke all sessions and access tokens for the deactivated user.
+    // Without this, existing access tokens remain valid for up to the token expiry window.
+    sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+
+    let ttl = (state.config.access_token_expire_minutes * 60) as u64;
+    let _ = crate::services::token_revocation::revoke_user_tokens(
+        &state.redis,
+        &user_id.to_string(),
+        ttl,
+    )
+    .await;
 
     log_api_event(
         "admin_deactivate",

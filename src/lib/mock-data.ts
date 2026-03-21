@@ -2,6 +2,50 @@ import { Conversation } from "./types";
 
 export const mockConversations: Conversation[] = [
   {
+    id: "5",
+    title: "Best laptop for programming in 2026",
+    createdAt: "2026-03-16",
+    messages: [
+      {
+        id: "5a",
+        role: "user",
+        content: "What's the best laptop for programming right now?",
+      },
+      {
+        id: "5b",
+        role: "assistant",
+        content: "Based on my research, here are the top picks for programming laptops in 2026:\n\n**Best overall**: MacBook Pro 16\" M4 Pro — unbeatable battery life, silent, fast compilation\n\n**Best value**: Framework Laptop 16 — upgradeable, repairable, great Linux support\n\n**Best Windows**: Lenovo ThinkPad X1 Carbon Gen 12 — legendary keyboard, lightweight, reliable\n\n| Laptop | Price | RAM | Battery | Key Strength |\n|--------|-------|-----|---------|---------------|\n| MacBook Pro 16\" | $2,499 | 36GB | 18hr | Best all-around |\n| Framework 16 | $1,399 | 32GB | 10hr | Upgradeable |\n| ThinkPad X1 | $1,649 | 32GB | 14hr | Best keyboard |\n\nFor most developers, the **MacBook Pro** is the safe choice — excellent terminal, Docker runs natively, and the battery lasts a full workday. But if you need Linux natively or want to upgrade parts later, the **Framework** is hard to beat.\n\nWhat kind of development are you doing? That might change my recommendation.",
+        steps: [
+          {
+            type: "text",
+            content: "Great question — the landscape changes fast. Let me check what's current.",
+          },
+          {
+            type: "reasoning",
+            summary: "Researched current laptop models, pricing, and developer reviews",
+            thinking: "The user wants a laptop recommendation for programming. I need to consider: build quality, keyboard, display, battery life, performance for compilation/Docker, and OS compatibility.\n\nThe M4 Pro MacBooks are the clear performance leader right now, but not everyone wants macOS. Framework has been gaining traction with developers who want repairability. ThinkPads remain the gold standard for keyboards.\n\nLet me search for the latest reviews and pricing to make sure my information is current.",
+            searches: [
+              {
+                query: "best programming laptop 2026 developer review",
+                resultCount: 7,
+                results: [
+                  { title: "Best Laptops for Developers 2026", domain: "techradar.com" },
+                  { title: "MacBook Pro M4 Pro Review for Coders", domain: "arstechnica.com" },
+                  { title: "Framework Laptop 16: A Developer's Dream", domain: "theverge.com" },
+                  { title: "ThinkPad X1 Carbon Gen 12 Review", domain: "notebookcheck.net" },
+                ],
+              },
+            ],
+          },
+          {
+            type: "text",
+            content: "Based on my research, here are the top picks for programming laptops in 2026:\n\n**Best overall**: MacBook Pro 16\" M4 Pro — unbeatable battery life, silent, fast compilation\n\n**Best value**: Framework Laptop 16 — upgradeable, repairable, great Linux support\n\n**Best Windows**: Lenovo ThinkPad X1 Carbon Gen 12 — legendary keyboard, lightweight, reliable\n\n| Laptop | Price | RAM | Battery | Key Strength |\n|--------|-------|-----|---------|---------------|\n| MacBook Pro 16\" | $2,499 | 36GB | 18hr | Best all-around |\n| Framework 16 | $1,399 | 32GB | 10hr | Upgradeable |\n| ThinkPad X1 | $1,649 | 32GB | 14hr | Best keyboard |\n\nFor most developers, the **MacBook Pro** is the safe choice — excellent terminal, Docker runs natively, and the battery lasts a full workday. But if you need Linux natively or want to upgrade parts later, the **Framework** is hard to beat.\n\nWhat kind of development are you doing? That might change my recommendation.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "1",
     title: "Python quicksort implementation",
     createdAt: "2026-03-15",

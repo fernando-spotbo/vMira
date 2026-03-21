@@ -1,12 +1,24 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
+import Providers from "@/components/Providers";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-sans",
+});
+
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+});
 
 export const metadata: Metadata = {
-  title: "ChatGPT",
-  description: "ChatGPT UI Clone",
+  title: "Mira",
+  description: "Mira AI Assistant",
 };
 
 export default function RootLayout({
@@ -16,7 +28,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} antialiased`}>{children}</body>
+      <body className={`${dmSans.className} ${sourceSerif.variable} antialiased`}>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

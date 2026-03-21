@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Share, MoreHorizontal } from "lucide-react";
-import { Message } from "@/lib/types";
+import remarkGfm from "remark-gfm";
+import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { Message, MessageStep } from "@/lib/types";
 import CodeBlock from "./CodeBlock";
+import ReasoningBlock from "./ReasoningBlock";
 import { useStreamingText } from "@/hooks/useStreamingText";
+import { t } from "@/lib/i18n";
+import { useChat } from "@/context/ChatContext";
+import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
+import MessageReactions from "./MessageReactions";
 
 interface MessageBubbleProps {
   message: Message;
@@ -13,21 +19,13 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
 }
 
-// OpenAI logo SVG for assistant avatar
 function AssistantAvatar() {
   return (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gpt-gray-600 bg-gpt-gray-800">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-gpt-gray-200">
-        <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08]">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-white">
+        <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor"/>
+        <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor"/>
       </svg>
-    </div>
-  );
-}
-
-function UserAvatar() {
-  return (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gpt-green text-white text-xs font-semibold">
-      U
     </div>
   );
 }
@@ -38,143 +36,308 @@ export default function MessageBubble({
   isStreaming = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(message.content);
+  const editRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === "user";
+  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, setIsThinking } = useChat();
+
+  const versions = message.versions ?? [message.content];
+  const versionIndex = message.versionIndex ?? versions.length - 1;
+  const displayContent = versions[versionIndex] ?? message.content;
+  const hasMultipleVersions = versions.length > 1;
 
   const { displayedText, isComplete } = useStreamingText(
     message.content,
     isStreaming && !isUser
   );
 
-  const contentToRender = isStreaming && !isUser ? displayedText : message.content;
+  const contentToRender = isStreaming && !isUser ? displayedText : (isUser ? displayContent : message.content);
+
+  useEffect(() => {
+    if (editing && editRef.current) {
+      editRef.current.focus();
+      editRef.current.style.height = "auto";
+      editRef.current.style.height = editRef.current.scrollHeight + "px";
+    }
+  }, [editing]);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(displayContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API not available
+    } catch {}
+  };
+
+  const handleEditSubmit = () => {
+    const trimmed = editValue.trim();
+    if (!trimmed || !activeConversationId) return;
+
+    // Add new version
+    const newVersions = [...versions, trimmed];
+    const newIndex = newVersions.length - 1;
+
+    replaceMessageAndTruncate(activeConversationId, message.id, {
+      ...message,
+      content: trimmed,
+      versions: newVersions,
+      versionIndex: newIndex,
+    });
+
+    setEditing(false);
+
+    // Trigger new AI response
+    setIsThinking(true);
+    const stepped = getRandomSteppedResponse();
+    const thinkingDuration = 1500 + Math.random() * 2000;
+
+    if (stepped) {
+      setTimeout(() => {
+        setIsThinking(false);
+        addMessage(activeConversationId, {
+          id: `asst-${Date.now()}`,
+          role: "assistant",
+          content: stepped.content,
+          steps: stepped.steps,
+        });
+      }, thinkingDuration);
+    } else {
+      const response = getRandomMockResponse();
+      setTimeout(() => {
+        setIsThinking(false);
+        addMessage(activeConversationId, {
+          id: `asst-${Date.now()}`,
+          role: "assistant",
+          content: response,
+        });
+      }, thinkingDuration);
+    }
+  };
+
+  const handleVersionNav = (direction: -1 | 1) => {
+    if (!activeConversationId) return;
+    const newIndex = Math.max(0, Math.min(versions.length - 1, versionIndex + direction));
+    if (newIndex === versionIndex) return;
+
+    replaceMessage(activeConversationId, message.id, {
+      ...message,
+      content: versions[newIndex],
+      versionIndex: newIndex,
+    });
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setEditValue(displayContent);
+      setEditing(false);
     }
   };
 
   if (isUser) {
+    // Editing mode
+    if (editing) {
+      return (
+        <div className="py-3">
+          <div className="w-full">
+            <div className="rounded-2xl bg-white/[0.07] border border-white/[0.08] px-5 py-3">
+              <textarea
+                ref={editRef}
+                value={editValue}
+                onChange={(e) => {
+                  setEditValue(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = e.target.scrollHeight + "px";
+                }}
+                onKeyDown={handleEditKeyDown}
+                className="w-full resize-none bg-transparent text-[16px] leading-7 text-white focus:outline-none"
+                rows={1}
+              />
+              <div className="flex items-center justify-end gap-2 mt-3">
+                <button
+                  onClick={() => { setEditValue(displayContent); setEditing(false); }}
+                  className="rounded-lg px-4 py-1.5 text-[16px] text-white/60 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditSubmit}
+                  className="rounded-lg bg-white px-4 py-1.5 text-[16px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Normal user message
     return (
-      <div className={`flex justify-end py-3 ${isNew ? "animate-fade-in-up" : ""}`}>
-        <div className="flex items-start gap-3 max-w-[80%]">
-          <div className="rounded-3xl bg-gpt-gray-700 px-5 py-3">
-            <p className="whitespace-pre-wrap text-[15px] leading-7">
-              {message.content}
+      <div className={`group flex justify-end py-3 ${isNew ? "animate-fade-in-up" : ""}`}>
+        <div className="max-w-[80%]">
+          <div className="rounded-2xl bg-white/[0.10] px-5 py-3">
+            <p className="whitespace-pre-wrap text-[16px] leading-7 text-white">
+              {displayContent}
             </p>
+          </div>
+          {/* Actions row — copy, edit, version nav */}
+          <div className="flex items-center justify-end gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <button
+              onClick={handleCopy}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+              title="Copy"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+            <button
+              onClick={() => { setEditValue(displayContent); setEditing(true); }}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+              title="Edit"
+            >
+              <Pencil size={14} />
+            </button>
+
+            {/* Version navigation */}
+            {hasMultipleVersions && (
+              <div className="flex items-center gap-0.5 ml-1">
+                <button
+                  onClick={() => handleVersionNav(-1)}
+                  disabled={versionIndex === 0}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors disabled:opacity-30 disabled:cursor-default"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-[14px] text-white/60 tabular-nums min-w-[28px] text-center">
+                  {versionIndex + 1}/{versions.length}
+                </span>
+                <button
+                  onClick={() => handleVersionNav(1)}
+                  disabled={versionIndex === versions.length - 1}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors disabled:opacity-30 disabled:cursor-default"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
+  const markdownComponents = {
+    pre({ children }: { children?: React.ReactNode }) {
+      return <>{children}</>;
+    },
+    code({ className, children }: { className?: string; children?: React.ReactNode }) {
+      const match = /language-(\w+)/.exec(className || "");
+      const code = String(children).replace(/\n$/, "");
+      if (match) return <CodeBlock language={match[1]} code={code} />;
+      return (
+        <code className="rounded-md bg-white/[0.08] px-1.5 py-0.5 text-[14px] font-mono text-white border border-white/[0.06]">
+          {children}
+        </code>
+      );
+    },
+    table({ children }: { children?: React.ReactNode }) {
+      return (
+        <div className="my-4 overflow-x-auto rounded-xl border border-white/[0.06] overflow-hidden">
+          <table className="mira-table w-full border-collapse">{children}</table>
+        </div>
+      );
+    },
+    th({ children }: { children?: React.ReactNode }) {
+      return (
+        <th className="bg-white/[0.04] px-4 py-2.5 text-left text-[12px] font-medium text-white/60 uppercase tracking-wider border-b border-white/[0.06]">
+          {children}
+        </th>
+      );
+    },
+    td({ children }: { children?: React.ReactNode }) {
+      return (
+        <td className="px-4 py-3 text-[14px] text-white border-b border-white/[0.04]">
+          {children}
+        </td>
+      );
+    },
+  };
+
+  const hasSteps = message.steps && message.steps.length > 0;
+
+  // Assistant message
   return (
     <div className={`group py-5 ${isNew ? "animate-fade-in-up" : ""}`}>
       <div className="flex items-start gap-4">
         <AssistantAvatar />
         <div className="flex-1 min-w-0">
-          {/* Assistant label */}
-          <div className="mb-1.5 text-[13px] font-semibold text-gpt-gray-300">
-            ChatGPT
+          <div className="mb-1.5 text-[14px] font-semibold text-white">
+            Mira
           </div>
 
-          {/* Message content */}
-          <div className="markdown-body text-[15px] leading-7">
-            <ReactMarkdown
-              components={{
-                pre({ children }) {
-                  return <>{children}</>;
-                },
-                code({ className, children }) {
-                  const match = /language-(\w+)/.exec(className || "");
-                  const code = String(children).replace(/\n$/, "");
+          {hasSteps ? (
+            <div className="markdown-body text-[16px] leading-7 text-white">
+              {message.steps!.map((step, i) => {
+                if (step.type === "reasoning") {
+                  return <ReasoningBlock key={i} summary={step.summary} thinking={step.thinking} searches={step.searches} />;
+                }
+                // text step
+                const isLastStep = i === message.steps!.length - 1;
+                const textContent = isLastStep && isStreaming && !isUser ? displayedText : step.content;
+                return (
+                  <div key={i}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{textContent}</ReactMarkdown>
+                    {isLastStep && isStreaming && !isComplete && (
+                      <span className="inline-block h-[18px] w-[2px] animate-pulse bg-white/50 ml-0.5 align-middle rounded-full" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="markdown-body text-[16px] leading-7 text-white">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {contentToRender}
+              </ReactMarkdown>
+              {isStreaming && !isComplete && (
+                <span className="inline-block h-[18px] w-[2px] animate-pulse bg-white/50 ml-0.5 align-middle rounded-full" />
+              )}
+            </div>
+          )}
 
-                  if (match) {
-                    return <CodeBlock language={match[1]} code={code} />;
-                  }
-
-                  return (
-                    <code className="rounded-md bg-gpt-gray-700 px-1.5 py-0.5 text-[13px] font-mono text-gpt-gray-200 border border-gpt-gray-600/30">
-                      {children}
-                    </code>
-                  );
-                },
-                table({ children }) {
-                  return (
-                    <div className="my-3 overflow-x-auto rounded-lg border border-gpt-gray-600/30">
-                      <table className="w-full border-collapse text-sm">
-                        {children}
-                      </table>
-                    </div>
-                  );
-                },
-                th({ children }) {
-                  return (
-                    <th className="border-b border-gpt-gray-600/30 bg-gpt-gray-700/50 px-4 py-2 text-left text-[13px] font-medium text-gpt-gray-300">
-                      {children}
-                    </th>
-                  );
-                },
-                td({ children }) {
-                  return (
-                    <td className="border-b border-gpt-gray-600/20 px-4 py-2 text-[13px] text-gpt-gray-200">
-                      {children}
-                    </td>
-                  );
-                },
-              }}
-            >
-              {contentToRender}
-            </ReactMarkdown>
-            {/* Streaming cursor */}
-            {isStreaming && !isComplete && (
-              <span className="inline-block h-[18px] w-[2px] animate-pulse bg-gpt-gray-300 ml-0.5 align-middle rounded-full" />
-            )}
-          </div>
-
-          {/* Action buttons */}
           {(!isStreaming || isComplete) && (
-            <div className="mt-3 flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-              <button
-                onClick={handleCopy}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-gpt-gray-500 hover:bg-gpt-gray-700 hover:text-gpt-gray-300 transition-colors"
-                title="Copy"
-              >
-                {copied ? <Check size={15} /> : <Copy size={15} />}
-              </button>
-              <button
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-gpt-gray-500 hover:bg-gpt-gray-700 hover:text-gpt-gray-300 transition-colors"
-                title="Good response"
-              >
-                <ThumbsUp size={15} />
-              </button>
-              <button
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-gpt-gray-500 hover:bg-gpt-gray-700 hover:text-gpt-gray-300 transition-colors"
-                title="Bad response"
-              >
-                <ThumbsDown size={15} />
-              </button>
-              <button
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-gpt-gray-500 hover:bg-gpt-gray-700 hover:text-gpt-gray-300 transition-colors"
-                title="Retry"
-              >
-                <RotateCcw size={15} />
-              </button>
-              <button
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-gpt-gray-500 hover:bg-gpt-gray-700 hover:text-gpt-gray-300 transition-colors"
-                title="Share"
-              >
-                <Share size={15} />
-              </button>
-              <button
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-gpt-gray-500 hover:bg-gpt-gray-700 hover:text-gpt-gray-300 transition-colors"
-                title="More"
-              >
-                <MoreHorizontal size={15} />
-              </button>
+            <div className="mt-3 flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <button
+                  onClick={handleCopy}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white/70 transition-colors"
+                  title="Copy"
+                >
+                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                </button>
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white/70 transition-colors"
+                  title="Good response"
+                >
+                  <ThumbsUp size={15} />
+                </button>
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white/70 transition-colors"
+                  title="Bad response"
+                >
+                  <ThumbsDown size={15} />
+                </button>
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white/70 transition-colors"
+                  title="Retry"
+                >
+                  <RotateCcw size={15} />
+                </button>
+              </div>
+              <div className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <MessageReactions messageId={message.id} />
+              </div>
             </div>
           )}
         </div>

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Play, Code2 } from "lucide-react";
+import { t } from "@/lib/i18n";
 import hljs from "highlight.js";
+import CodeModal from "./CodeModal";
 
 interface CodeBlockProps {
   language: string;
@@ -11,6 +13,7 @@ interface CodeBlockProps {
 
 export default function CodeBlock({ language, code }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const highlightedHtml = useMemo(() => {
     try {
@@ -23,7 +26,8 @@ export default function CodeBlock({ language, code }: CodeBlockProps) {
     }
   }, [code, language]);
 
-  const handleCopy = async () => {
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
@@ -34,36 +38,55 @@ export default function CodeBlock({ language, code }: CodeBlockProps) {
   };
 
   return (
-    <div className="my-3 overflow-hidden rounded-md">
-      {/* Header — matches ChatGPT: language left, copy button right */}
-      <div className="flex items-center justify-between bg-gpt-gray-700 px-4 py-2 text-xs text-gpt-gray-300">
-        <span>{language}</span>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 text-gpt-gray-300 hover:text-gpt-gray-100 transition-colors"
-        >
-          {copied ? (
-            <>
-              <Check size={14} />
-              <span>Copied!</span>
-            </>
-          ) : (
-            <>
-              <Copy size={14} />
-              <span>Copy code</span>
-            </>
-          )}
-        </button>
+    <>
+      <div className="my-3 overflow-hidden rounded-xl bg-[#0f0f0f] border border-white/[0.04]">
+        {/* Header — same bg, no visible division */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-0">
+          <div className="flex items-center gap-2 text-[14px] text-white/50">
+            <Code2 size={14} strokeWidth={1.8} />
+            <span>{language}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* Copy — icon only */}
+            <button
+              onClick={handleCopy}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white/70 transition-colors"
+              title={copied ? "Copied" : "Copy code"}
+            >
+              {copied ? <Check size={16} /> : <Copy size={16} />}
+            </button>
+
+            {/* Run — pill button with border */}
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-full border border-white/[0.1] px-3.5 py-1.5 text-[14px] text-white hover:bg-white/[0.06] hover:border-white/[0.16] transition-all"
+            >
+              <Play size={12} fill="currentColor" />
+              <span>{t("code.run")}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Code — continuous with header */}
+        <div className="overflow-x-auto px-4 pt-3 pb-4">
+          <pre className="text-[13px] leading-6">
+            <code
+              className={`hljs language-${language}`}
+              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+            />
+          </pre>
+        </div>
       </div>
-      {/* Code area — near-black bg, 16px padding, no line numbers */}
-      <div className="overflow-x-auto bg-black p-4">
-        <pre className="text-[14px] leading-relaxed">
-          <code
-            className={`hljs language-${language}`}
-            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-          />
-        </pre>
-      </div>
-    </div>
+
+      {modalOpen && (
+        <CodeModal
+          language={language}
+          code={code}
+          highlightedHtml={highlightedHtml}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
+    </>
   );
 }

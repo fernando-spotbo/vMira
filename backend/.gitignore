@@ -1,0 +1,13 @@
+.credentials
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+alembic/versions/*.py
+!alembic/versions/.gitkeep

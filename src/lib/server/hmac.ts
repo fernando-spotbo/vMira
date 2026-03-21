@@ -6,16 +6,22 @@
 
 import { createHmac, randomBytes } from "crypto";
 
-function getRequiredEnv(name: string): string {
-  const val = process.env[name];
+// Lazy-loaded at runtime (not build time) to work with Vercel's env injection
+function getHmacSecret(): string {
+  const val = process.env.HMAC_SECRET;
   if (!val) {
-    throw new Error(`${name} environment variable is required`);
+    throw new Error("HMAC_SECRET environment variable is required");
   }
   return val;
 }
 
-const HMAC_SECRET = getRequiredEnv("HMAC_SECRET");
-const BACKEND_URL = getRequiredEnv("BACKEND_URL");
+function getBackendUrl(): string {
+  const val = process.env.BACKEND_URL;
+  if (!val) {
+    throw new Error("BACKEND_URL environment variable is required");
+  }
+  return val;
+}
 
 export function signRequest(method: string, path: string, body: string): {
   timestamp: string;
@@ -26,7 +32,7 @@ export function signRequest(method: string, path: string, body: string): {
   const nonce = randomBytes(16).toString("hex");
 
   const payload = `${method.toUpperCase()}\n${path}\n${timestamp}\n${nonce}\n${body}`;
-  const signature = createHmac("sha256", HMAC_SECRET)
+  const signature = createHmac("sha256", getHmacSecret())
     .update(payload)
     .digest("hex");
 
@@ -54,15 +60,11 @@ export async function backendFetch(
     ...options.headers,
   };
 
-  return fetch(`${BACKEND_URL}${path}`, {
+  return fetch(`${getBackendUrl()}${path}`, {
     method,
     headers,
     body: method !== "GET" && method !== "HEAD" ? body : undefined,
   });
 }
 
-export function getBackendUrl(): string {
-  return BACKEND_URL;
-}
-
-export { HMAC_SECRET, BACKEND_URL };
+export { getHmacSecret as HMAC_SECRET, getBackendUrl as BACKEND_URL };

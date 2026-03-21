@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { signRequest, BACKEND_URL, HMAC_SECRET } from "@/lib/server/hmac";
+import { signRequest, BACKEND_URL } from "@/lib/server/hmac";
 
 const API_PREFIX = "/api/v1";
 const MAX_BODY_SIZE = 1_048_576; // 1MB
@@ -103,7 +103,7 @@ async function proxyRequest(
 
   const searchParams = req.nextUrl.searchParams.toString();
   const queryString = searchParams ? `?${searchParams}` : "";
-  const backendUrl = `${BACKEND_URL}${backendPath}${queryString}`;
+  const backendUrl = `${BACKEND_URL()}${backendPath}${queryString}`;
 
   const fetchController = new AbortController();
   const fetchTimeout = setTimeout(() => fetchController.abort(), 30_000);

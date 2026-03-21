@@ -100,42 +100,57 @@ export async function* streamMessage(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  const STREAM_TIMEOUT_MS = 120_000; // 2 minutes
+  let lastActivity = Date.now();
+  const timeoutChecker = setInterval(() => {
+    if (Date.now() - lastActivity > STREAM_TIMEOUT_MS) {
+      reader.cancel();
+      clearInterval(timeoutChecker);
+    }
+  }, 5000);
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") {
-          yield { type: "done" };
-          return;
-        }
-        if (data === "[ERROR]") {
-          yield { type: "error", message: "AI response error" };
-          return;
-        }
+      lastActivity = Date.now();
 
-        // Try to parse as JSON event (new format)
-        try {
-          const event = JSON.parse(data);
-          if (event.type) {
-            yield event as StreamEvent;
-            continue;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") {
+            yield { type: "done" };
+            return;
           }
-        } catch {
-          // Not JSON — treat as raw token text (legacy format)
-        }
+          if (data === "[ERROR]") {
+            yield { type: "error", message: "AI response error" };
+            return;
+          }
 
-        // Legacy: raw text chunk
-        if (data && !data.startsWith("[")) {
-          yield { type: "token", content: data };
+          // Try to parse as JSON event (new format)
+          try {
+            const event = JSON.parse(data);
+            if (event.type) {
+              yield event as StreamEvent;
+              continue;
+            }
+          } catch {
+            // Not JSON — treat as raw token text (legacy format)
+          }
+
+          // Legacy: raw text chunk
+          if (data && !data.startsWith("[")) {
+            yield { type: "token", content: data };
+          }
         }
       }
     }
+  } finally {
+    clearInterval(timeoutChecker);
   }
 }

@@ -53,51 +53,6 @@ export async function apiCall<T = unknown>(
   return { data, ok: res.ok, status: res.status };
 }
 
-// ---- SSE streaming helper ----
-
-export async function* streamMessage(
-  conversationId: string,
-  content: string,
-  model: string = "mira",
-): AsyncGenerator<string, void, undefined> {
-  const res = await fetch(`${API_URL}/chat/conversations/${conversationId}/messages`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Requested-With": "XMLHttpRequest",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    credentials: "include",
-    body: JSON.stringify({ content, model }),
-  });
-
-  if (!res.ok || !res.body) {
-    throw new Error(`API error: ${res.status}`);
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const data = line.slice(6);
-        if (data === "[DONE]") return;
-        if (data === "[ERROR]") throw new Error("AI response error");
-        yield data;
-      }
-    }
-  }
-}
-
 // ---- Auth helpers ----
 
 export async function login(email: string, password: string) {

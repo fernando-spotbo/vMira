@@ -22,7 +22,7 @@ export default function CodeBlock({ language, code }: CodeBlockProps) {
       }
       return hljs.highlightAuto(code).value;
     } catch {
-      return code;
+      return code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
   }, [code, language]);
 

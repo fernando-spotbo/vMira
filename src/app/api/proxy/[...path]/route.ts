@@ -14,19 +14,50 @@ import { NextRequest, NextResponse } from "next/server";
 import { signRequest, BACKEND_URL, HMAC_SECRET } from "@/lib/server/hmac";
 
 const API_PREFIX = "/api/v1";
+const MAX_BODY_SIZE = 1_048_576; // 1MB
 
 async function proxyRequest(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ): Promise<Response> {
   const { path } = await params;
-  const backendPath = `${API_PREFIX}/${path.join("/")}`;
+  const joinedPath = path.join("/");
+
+  // Reject path traversal
+  if (joinedPath.includes("..") || joinedPath.includes("//") || joinedPath.includes("\\")) {
+    return new Response(JSON.stringify({ detail: "Invalid path" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Allowlist of valid API prefixes
+  const ALLOWED_PREFIXES = ["auth/", "chat/", "api-keys/", "sessions/", "admin/"];
+  if (!ALLOWED_PREFIXES.some(prefix => joinedPath.startsWith(prefix))) {
+    return new Response(JSON.stringify({ detail: "Not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const backendPath = `${API_PREFIX}/${joinedPath}`;
   const method = req.method;
 
-  // Read body for non-GET requests
+  // Read body for non-GET requests with size limit
   let body = "";
   if (method !== "GET" && method !== "HEAD") {
+    const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
+    if (contentLength > MAX_BODY_SIZE) {
+      return new Response(JSON.stringify({ detail: "Request too large" }), {
+        status: 413, headers: { "Content-Type": "application/json" },
+      });
+    }
     body = await req.text();
+    if (body.length > MAX_BODY_SIZE) {
+      return new Response(JSON.stringify({ detail: "Request too large" }), {
+        status: 413, headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   // Sign the request
@@ -54,74 +85,104 @@ async function proxyRequest(
 
   // Forward client IP
   const clientIp =
+    req.headers.get("x-vercel-forwarded-for") ||
+    (req as any).ip ||
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
     "unknown";
   headers["X-Forwarded-For"] = clientIp;
 
-  const backendUrl = `${BACKEND_URL}${backendPath}`;
+  const searchParams = req.nextUrl.searchParams.toString();
+  const queryString = searchParams ? `?${searchParams}` : "";
+  const backendUrl = `${BACKEND_URL}${backendPath}${queryString}`;
 
-  const res = await fetch(backendUrl, {
-    method,
-    headers,
-    body: method !== "GET" && method !== "HEAD" ? body : undefined,
-  });
+  const fetchController = new AbortController();
+  const fetchTimeout = setTimeout(() => fetchController.abort(), 30_000);
 
-  // Check if this is an SSE stream
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("text/event-stream") && res.body) {
-    // Stream SSE without buffering
-    return new Response(res.body, {
-      status: res.status,
-      headers: {
+  try {
+    const res = await fetch(backendUrl, {
+      method,
+      headers,
+      body: method !== "GET" && method !== "HEAD" ? body : undefined,
+      signal: fetchController.signal,
+    });
+    clearTimeout(fetchTimeout);
+
+    // Sanitize 5xx errors — don't leak backend details
+    if (res.status >= 500) {
+      return new Response(JSON.stringify({ detail: "Internal server error" }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Check if this is an SSE stream
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("text/event-stream") && res.body) {
+      // Stream SSE without buffering
+      const responseHeaders = new Headers({
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
         "X-Accel-Buffering": "no",
-        // Forward set-cookie headers (refresh token rotation)
-        ...forwardCookieHeaders(res),
-      },
+      });
+      const sseSetCookies = res.headers.getSetCookie?.() || [];
+      for (const cookie of sseSetCookies) {
+        responseHeaders.append("Set-Cookie", cookie);
+      }
+      return new Response(res.body, { status: res.status, headers: responseHeaders });
+    }
+
+    // Regular JSON response — forward status, body, and cookies
+    const responseBody = await res.text();
+    const responseHeaders = new Headers();
+    responseHeaders.set("Content-Type", contentType || "application/json");
+
+    // Forward Set-Cookie headers for refresh token
+    const setCookies = res.headers.getSetCookie?.() || [];
+    for (const cookie of setCookies) {
+      responseHeaders.append("Set-Cookie", cookie);
+    }
+
+    // Forward cache control
+    const cacheControl = res.headers.get("cache-control");
+    if (cacheControl) {
+      responseHeaders.set("Cache-Control", cacheControl);
+    }
+
+    // Forward rate limit headers
+    const retryAfter = res.headers.get("retry-after");
+    if (retryAfter) {
+      responseHeaders.set("Retry-After", retryAfter);
+    }
+
+    return new Response(responseBody, {
+      status: res.status,
+      headers: responseHeaders,
+    });
+  } catch (err: any) {
+    clearTimeout(fetchTimeout);
+    if (err?.name === "AbortError") {
+      return new Response(JSON.stringify({ detail: "Backend timeout" }), {
+        status: 504, headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ detail: "Backend unavailable" }), {
+      status: 502, headers: { "Content-Type": "application/json" },
     });
   }
-
-  // Regular JSON response — forward status, body, and cookies
-  const responseBody = await res.text();
-  const responseHeaders = new Headers();
-  responseHeaders.set("Content-Type", contentType || "application/json");
-
-  // Forward Set-Cookie headers for refresh token
-  const setCookies = res.headers.getSetCookie?.() || [];
-  for (const cookie of setCookies) {
-    responseHeaders.append("Set-Cookie", cookie);
-  }
-
-  // Forward cache control
-  const cacheControl = res.headers.get("cache-control");
-  if (cacheControl) {
-    responseHeaders.set("Cache-Control", cacheControl);
-  }
-
-  // Forward rate limit headers
-  const retryAfter = res.headers.get("retry-after");
-  if (retryAfter) {
-    responseHeaders.set("Retry-After", retryAfter);
-  }
-
-  return new Response(responseBody, {
-    status: res.status,
-    headers: responseHeaders,
-  });
 }
 
-function forwardCookieHeaders(res: Response): Record<string, string> {
-  const result: Record<string, string> = {};
-  const setCookies = res.headers.getSetCookie?.() || [];
-  if (setCookies.length > 0) {
-    // Note: Headers API doesn't support multiple Set-Cookie well,
-    // but the Response constructor handles it via the headers object
-    result["Set-Cookie"] = setCookies.join(", ");
-  }
-  return result;
+async function handleOptions(req: NextRequest): Promise<Response> {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
 }
 
 export const GET = proxyRequest;
@@ -129,4 +190,4 @@ export const POST = proxyRequest;
 export const PUT = proxyRequest;
 export const PATCH = proxyRequest;
 export const DELETE = proxyRequest;
-export const OPTIONS = proxyRequest;
+export const OPTIONS = handleOptions;

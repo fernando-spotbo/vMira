@@ -7,6 +7,7 @@ import {
   useCallback,
   useMemo,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
 import { Conversation, Message } from "@/lib/types";
@@ -48,6 +49,7 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const sendingRef = useRef(false);
   const [conversations, setConversations] = useState<Conversation[]>(
     useLiveApi() ? [] : mockConversations
   );
@@ -234,6 +236,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Send message — optimistic UI: show instantly, stream in background
   const sendMessage = useCallback(
     async (content: string) => {
+      if (sendingRef.current) return;
+      sendingRef.current = true;
+      try {
       const isLive = useLiveApi();
       let convId = activeConversationId;
 
@@ -282,8 +287,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         try {
           let fullContent = "";
+          let streamingStarted = false;
 
-          for await (const event of chatApi.streamMessage(convId, content, selectedModel.toLowerCase(), controller.signal)) {
+          const ALLOWED_MODELS = ["mira", "mira-thinking"];
+          const modelName = selectedModel.toLowerCase().replace(/\s+/g, "-");
+          const safeModel = ALLOWED_MODELS.includes(modelName) ? modelName : "mira";
+
+          for await (const event of chatApi.streamMessage(convId, content, safeModel, controller.signal)) {
             switch (event.type) {
               case "queue":
                 // Show queue position — user sees their place in line
@@ -299,7 +309,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
               case "token":
                 // First token: switch from thinking to streaming
-                if (!isStreaming) {
+                if (!streamingStarted) {
+                  streamingStarted = true;
                   setIsThinking(false);
                   setIsStreaming(true);
                 }
@@ -360,8 +371,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           });
         }, 2000);
       }
+      } finally {
+        sendingRef.current = false;
+      }
     },
-    [activeConversationId, addMessage, selectedModel, isStreaming, updateMessageContent]
+    [activeConversationId, addMessage, selectedModel, updateMessageContent]
   );
 
   return (

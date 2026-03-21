@@ -135,6 +135,10 @@ export default function AuthModal({ mode: initialMode, onClose }: AuthModalProps
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consent) return;
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
     setError("");
     setSubmitting(true);
     const result = await register(name, email, password, consent);

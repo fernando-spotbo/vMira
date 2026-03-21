@@ -6,8 +6,16 @@
 
 import { createHmac, randomBytes } from "crypto";
 
-const HMAC_SECRET = process.env.HMAC_SECRET || "";
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+function getRequiredEnv(name: string): string {
+  const val = process.env[name];
+  if (!val) {
+    throw new Error(`${name} environment variable is required`);
+  }
+  return val;
+}
+
+const HMAC_SECRET = getRequiredEnv("HMAC_SECRET");
+const BACKEND_URL = getRequiredEnv("BACKEND_URL");
 
 export function signRequest(method: string, path: string, body: string): {
   timestamp: string;

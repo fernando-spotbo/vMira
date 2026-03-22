@@ -143,18 +143,17 @@ async fn issue_tokens(
 }
 
 /// Build a Set-Cookie header for the refresh token.
-fn refresh_cookie_header(raw_token: &str, max_age_days: i64, api_prefix: &str) -> String {
+/// Path=/ so the cookie is sent on all requests (the proxy rewrites paths).
+fn refresh_cookie_header(raw_token: &str, max_age_days: i64, _api_prefix: &str) -> String {
     let max_age = max_age_days * 86400;
     format!(
-        "refresh_token={raw_token}; HttpOnly; Secure; SameSite=Lax; Max-Age={max_age}; Path={api_prefix}/auth"
+        "refresh_token={raw_token}; HttpOnly; Secure; SameSite=Lax; Max-Age={max_age}; Path=/"
     )
 }
 
 /// Build a delete-cookie header for the refresh token.
-fn delete_refresh_cookie_header(api_prefix: &str) -> String {
-    format!(
-        "refresh_token=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path={api_prefix}/auth"
-    )
+fn delete_refresh_cookie_header(_api_prefix: &str) -> String {
+    "refresh_token=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/".to_string()
 }
 
 /// Extract useful headers from the request parts via the axum extension.

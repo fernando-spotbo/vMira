@@ -20,28 +20,54 @@ interface MessageBubbleProps {
 }
 
 function AssistantAvatar({ thinking = false }: { thinking?: boolean }) {
+  // Track previous thinking state to play "settle" animation on exit
+  const [wasThinking, setWasThinking] = useState(false);
+  const [settling, setSettling] = useState(false);
+
+  useEffect(() => {
+    if (thinking && !wasThinking) {
+      setWasThinking(true);
+      setSettling(false);
+    } else if (!thinking && wasThinking) {
+      // Transition out: play settle animation
+      setSettling(true);
+      setWasThinking(false);
+      const timer = setTimeout(() => setSettling(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [thinking, wasThinking]);
+
+  const isAnimating = thinking || settling;
+
   return (
     <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
-      {/* Outer glow ring — visible only during thinking */}
+      {/* Outer glow ring */}
       <div
-        className="absolute inset-0 rounded-full transition-opacity duration-500"
+        className="absolute inset-[-4px] rounded-full transition-opacity duration-700"
         style={{
           opacity: thinking ? 1 : 0,
-          background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)",
           animation: thinking ? "mira-ring-breathe 2.5s ease-in-out infinite" : "none",
         }}
       />
       {/* Avatar circle */}
-      <div className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-500 ${thinking ? "bg-white/[0.14]" : "bg-white/[0.08]"}`}>
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-full transition-all duration-700 ease-out"
+        style={{ backgroundColor: thinking ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.08)" }}
+      >
         <svg
           width="16"
           height="16"
           viewBox="0 0 24 24"
           fill="none"
-          className="transition-all duration-500"
+          className="transition-[color] duration-700 ease-out"
           style={{
             color: thinking ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.8)",
-            animation: thinking ? "mira-star-drift 4s cubic-bezier(0.45, 0, 0.55, 1) infinite, mira-star-breathe 2s ease-in-out infinite" : "none",
+            animation: thinking
+              ? "mira-star-drift 4s cubic-bezier(0.45, 0, 0.55, 1) infinite, mira-star-breathe 2s ease-in-out infinite"
+              : settling
+              ? "mira-star-settle 0.6s ease-out forwards"
+              : "none",
             transformOrigin: "center",
           }}
         >

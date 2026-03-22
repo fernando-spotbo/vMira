@@ -237,6 +237,12 @@ textarea {
   50% { transform: scale(1.15); opacity: 0.8; }
 }
 
+/* Star settle — decelerates back to rest */
+@keyframes mira-star-settle {
+  0%   { transform: rotate(45deg) scale(1.05); opacity: 0.9; }
+  100% { transform: rotate(0deg) scale(1); opacity: 0.8; }
+}
+
 /* Thinking label — fade + animated dots */
 .mira-thinking-label {
   color: rgba(255, 255, 255, 0.5);

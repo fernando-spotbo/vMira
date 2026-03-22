@@ -138,7 +138,7 @@ export default function MessageBubble({
     // Editing mode
     if (editing) {
       return (
-        <div className="py-3">
+        <div className="py-0.5">
           <div className="w-full">
             <div className="rounded-2xl bg-white/[0.07] border border-white/[0.08] px-5 py-3">
               <textarea
@@ -175,7 +175,7 @@ export default function MessageBubble({
 
     // Normal user message
     return (
-      <div className={`group flex justify-end py-3 ${isNew ? "animate-fade-in-up" : ""}`}>
+      <div className={`group flex justify-end py-0.5 ${isNew ? "animate-fade-in-up" : ""}`}>
         <div className="max-w-[80%]">
           <div className="rounded-2xl bg-white/[0.10] px-5 py-3">
             <p className="whitespace-pre-wrap text-[16px] leading-7 text-white">
@@ -282,7 +282,7 @@ export default function MessageBubble({
 
   // Assistant message
   return (
-    <div className={`group py-5 ${isNew ? "animate-fade-in-up" : ""}`}>
+    <div className={`group py-1 ${isNew ? "animate-fade-in-up" : ""}`}>
       <div className="flex items-start gap-4">
         <AssistantAvatar />
         <div className="flex-1 min-w-0">
@@ -320,7 +320,7 @@ export default function MessageBubble({
             </div>
           )}
 
-          {(!isStreaming || isComplete) && (
+          {(!isStreaming || isComplete) && message.content.trim().length > 0 && (
             <div className="mt-3 flex items-center gap-0.5">
               <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <button

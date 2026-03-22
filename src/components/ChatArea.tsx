@@ -1,187 +1,216 @@
 "use client";
 
-import { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useChat } from "@/context/ChatContext";
 import MessageBubble from "./MessageBubble";
 import ThinkingIndicator from "./ThinkingIndicator";
 
+/**
+ * ChatArea scroll behavior:
+ *
+ * 1. User sends message → pin user message near top, spacer below
+ * 2. Response streams → user reads top-to-bottom, no auto-scroll
+ * 3. User scrolls DOWN to the response end → spacer collapses (new max scroll)
+ * 4. User scrolls UP from pin → spacer collapses immediately
+ * 5. Response completes, user hasn't scrolled → spacer stays, no movement
+ * 6. Conversation switch → scroll to bottom
+ */
 export default function ChatArea() {
   const { activeConversation, activeConversationId, isThinking, isStreaming } = useChat();
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const lastUserMsgRef = useRef<HTMLDivElement>(null);
-  const prevConvIdRef = useRef<string | null>(null);
-  const prevMsgLenRef = useRef(0);
 
-  // Pin state: true = user message is pinned to top, response builds below
-  const [pinned, setPinned] = useState(false);
-  // Generation counter — each new pin increments, stale unpins compare and bail
-  const pinGenRef = useRef(0);
-  // All pending timers — cleared atomically on new pin or conversation switch
-  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  // Did the user manually scroll away from the pinned position?
-  const userBrokePinRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const userMsgRef = useRef<HTMLDivElement>(null);
+  const lastMsgRef = useRef<HTMLDivElement>(null); // last actual message (for detecting "reached end")
+
+  const prevConvId = useRef<string | null>("__init__");
+  const wasPinned = useRef(false);
+  const userDismissed = useRef(false);
+  const lastScrollTop = useRef(0);
+  const [spacerVisible, setSpacerVisible] = useState(false);
 
   const messages = activeConversation?.messages ?? [];
 
+  // ── Find indexes ──
   let lastUserIdx = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") { lastUserIdx = i; break; }
   }
+  const lastMsgIdx = messages.length - 1;
 
+  // ── Derived state ──
+  const lastUserMsg = lastUserIdx >= 0 ? messages[lastUserIdx] : null;
+  const hasFreshUserMsg = lastUserMsg?.id.startsWith("user-") ?? false;
+  const generating = isThinking || isStreaming;
   const lastMsg = messages[messages.length - 1];
 
-  // ── Timer helpers ──
+  // ── Auto-pin when generation starts ──
+  if (hasFreshUserMsg && (generating || (lastMsg?.role === "assistant" && lastMsg.id.startsWith("asst-"))) && !wasPinned.current && !userDismissed.current) {
+    wasPinned.current = true;
+    if (!spacerVisible) setSpacerVisible(true);
+  }
 
-  const clearTimers = useCallback(() => {
-    timersRef.current.forEach((t) => clearTimeout(t));
-    timersRef.current.clear();
+  // ── Scroll helpers ──
+  const pinUserMsg = useCallback(() => {
+    const container = scrollRef.current;
+    const el = userMsgRef.current;
+    if (!container || !el) return;
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const targetScroll = container.scrollTop + (elRect.top - containerRect.top) - 12;
+    container.scrollTo({ top: targetScroll, behavior: "instant" });
   }, []);
 
-  const schedule = useCallback((fn: () => void, ms: number) => {
-    const t = setTimeout(() => { timersRef.current.delete(t); fn(); }, ms);
-    timersRef.current.add(t);
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
   }, []);
 
-  // ── Conversation switch ──
+  // Check if last message is visible in viewport
+  const isLastMsgVisible = useCallback(() => {
+    const container = scrollRef.current;
+    const el = lastMsgRef.current;
+    if (!container || !el) return false;
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    // The bottom of the last message is within or above the viewport bottom
+    return elRect.bottom <= containerRect.bottom + 50;
+  }, []);
 
-  useLayoutEffect(() => {
-    if (activeConversationId === prevConvIdRef.current) return;
+  // ═══════════════════════════════════════════════════════════
+  //  CONVERSATION SWITCH
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    const convChanged = activeConversationId !== prevConvId.current;
+    prevConvId.current = activeConversationId;
+    if (!convChanged) return;
 
-    const wasNull = prevConvIdRef.current === null;
-    prevConvIdRef.current = activeConversationId;
-    userBrokePinRef.current = false;
-    clearTimers();
-
-    // Pin ONLY for genuinely new conversations (just created by user sending a message).
-    // Fresh messages have "user-" prefix IDs; loaded/existing ones have server IDs.
-    const isFreshNew = wasNull && messages.length === 1 && messages[0]?.id.startsWith("user-");
-
-    if (isFreshNew) {
-      pinGenRef.current++;
-      setPinned(true);
-      prevMsgLenRef.current = 0;
+    if (wasPinned.current) {
+      userDismissed.current = false;
+      const timers = [30, 100, 200].map(d => setTimeout(pinUserMsg, d));
+      return () => timers.forEach(clearTimeout);
     } else {
-      setPinned(false);
-      prevMsgLenRef.current = messages.length;
-      const el = scrollContainerRef.current;
-      if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+      wasPinned.current = false;
+      userDismissed.current = false;
+      setSpacerVisible(false);
+      setTimeout(scrollToBottom, 50);
     }
-  }, [activeConversationId, messages.length, clearTimers]);
+  }, [activeConversationId, spacerVisible, pinUserMsg, scrollToBottom]);
 
-  // ── New user message → pin ──
-
+  // ═══════════════════════════════════════════════════════════
+  //  MESSAGES LOADED ASYNC
+  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    const prevLen = prevMsgLenRef.current;
-    const curLen = messages.length;
-    prevMsgLenRef.current = curLen;
-    if (curLen <= prevLen) return;
-
-    const newMsg = messages[curLen - 1];
-    if (newMsg?.role === "user") {
-      clearTimers();
-      pinGenRef.current++;
-      setPinned(true);
-      userBrokePinRef.current = false;
+    if (wasPinned.current || spacerVisible) return;
+    if (messages.length > 0) {
+      setTimeout(scrollToBottom, 50);
     }
-  }, [messages.length, messages, clearTimers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length > 0]);
 
-  // ── Keep user message scrolled to top while pinned ──
-
+  // ═══════════════════════════════════════════════════════════
+  //  PIN ACTIVE → scroll user msg to top
+  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!pinned || userBrokePinRef.current) return;
-    const container = scrollContainerRef.current;
-    const el = lastUserMsgRef.current;
-    if (!container || !el) return;
+    if (!wasPinned.current || !hasFreshUserMsg) return;
+    const timers = [30, 100, 200].map(d =>
+      setTimeout(() => { if (wasPinned.current) pinUserMsg(); }, d)
+    );
+    return () => timers.forEach(clearTimeout);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFreshUserMsg, generating, messages.length, pinUserMsg]);
 
-    const raf = requestAnimationFrame(() => {
-      container.scrollTo({ top: el.offsetTop - 16, behavior: "instant" as ScrollBehavior });
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [pinned, isThinking, messages.length]);
-
-  // ── Unpin after response completes ──
-
+  // ═══════════════════════════════════════════════════════════
+  //  THINKING → re-pin
+  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!pinned) return;
-    // Don't unpin for pre-existing/loaded messages (ids without "asst-" prefix)
-    if (lastMsg?.role === "assistant" && !lastMsg.id.startsWith("asst-")) return;
-    // Wait for thinking AND streaming to both finish
-    if (isThinking || isStreaming) return;
-    if (lastMsg?.role !== "assistant") return;
+    if (!wasPinned.current || !isThinking) return;
+    setTimeout(pinUserMsg, 50);
+  }, [isThinking, pinUserMsg]);
 
-    const gen = pinGenRef.current;
+  // ═══════════════════════════════════════════════════════════
+  //  SCROLL HANDLER:
+  //  - Scroll UP → release pin, collapse spacer
+  //  - Scroll DOWN to last message → collapse spacer (new max)
+  // ═══════════════════════════════════════════════════════════
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const scrollTop = el.scrollTop;
 
-    // Delay before starting the release — let user read the response
-    schedule(() => {
-      if (pinGenRef.current !== gen) return;
-      const container = scrollContainerRef.current;
-      if (container) {
-        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    if (spacerVisible) {
+      // User scrolled UP → dismiss pin
+      if (wasPinned.current && scrollTop < lastScrollTop.current - 30) {
+        wasPinned.current = false;
+        userDismissed.current = true;
+        setSpacerVisible(false);
       }
-      // After scroll animation, remove spacer
-      schedule(() => {
-        if (pinGenRef.current !== gen) return;
-        setPinned(false);
-      }, 700);
-    }, 1500);
-
-    return () => clearTimers();
-  }, [isThinking, isStreaming, lastMsg?.role, lastMsg?.id, pinned, schedule, clearTimers]);
-
-  // ── Detect user scrolling away from pin ──
-
-  const handleScroll = useCallback(() => {
-    if (!pinned) return;
-    const container = scrollContainerRef.current;
-    const el = lastUserMsgRef.current;
-    if (!container || !el) return;
-
-    // If user scrolled significantly ABOVE the pinned position, release
-    if (container.scrollTop < el.offsetTop - 120) {
-      userBrokePinRef.current = true;
-      clearTimers();
-      setPinned(false);
+      // User scrolled DOWN to see the last message → collapse spacer
+      else if (scrollTop > lastScrollTop.current + 10 && !generating && isLastMsgVisible()) {
+        wasPinned.current = false;
+        userDismissed.current = true;
+        setSpacerVisible(false);
+      }
     }
-  }, [pinned, clearTimers]);
 
-  // ── Spacer height: fill remaining space so user msg can sit at top ──
+    lastScrollTop.current = scrollTop;
+  }, [spacerVisible, generating, isLastMsgVisible]);
 
-  const getSpacerHeight = () => {
-    const container = scrollContainerRef.current;
-    const el = lastUserMsgRef.current;
-    if (!container || !el) return "80vh";
-    const needed = container.clientHeight - el.offsetHeight - 48;
-    return `${Math.max(200, needed)}px`;
-  };
+  // ═══════════════════════════════════════════════════════════
+  //  GENERATION COMPLETE + last msg visible → auto-collapse
+  //  (handles case where response is short and fits on screen)
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!spacerVisible || generating) return;
+    // Check if the response is short enough that it's already visible
+    const t = setTimeout(() => {
+      if (isLastMsgVisible()) {
+        wasPinned.current = false;
+        userDismissed.current = true;
+        setSpacerVisible(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [generating, spacerVisible, isLastMsgVisible]);
 
   return (
     <div
-      ref={scrollContainerRef}
-      onScroll={handleScroll}
-      className="flex-1 overflow-y-auto"
+      ref={scrollRef}
+      onScroll={onScroll}
+      className="flex-1 min-h-0 overflow-y-auto"
     >
-      <div className="mx-auto max-w-3xl px-4 py-4">
+      <div className="mx-auto max-w-3xl px-4 pt-12 pb-4">
         {messages.map((message, index) => {
           const isLastAssistant =
             message.role === "assistant" && index === messages.length - 1;
-          const isNewMessage =
+          const isNewMsg =
             message.id.startsWith("user-") || message.id.startsWith("asst-");
 
           return (
             <div
               key={message.id}
-              ref={index === lastUserIdx ? lastUserMsgRef : undefined}
+              ref={
+                index === lastUserIdx
+                  ? userMsgRef
+                  : index === lastMsgIdx
+                  ? lastMsgRef
+                  : undefined
+              }
             >
               <MessageBubble
                 message={message}
-                isNew={isNewMessage}
+                isNew={isNewMsg}
                 isStreaming={isLastAssistant && message.id.startsWith("asst-")}
               />
             </div>
           );
         })}
+
         {isThinking && <ThinkingIndicator />}
-        {pinned && <div style={{ minHeight: getSpacerHeight() }} />}
+
+        {spacerVisible && <div className="shrink-0" style={{ minHeight: "60vh" }} aria-hidden="true" />}
+
+        <div ref={endRef} aria-hidden="true" />
       </div>
     </div>
   );

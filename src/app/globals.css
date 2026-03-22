@@ -218,83 +218,57 @@ textarea {
   animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Mira thinking star — three-layer animation */
-.mira-star-glow {
-  color: rgba(255, 255, 255, 0.12);
-  transform-origin: center;
-  animation:
-    mira-glow-rotate 8s cubic-bezier(0.4, 0, 0.6, 1) infinite,
-    mira-glow-breathe 3s ease-in-out infinite;
+/* Mira thinking orb — soft breathing light */
+.mira-orb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.15) 60%, transparent 100%);
+  animation: mira-orb-breathe 2s ease-in-out infinite;
+  position: absolute;
 }
 
-@keyframes mira-glow-rotate {
-  0% { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(-45deg) scale(1.3); }
-  50% { transform: rotate(-90deg) scale(1); }
-  75% { transform: rotate(-135deg) scale(1.2); }
-  100% { transform: rotate(-180deg) scale(1); }
+.mira-orb-ring {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  animation: mira-ring-expand 2s ease-in-out infinite;
+  position: absolute;
 }
 
-@keyframes mira-glow-breathe {
-  0%, 100% { opacity: 0.1; }
-  40% { opacity: 0.22; }
-  60% { opacity: 0.08; }
+@keyframes mira-orb-breathe {
+  0%, 100% {
+    transform: scale(0.8);
+    opacity: 0.4;
+    box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.06);
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+    box-shadow: 0 0 16px 4px rgba(255, 255, 255, 0.12);
+  }
 }
 
-.mira-star-echo {
-  color: rgba(255, 255, 255, 0.25);
-  transform-origin: center;
-  animation:
-    mira-echo-rotate 4s ease-in-out infinite,
-    mira-echo-twinkle 2.2s ease-in-out infinite;
-}
-
-@keyframes mira-echo-rotate {
-  0% { transform: rotate(0deg) scale(0.95); }
-  30% { transform: rotate(30deg) scale(1.1); }
-  70% { transform: rotate(60deg) scale(0.9); }
-  100% { transform: rotate(90deg) scale(0.95); }
-}
-
-@keyframes mira-echo-twinkle {
-  0%, 100% { opacity: 0.18; }
-  20% { opacity: 0.4; }
-  50% { opacity: 0.12; }
-  80% { opacity: 0.3; }
-}
-
-.mira-star-core {
-  color: rgba(255, 255, 255, 0.8);
-  transform-origin: center;
-  animation:
-    mira-core-wobble 5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite,
-    mira-core-pulse 2s ease-in-out infinite;
-}
-
-@keyframes mira-core-wobble {
-  0% { transform: rotate(0deg); }
-  15% { transform: rotate(12deg); }
-  30% { transform: rotate(-8deg); }
-  50% { transform: rotate(20deg); }
-  65% { transform: rotate(-5deg); }
-  80% { transform: rotate(15deg); }
-  100% { transform: rotate(0deg); }
-}
-
-@keyframes mira-core-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.7; }
-  35% { transform: scale(1.18); opacity: 1; }
-  65% { transform: scale(0.9); opacity: 0.6; }
+@keyframes mira-ring-expand {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.05;
+  }
 }
 
 .mira-thinking-text {
   color: rgba(255, 255, 255, 0.5);
-  animation: mira-text-fade 2.5s ease-in-out infinite;
+  animation: mira-text-fade 3s ease-in-out infinite;
 }
 
 @keyframes mira-text-fade {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.8; }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
 }
 
 /* Mira input container */

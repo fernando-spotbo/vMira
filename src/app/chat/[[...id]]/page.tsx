@@ -116,7 +116,7 @@ function ChatLayout() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#161616]">
       <Sidebar />
-      <main className="relative flex flex-1 flex-col min-w-0 h-full overflow-hidden">
+      <main className="relative flex flex-1 flex-col min-w-0 min-h-0 h-full overflow-hidden">
         <TopBar />
         {showChatView ? (
           <>

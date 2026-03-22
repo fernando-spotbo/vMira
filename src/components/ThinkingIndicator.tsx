@@ -1,76 +1,64 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { t } from "@/lib/i18n";
+import { useChat } from "@/context/ChatContext";
 
-const VESICA_V = "M12 1Q18.5 12 12 23Q5.5 12 12 1Z";
-const VESICA_H = "M1 12Q12 5.5 23 12Q12 18.5 1 12Z";
-
+/**
+ * Thinking/loading indicator — shows when Mira is processing.
+ *
+ * States:
+ * 1. Queue (queuePosition > 0): "In queue — position 3"
+ * 2. Thinking (no queue): animated orb + "Thinking..."
+ * 3. Long wait (>10s): shows elapsed time
+ */
 export default function ThinkingIndicator() {
+  const { queuePosition } = useChat();
   const [elapsed, setElapsed] = useState(0);
+  const [phase, setPhase] = useState(0);
 
   useEffect(() => {
     const start = Date.now();
     const timer = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
+      const secs = Math.floor((Date.now() - start) / 1000);
+      setElapsed(secs);
+      setPhase(Math.floor(secs / 3) % 3);
     }, 1000);
     return () => clearInterval(timer);
   }, []);
 
   const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`;
-    return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    if (seconds < 60) return `${seconds}с`;
+    return `${Math.floor(seconds / 60)}м ${seconds % 60}с`;
   };
 
+  const isQueued = queuePosition !== null && queuePosition > 0;
+
   return (
-    <div className="animate-fade-in-up py-4">
-      <div className="flex items-start gap-4">
-        {/* Layered animated star */}
-        <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
-          {/* Outer glow layer — slow counter-rotation, low opacity */}
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="absolute mira-star-glow"
-          >
-            <path d={VESICA_V} fill="currentColor" />
-            <path d={VESICA_H} fill="currentColor" />
-          </svg>
-
-          {/* Middle echo layer — offset timing, medium opacity */}
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="absolute mira-star-echo"
-          >
-            <path d={VESICA_V} fill="currentColor" />
-            <path d={VESICA_H} fill="currentColor" />
-          </svg>
-
-          {/* Core star — primary animation */}
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="relative mira-star-core"
-          >
-            <path d={VESICA_V} fill="currentColor" />
-            <path d={VESICA_H} fill="currentColor" />
-          </svg>
+    <div className="animate-fade-in-up py-1">
+      <div className="flex items-center gap-3">
+        {/* Animated orb */}
+        <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
+          <div className="mira-orb" />
+          <div className="mira-orb-ring" />
         </div>
 
-        <div className="flex items-center gap-2 pt-0.5">
-          <span className="text-[16px] font-medium mira-thinking-text">
-            {t("thinking.label")}
-            {elapsed > 0 && (
-              <span className="ml-1.5 text-white/40">{formatTime(elapsed)}</span>
-            )}
-          </span>
+        <div className="flex items-center gap-2">
+          {isQueued ? (
+            <span className="text-[14px] text-white/50">
+              <span className="text-white/70">В очереди</span>
+              <span className="mx-1.5 text-white/20">·</span>
+              <span>позиция {queuePosition}</span>
+            </span>
+          ) : (
+            <span className="text-[14px] text-white/50">
+              <span className="mira-thinking-text">
+                {phase === 0 ? "Думаю" : phase === 1 ? "Анализирую" : "Формулирую"}
+              </span>
+              {elapsed >= 5 && (
+                <span className="ml-1.5 text-white/25 tabular-nums">{formatTime(elapsed)}</span>
+              )}
+            </span>
+          )}
         </div>
       </div>
     </div>

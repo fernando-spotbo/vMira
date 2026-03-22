@@ -218,6 +218,23 @@ textarea {
   animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Mira avatar thinking — gentle rotation + pulse */
+.mira-avatar-thinking {
+  animation: mira-avatar-spin 3s cubic-bezier(0.4, 0, 0.6, 1) infinite,
+             mira-avatar-pulse 2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes mira-avatar-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes mira-avatar-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 /* Mira thinking orb — soft breathing light */
 .mira-orb {
   width: 10px;

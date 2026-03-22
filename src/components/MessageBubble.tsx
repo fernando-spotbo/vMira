@@ -19,10 +19,16 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
 }
 
-function AssistantAvatar() {
+function AssistantAvatar({ thinking = false }: { thinking?: boolean }) {
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08]">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-white">
+    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${thinking ? "bg-white/[0.12]" : "bg-white/[0.08]"}`}>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        className={`text-white ${thinking ? "mira-avatar-thinking" : ""}`}
+      >
         <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor"/>
         <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor"/>
       </svg>
@@ -280,14 +286,21 @@ export default function MessageBubble({
 
   const hasSteps = message.steps && message.steps.length > 0;
 
+  // Is this message in a "thinking" state? (empty content, fresh ID)
+  const isWaiting = !isUser && message.id.startsWith("asst-") && message.content.trim().length === 0;
+
   // Assistant message
   return (
     <div className={`group py-1 ${isNew ? "animate-fade-in-up" : ""}`}>
       <div className="flex items-start gap-4">
-        <AssistantAvatar />
+        <AssistantAvatar thinking={isWaiting} />
         <div className="flex-1 min-w-0">
           <div className="mb-1.5 text-[14px] font-semibold text-white">
-            Mira
+            {isWaiting ? (
+              <span className="mira-thinking-text">Думаю</span>
+            ) : (
+              "Mira"
+            )}
           </div>
 
           {hasSteps ? (

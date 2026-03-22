@@ -246,7 +246,7 @@ export default function ChatArea() {
           );
         })}
 
-        {isThinking && <ThinkingIndicator />}
+        {/* Thinking state is now shown inline in the assistant message bubble */}
 
         <div
           className="shrink-0"

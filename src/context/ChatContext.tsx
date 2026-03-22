@@ -16,9 +16,9 @@ import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-resp
 import * as chatApi from "@/lib/api-chat";
 import { getAccessToken } from "@/lib/api-client";
 
-// Live API only when both: env var set AND user has a token
+// Live API when user has a token (all requests go through /api/proxy)
 function useLiveApi() {
-  return !!(process.env.NEXT_PUBLIC_API_URL && getAccessToken());
+  return !!getAccessToken();
 }
 
 interface ChatContextType {

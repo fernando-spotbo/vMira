@@ -118,9 +118,23 @@ pub fn normalize_text(text: &str) -> String {
     }
 
     // 5. Collapse repeated characters (3+ → 2)
-    static RE_REPEAT: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(.)\1{2,}").unwrap());
-    s = RE_REPEAT.replace_all(&s, "$1$1").to_string();
+    // Rust regex doesn't support backreferences, so we do it manually
+    {
+        let mut collapsed = String::with_capacity(s.len());
+        let mut chars = s.chars().peekable();
+        while let Some(c) = chars.next() {
+            collapsed.push(c);
+            let mut count = 1;
+            while chars.peek() == Some(&c) {
+                chars.next();
+                count += 1;
+                if count <= 2 {
+                    collapsed.push(c);
+                }
+            }
+        }
+        s = collapsed;
+    }
 
     // 6. Leetspeak to Cyrillic
     let leet: &[(char, char)] = &[

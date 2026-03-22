@@ -175,8 +175,17 @@ pub fn stream_ai_response(
     }];
     full_messages.extend(messages);
 
+    // Map internal model names to upstream provider model names
+    let upstream_model = match model.as_str() {
+        "mira" => "deepseek-chat",
+        "mira-thinking" => "deepseek-reasoner",
+        "mira-pro" => "deepseek-chat",
+        "mira-max" => "deepseek-chat",
+        other => other,
+    };
+
     let body = json!({
-        "model": model,
+        "model": upstream_model,
         "messages": full_messages,
         "temperature": temperature,
         "max_tokens": max_tokens,

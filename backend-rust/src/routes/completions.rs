@@ -200,6 +200,9 @@ async fn chat_completions(
         .map(|m| ChatMessage {
             role: m.role.clone(),
             content: sanitize::sanitize_input(&m.content),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
         })
         .collect();
 
@@ -332,9 +335,9 @@ async fn chat_completions(
 
             loop {
                 tokio::select! {
-                    chunk_opt = ai_stream.next() => {
-                        match chunk_opt {
-                            Some(chunk) => {
+                    event_opt = ai_stream.next() => {
+                        match event_opt {
+                            Some(ai_proxy::AiEvent::Token(chunk)) => {
                                 if total_size + chunk.len() > MAX_RESPONSE_SIZE {
                                     tracing::warn!("AI response exceeded maximum size, truncating");
                                     break;
@@ -356,6 +359,8 @@ async fn chat_completions(
 
                                 yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));
                             }
+                            // Ignore search events in OpenAI-compatible endpoint
+                            Some(_) => {}
                             None => break,
                         }
                     }
@@ -545,12 +550,14 @@ async fn chat_completions(
 
         const MAX_RESPONSE_SIZE: usize = 256 * 1024;
         let mut full_content = String::new();
-        while let Some(chunk) = ai_stream.next().await {
-            if full_content.len() + chunk.len() > MAX_RESPONSE_SIZE {
-                tracing::warn!("AI response exceeded maximum size, truncating");
-                break;
+        while let Some(event) = ai_stream.next().await {
+            if let ai_proxy::AiEvent::Token(chunk) = event {
+                if full_content.len() + chunk.len() > MAX_RESPONSE_SIZE {
+                    tracing::warn!("AI response exceeded maximum size, truncating");
+                    break;
+                }
+                full_content.push_str(&chunk);
             }
-            full_content.push_str(&chunk);
         }
 
         let processing_duration_ms = processing_start.elapsed().as_millis() as i32;

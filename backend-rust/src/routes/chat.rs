@@ -563,6 +563,9 @@ async fn send_message(
         .map(|m| ChatMessage {
             role: m.role,
             content: m.content,
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
         })
         .collect();
 

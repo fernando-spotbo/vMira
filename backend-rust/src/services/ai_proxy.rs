@@ -1,6 +1,7 @@
-//! AI model proxy with streaming, SSRF protection, and retry logic.
+//! AI model proxy with tool calling (web search), SSRF protection, and retry logic.
 
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::Stream;
@@ -10,25 +11,64 @@ use serde_json::json;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::config::Config;
+use crate::services::search;
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-/// Default system prompt injected into every conversation.
-pub const MIRA_SYSTEM_PROMPT: &str = "Ты Мира. Думай кратко.";
+/// System prompt with search instructions.
+pub const MIRA_SYSTEM_PROMPT: &str = "\
+Ты Мира — умный AI-ассистент. Думай кратко.\n\
+Если пользователь задаёт вопрос о текущих событиях, новостях, ценах, погоде, \
+датах, фактах которые могли измениться, или о чём-то что ты не знаешь наверняка — \
+используй функцию web_search для поиска актуальной информации.\n\
+Когда используешь результаты поиска, отвечай на основе найденной информации.";
 
-/// Maximum retry attempts for upstream failures.
 const MAX_RETRIES: u32 = 2;
-
-/// Initial backoff duration (doubled on each retry).
 const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
+const MAX_SEARCH_RESULTS: usize = 6;
+
+// ── Event types ─────────────────────────────────────────────────────────────
+
+/// Events emitted by the AI proxy stream.
+#[derive(Debug, Clone)]
+pub enum AiEvent {
+    /// Text chunk from the model.
+    Token(String),
+    /// Search is being performed.
+    SearchStarted { query: String },
+    /// Search results arrived.
+    SearchResults {
+        query: String,
+        results: Vec<search::SearchResult>,
+    },
+}
 
 // ── Message types ───────────────────────────────────────────────────────────
 
-/// A single message in the chat completion request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub function: FunctionCall,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionCall {
+    pub name: String,
+    pub arguments: String,
 }
 
 // ── OpenAI-compatible response structures ───────────────────────────────────
@@ -41,37 +81,47 @@ struct ChatCompletionResponse {
 #[derive(Debug, Deserialize)]
 struct ChatChoice {
     message: ChatChoiceMessage,
+    finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ChatChoiceMessage {
     content: Option<String>,
+    tool_calls: Option<Vec<ToolCall>>,
 }
 
-// ── SSE (Server-Sent Events) streaming structures ───────────────────────────
+// ── Search tool arguments ──────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
-struct StreamChunk {
-    choices: Vec<StreamChoice>,
+struct SearchArgs {
+    query: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct StreamChoice {
-    delta: StreamDelta,
-}
+// ── Tool definition ────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-struct StreamDelta {
-    content: Option<String>,
+fn web_search_tool() -> serde_json::Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for current information. Use when the user asks about recent events, news, prices, weather, dates, facts that may have changed, or anything you're not certain about.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query in the language most appropriate for the question"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    })
 }
 
 // ── Thinking parser ─────────────────────────────────────────────────────────
 
-/// Parse `<think>…</think>` blocks from the AI response.
-///
-/// Returns `(thinking_content, visible_content)`.
 pub fn parse_thinking(content: &str) -> (Option<String>, String) {
-    // Find the opening tag
     let Some(start) = content.find("<think>") else {
         return (None, content.to_string());
     };
@@ -79,14 +129,9 @@ pub fn parse_thinking(content: &str) -> (Option<String>, String) {
     let after_tag = start + "<think>".len();
 
     let Some(end) = content[after_tag..].find("</think>") else {
-        // Unclosed tag — treat everything after <think> as thinking
         let thinking = content[after_tag..].trim().to_string();
         let visible = content[..start].trim().to_string();
-        let thinking = if thinking.is_empty() {
-            None
-        } else {
-            Some(thinking)
-        };
+        let thinking = if thinking.is_empty() { None } else { Some(thinking) };
         return (thinking, visible);
     };
 
@@ -94,26 +139,16 @@ pub fn parse_thinking(content: &str) -> (Option<String>, String) {
     let after_close = after_tag + end + "</think>".len();
     let before = &content[..start];
     let after = &content[after_close..];
-    let visible = format!("{}{}", before.trim(), after.trim())
-        .trim()
-        .to_string();
-
-    let thinking = if think_text.is_empty() {
-        None
-    } else {
-        Some(think_text)
-    };
-
+    let visible = format!("{}{}", before.trim(), after.trim()).trim().to_string();
+    let thinking = if think_text.is_empty() { None } else { Some(think_text) };
     (thinking, visible)
 }
 
 // ── SSRF protection ─────────────────────────────────────────────────────────
 
-/// Validate that the target URL's host is in the allow-list, scheme is safe, and port is standard.
 fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
     let parsed = Url::parse(url).map_err(|e| format!("Некорректный URL модели: {e}"))?;
 
-    // Scheme check: only allow HTTPS in production (HTTP allowed in debug/dev mode)
     let scheme = parsed.scheme();
     if cfg!(debug_assertions) {
         if scheme != "https" && scheme != "http" {
@@ -123,59 +158,105 @@ fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
         return Err(format!("Разрешена только HTTPS-схема, получена: {scheme}"));
     }
 
-    // Port check: block non-standard ports
     if let Some(port) = parsed.port() {
         if port != 443 && port != 80 {
             return Err(format!("Нестандартный порт запрещён: {port}"));
         }
     }
 
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| "URL модели не содержит хост".to_string())?;
+    let host = parsed.host_str().ok_or_else(|| "URL модели не содержит хост".to_string())?;
 
     if allowed_hosts.is_empty() {
-        // No allow-list configured — permit all (dev mode).
         return Ok(());
     }
 
     if allowed_hosts.iter().any(|h| h == host) {
         Ok(())
     } else {
-        Err(format!(
-            "Хост «{host}» не входит в список разрешённых для AI-модели"
-        ))
+        Err(format!("Хост «{host}» не входит в список разрешённых для AI-модели"))
     }
 }
 
-// ── Streaming proxy ─────────────────────────────────────────────────────────
+// ── API call helper ─────────────────────────────────────────────────────────
 
-/// Stream AI responses from the upstream model.
-///
-/// This performs a non-streaming POST to the upstream API (simpler to handle
-/// with retries), parses `<think>` blocks, and yields the visible text as a
-/// single-item stream.  Extend to true SSE streaming when needed.
+async fn call_model(
+    client: &reqwest::Client,
+    url: &str,
+    api_key: &str,
+    body: &serde_json::Value,
+) -> Result<ChatCompletionResponse, String> {
+    let mut attempt = 0u32;
+    let mut backoff = INITIAL_BACKOFF;
+
+    loop {
+        let result = client
+            .post(url)
+            .header("Authorization", format!("Bearer {api_key}"))
+            .header("Content-Type", "application/json")
+            .json(body)
+            .timeout(Duration::from_secs(120))
+            .send()
+            .await;
+
+        match result {
+            Ok(resp) if resp.status().is_success() => {
+                return resp.json::<ChatCompletionResponse>().await
+                    .map_err(|e| format!("Failed to parse AI response: {e}"));
+            }
+            Ok(resp) => {
+                let status = resp.status();
+                let body_text = resp.text().await.unwrap_or_default();
+                tracing::warn!(status = %status, body = %body_text, attempt = attempt + 1, "upstream AI non-success");
+
+                if attempt < MAX_RETRIES {
+                    attempt += 1;
+                    tokio::time::sleep(backoff).await;
+                    backoff *= 2;
+                    continue;
+                }
+                return Err(format!("Модель вернула статус {status}. Попробуйте позже."));
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, attempt = attempt + 1, "upstream AI request failed");
+                if attempt < MAX_RETRIES {
+                    attempt += 1;
+                    tokio::time::sleep(backoff).await;
+                    backoff *= 2;
+                    continue;
+                }
+                return Err("Не удалось связаться с моделью. Попробуйте позже.".to_string());
+            }
+        }
+    }
+}
+
+// ── Streaming proxy with tool calling ──────────────────────────────────────
+
 pub fn stream_ai_response(
     messages: Vec<ChatMessage>,
     model: String,
     temperature: f64,
     max_tokens: u32,
     config: &Config,
-) -> Pin<Box<dyn Stream<Item = String> + Send>> {
+) -> Pin<Box<dyn Stream<Item = AiEvent> + Send>> {
     let url = format!("{}/chat/completions", config.ai_model_url);
     let api_key = config.ai_model_api_key.clone();
     let allowed_hosts = config.ai_model_allowed_hosts.clone();
+    let config = Arc::new(config.clone());
 
-    let (tx, rx) = tokio::sync::mpsc::channel::<String>(32);
+    let (tx, rx) = tokio::sync::mpsc::channel::<AiEvent>(32);
 
-    // Build the full message list with system prompt.
-    let mut full_messages = vec![ChatMessage {
-        role: "system".to_string(),
-        content: MIRA_SYSTEM_PROMPT.to_string(),
-    }];
-    full_messages.extend(messages);
+    let mut full_messages: Vec<serde_json::Value> = vec![json!({
+        "role": "system",
+        "content": MIRA_SYSTEM_PROMPT,
+    })];
+    for m in &messages {
+        full_messages.push(json!({
+            "role": m.role,
+            "content": m.content,
+        }));
+    }
 
-    // Map internal model names to upstream provider model names
     let upstream_model = match model.as_str() {
         "mira" => "deepseek-chat",
         "mira-thinking" => "deepseek-reasoner",
@@ -183,24 +264,15 @@ pub fn stream_ai_response(
         "mira-max" => "deepseek-chat",
         other => other,
     };
+    let upstream_model = upstream_model.to_string();
 
-    let body = json!({
-        "model": upstream_model,
-        "messages": full_messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "stream": false,
-    });
+    // Tool calling is only supported on deepseek-chat (not deepseek-reasoner)
+    let supports_tools = upstream_model == "deepseek-chat";
 
     tokio::spawn(async move {
-        // SSRF check
         if let Err(e) = validate_host(&url, &allowed_hosts) {
             tracing::error!(error = %e, "SSRF protection triggered");
-            let _ = tx
-                .send(format!(
-                    "Ошибка безопасности: {e}"
-                ))
-                .await;
+            let _ = tx.send(AiEvent::Token(format!("Ошибка безопасности: {e}"))).await;
             return;
         }
 
@@ -209,87 +281,129 @@ pub fn stream_ai_response(
             .build()
             .expect("Failed to build HTTP client");
 
-        let mut attempt = 0u32;
-        let mut backoff = INITIAL_BACKOFF;
+        // ── First call (with tools if supported) ────────────────
+        let mut body = json!({
+            "model": upstream_model,
+            "messages": full_messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": false,
+        });
 
-        loop {
-            let result = client
-                .post(&url)
-                .header("Authorization", format!("Bearer {api_key}"))
-                .header("Content-Type", "application/json")
-                .json(&body)
-                .timeout(Duration::from_secs(120))
-                .send()
-                .await;
+        if supports_tools {
+            body["tools"] = json!([web_search_tool()]);
+        }
 
-            match result {
-                Ok(resp) if resp.status().is_success() => {
-                    match resp.json::<ChatCompletionResponse>().await {
-                        Ok(data) => {
-                            let raw_content = data
-                                .choices
-                                .first()
-                                .and_then(|c| c.message.content.as_deref())
-                                .unwrap_or("");
-
-                            let (_thinking, visible) = parse_thinking(raw_content);
-                            let _ = tx.send(visible).await;
-                        }
-                        Err(e) => {
-                            tracing::error!(error = %e, "failed to parse AI response");
-                            let _ = tx
-                                .send(
-                                    "Ошибка: не удалось обработать ответ от модели."
-                                        .to_string(),
-                                )
-                                .await;
-                        }
-                    }
-                    return;
-                }
-                Ok(resp) => {
-                    let status = resp.status();
-                    let body_text = resp.text().await.unwrap_or_default();
-                    tracing::warn!(
-                        status = %status,
-                        body = %body_text,
-                        attempt = attempt + 1,
-                        "upstream AI returned non-success status"
-                    );
-
-                    if attempt < MAX_RETRIES {
-                        attempt += 1;
-                        tokio::time::sleep(backoff).await;
-                        backoff *= 2;
-                        continue;
-                    }
-
-                    let _ = tx
-                        .send(format!(
-                            "Ошибка: модель вернула статус {status}. Попробуйте позже."
-                        ))
-                        .await;
-                    return;
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, attempt = attempt + 1, "upstream AI request failed");
-
-                    if attempt < MAX_RETRIES {
-                        attempt += 1;
-                        tokio::time::sleep(backoff).await;
-                        backoff *= 2;
-                        continue;
-                    }
-
-                    let _ = tx
-                        .send(
-                            "Ошибка: не удалось связаться с моделью. Попробуйте позже."
-                                .to_string(),
-                        )
-                        .await;
-                    return;
-                }
+        let data = match call_model(&client, &url, &api_key, &body).await {
+            Ok(d) => d,
+            Err(e) => {
+                let _ = tx.send(AiEvent::Token(format!("Ошибка: {e}"))).await;
+                return;
             }
+        };
+
+        let choice = match data.choices.first() {
+            Some(c) => c,
+            None => {
+                let _ = tx.send(AiEvent::Token("Модель не ответила.".to_string())).await;
+                return;
+            }
+        };
+
+        // ── Check for tool calls ────────────────────────────────
+        if let Some(tool_calls) = &choice.message.tool_calls {
+            for tc in tool_calls {
+                if tc.function.name != "web_search" {
+                    continue;
+                }
+
+                let args: SearchArgs = match serde_json::from_str(&tc.function.arguments) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to parse search args");
+                        continue;
+                    }
+                };
+
+                // Emit search started event
+                let _ = tx.send(AiEvent::SearchStarted { query: args.query.clone() }).await;
+
+                // Execute search
+                let search_result = search::web_search(&args.query, MAX_SEARCH_RESULTS, &config).await;
+
+                let (search_content, results_for_event) = match search_result {
+                    Ok(sr) => {
+                        let content = sr.results.iter().enumerate().map(|(i, r)| {
+                            format!("{}. {} — {}\n   {}", i + 1, r.title, r.url, r.content)
+                        }).collect::<Vec<_>>().join("\n\n");
+                        let results = sr.results.clone();
+                        (content, results)
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Web search failed");
+                        (format!("Search failed: {e}"), vec![])
+                    }
+                };
+
+                // Emit search results event
+                let _ = tx.send(AiEvent::SearchResults {
+                    query: args.query.clone(),
+                    results: results_for_event,
+                }).await;
+
+                // ── Second call with tool results ───────────────
+                // Add assistant message with tool_calls
+                full_messages.push(json!({
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [{
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": tc.function.arguments
+                        }
+                    }]
+                }));
+
+                // Add tool result message
+                full_messages.push(json!({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": search_content
+                }));
+            }
+
+            // Make the second API call without tools (just generate the response)
+            let body2 = json!({
+                "model": upstream_model,
+                "messages": full_messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": false,
+            });
+
+            let data2 = match call_model(&client, &url, &api_key, &body2).await {
+                Ok(d) => d,
+                Err(e) => {
+                    let _ = tx.send(AiEvent::Token(format!("Ошибка: {e}"))).await;
+                    return;
+                }
+            };
+
+            let raw_content = data2
+                .choices
+                .first()
+                .and_then(|c| c.message.content.as_deref())
+                .unwrap_or("");
+
+            let (_thinking, visible) = parse_thinking(raw_content);
+            let _ = tx.send(AiEvent::Token(visible)).await;
+        } else {
+            // No tool calls — direct response
+            let raw_content = choice.message.content.as_deref().unwrap_or("");
+            let (_thinking, visible) = parse_thinking(raw_content);
+            let _ = tx.send(AiEvent::Token(visible)).await;
         }
     });
 

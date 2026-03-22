@@ -10,7 +10,7 @@ import {
   useRef,
   ReactNode,
 } from "react";
-import { Conversation, Message, Attachment } from "@/lib/types";
+import { Conversation, Message, Attachment, MessageStep, SearchQuery } from "@/lib/types";
 import { mockConversations } from "@/lib/mock-data";
 import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
 import * as chatApi from "@/lib/api-chat";
@@ -341,6 +341,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         try {
           let fullContent = "";
           let streamingStarted = false;
+          const searches: SearchQuery[] = [];
+          let currentSearchQuery = "";
 
           const ALLOWED_MODELS = ["mira", "mira-thinking"];
           const modelName = selectedModel.toLowerCase().replace(/\s+/g, "-");
@@ -349,31 +351,88 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           for await (const event of chatApi.streamMessage(convId, content, safeModel, controller.signal)) {
             switch (event.type) {
               case "queue":
-                // Show queue position — user sees their place in line
                 setQueuePosition(event.position);
                 setIsThinking(true);
                 break;
 
               case "processing":
-                // GPU slot acquired — switch from "queued" to "thinking"
                 setQueuePosition(null);
                 setIsThinking(true);
                 break;
 
+              case "search":
+                // Model is searching the web
+                currentSearchQuery = event.query;
+                setIsThinking(true);
+                break;
+
+              case "search_results":
+                // Search results arrived — store for display
+                searches.push({
+                  query: event.query,
+                  resultCount: event.results.length,
+                  results: event.results.map((r) => ({
+                    title: r.title,
+                    domain: r.domain,
+                    url: r.url,
+                  })),
+                });
+                // Update the message to show search results while waiting for response
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === convId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === asstId
+                              ? {
+                                  ...m,
+                                  steps: [
+                                    { type: "reasoning" as const, summary: `Искал: ${event.query}`, searches: [...searches] },
+                                  ],
+                                }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
+                break;
+
               case "token":
-                // First token: switch from thinking to streaming
                 if (!streamingStarted) {
                   streamingStarted = true;
                   setIsThinking(false);
                   setIsStreaming(true);
                 }
                 fullContent += event.content;
-                // Update message content — batched by React, no extra re-renders
-                updateMessageContent(convId!, asstId, fullContent);
+                // Update message: include steps (search) + content
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === convId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === asstId
+                              ? {
+                                  ...m,
+                                  content: fullContent,
+                                  steps: searches.length > 0
+                                    ? [
+                                        { type: "reasoning" as const, summary: `Искал: ${searches.map(s => s.query).join(", ")}`, searches: [...searches] },
+                                        { type: "text" as const, content: fullContent },
+                                      ]
+                                    : undefined,
+                                }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
                 break;
 
               case "done":
-                // Stream complete
                 break;
 
               case "error":

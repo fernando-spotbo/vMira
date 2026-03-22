@@ -793,9 +793,9 @@ async fn send_message(
 
         loop {
             tokio::select! {
-                chunk_opt = ai_stream.next() => {
-                    match chunk_opt {
-                        Some(chunk) => {
+                event_opt = ai_stream.next() => {
+                    match event_opt {
+                        Some(ai_proxy::AiEvent::Token(chunk)) => {
                             if full_content.len() + chunk.len() > MAX_RESPONSE_SIZE {
                                 tracing::warn!("AI response exceeded maximum size, truncating");
                                 break;
@@ -804,6 +804,26 @@ async fn send_message(
                             let event_data = serde_json::json!({
                                 "type": "token",
                                 "content": chunk,
+                            });
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                        }
+                        Some(ai_proxy::AiEvent::SearchStarted { query }) => {
+                            let event_data = serde_json::json!({
+                                "type": "search",
+                                "query": query,
+                            });
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                        }
+                        Some(ai_proxy::AiEvent::SearchResults { query, results }) => {
+                            let event_data = serde_json::json!({
+                                "type": "search_results",
+                                "query": query,
+                                "results": results.iter().map(|r| serde_json::json!({
+                                    "title": r.title,
+                                    "url": r.url,
+                                    "domain": r.domain,
+                                    "content": r.content,
+                                })).collect::<Vec<_>>(),
                             });
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
                         }

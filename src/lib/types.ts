@@ -1,6 +1,7 @@
 export interface SearchResult {
   title: string;
   domain: string;
+  url?: string;
 }
 
 export interface SearchQuery {

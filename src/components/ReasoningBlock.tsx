@@ -55,11 +55,14 @@ export default function ReasoningBlock({ summary, thinking, searches }: Reasonin
               {q.results.length > 0 && (
                 <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-[160px] overflow-y-auto">
                   {q.results.map((r, ri) => (
-                    <div
+                    <a
                       key={ri}
+                      href={r.url || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={`flex items-center justify-between px-4 py-2.5 text-[14px] ${
                         ri < q.results.length - 1 ? "border-b border-white/[0.04]" : ""
-                      } hover:bg-white/[0.03] transition-colors cursor-pointer`}
+                      } hover:bg-white/[0.03] transition-colors cursor-pointer no-underline`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-white/[0.06] text-[10px] text-white/40 font-medium">
@@ -68,7 +71,7 @@ export default function ReasoningBlock({ summary, thinking, searches }: Reasonin
                         <span className="text-white/70 truncate">{r.title}</span>
                       </div>
                       <span className="text-[13px] text-white/30 ml-3 shrink-0">{r.domain}</span>
-                    </div>
+                    </a>
                   ))}
                 </div>
               )}

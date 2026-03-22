@@ -74,10 +74,19 @@ export async function deleteConversation(id: string): Promise<boolean> {
 
 // ---- SSE Event Types ----
 
+export interface SearchResultItem {
+  title: string;
+  url: string;
+  domain: string;
+  content: string;
+}
+
 export type StreamEvent =
   | { type: "queue"; position: number; estimated_wait: number }
   | { type: "processing" }
   | { type: "token"; content: string }
+  | { type: "search"; query: string }
+  | { type: "search_results"; query: string; results: SearchResultItem[] }
   | { type: "done"; usage?: { input_tokens: number; output_tokens: number; total_tokens: number; cost_microcents: number } }
   | { type: "error"; message: string };
 
@@ -156,12 +165,16 @@ export async function* streamMessage(
           // Try to parse as JSON event (new format)
           try {
             const parsed = JSON.parse(data);
-            const validTypes = ["queue", "processing", "token", "done", "error"];
+            const validTypes = ["queue", "processing", "token", "search", "search_results", "done", "error"];
             if (parsed && typeof parsed.type === "string" && validTypes.includes(parsed.type)) {
               const event: StreamEvent = parsed.type === "token"
                 ? { type: "token", content: String(parsed.content || "") }
                 : parsed.type === "queue"
                 ? { type: "queue", position: Number(parsed.position || 0), estimated_wait: Number(parsed.estimated_wait || 0) }
+                : parsed.type === "search"
+                ? { type: "search", query: String(parsed.query || "") }
+                : parsed.type === "search_results"
+                ? { type: "search_results", query: String(parsed.query || ""), results: parsed.results || [] }
                 : parsed.type === "done"
                 ? { type: "done", usage: parsed.usage }
                 : parsed.type === "error"

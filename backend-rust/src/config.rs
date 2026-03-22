@@ -57,6 +57,9 @@ pub struct Config {
     // ── File uploads ─────────────────────────────────────────
     pub upload_dir: String,
     pub max_upload_size: usize, // bytes
+
+    // ── Web search (SearXNG) ────────────────────────────────
+    pub searxng_url: String,
 }
 
 impl Config {
@@ -160,6 +163,8 @@ impl Config {
             max_upload_size: env_or("MAX_UPLOAD_SIZE", "10485760")
                 .parse()
                 .unwrap_or(10 * 1024 * 1024), // 10MB
+
+            searxng_url: env_or("SEARXNG_URL", "http://127.0.0.1:8888"),
         }
     }
 }

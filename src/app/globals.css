@@ -218,21 +218,40 @@ textarea {
   animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Mira avatar thinking — gentle rotation + pulse */
-.mira-avatar-thinking {
-  animation: mira-avatar-spin 3s cubic-bezier(0.4, 0, 0.6, 1) infinite,
-             mira-avatar-pulse 2s ease-in-out infinite;
-  transform-origin: center;
+/* Mira avatar thinking — organic drift + breathe */
+@keyframes mira-star-drift {
+  0%   { transform: rotate(0deg) scale(1); }
+  25%  { transform: rotate(90deg) scale(1.08); }
+  50%  { transform: rotate(180deg) scale(0.95); }
+  75%  { transform: rotate(270deg) scale(1.05); }
+  100% { transform: rotate(360deg) scale(1); }
 }
 
-@keyframes mira-avatar-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes mira-avatar-pulse {
-  0%, 100% { opacity: 0.6; }
+@keyframes mira-star-breathe {
+  0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
+}
+
+@keyframes mira-ring-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+}
+
+/* Thinking label — fade + animated dots */
+.mira-thinking-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.mira-thinking-dots::after {
+  content: "";
+  animation: mira-dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes mira-dots {
+  0%  { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
 }
 
 /* Mira thinking orb — soft breathing light */

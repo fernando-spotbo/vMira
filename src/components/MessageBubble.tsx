@@ -21,17 +21,34 @@ interface MessageBubbleProps {
 
 function AssistantAvatar({ thinking = false }: { thinking?: boolean }) {
   return (
-    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${thinking ? "bg-white/[0.12]" : "bg-white/[0.08]"}`}>
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        className={`text-white ${thinking ? "mira-avatar-thinking" : ""}`}
-      >
-        <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor"/>
-        <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor"/>
-      </svg>
+    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+      {/* Outer glow ring — visible only during thinking */}
+      <div
+        className="absolute inset-0 rounded-full transition-opacity duration-500"
+        style={{
+          opacity: thinking ? 1 : 0,
+          background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)",
+          animation: thinking ? "mira-ring-breathe 2.5s ease-in-out infinite" : "none",
+        }}
+      />
+      {/* Avatar circle */}
+      <div className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-500 ${thinking ? "bg-white/[0.14]" : "bg-white/[0.08]"}`}>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          className="transition-all duration-500"
+          style={{
+            color: thinking ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.8)",
+            animation: thinking ? "mira-star-drift 4s cubic-bezier(0.45, 0, 0.55, 1) infinite, mira-star-breathe 2s ease-in-out infinite" : "none",
+            transformOrigin: "center",
+          }}
+        >
+          <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor"/>
+          <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor"/>
+        </svg>
+      </div>
     </div>
   );
 }
@@ -295,12 +312,27 @@ export default function MessageBubble({
       <div className="flex items-start gap-4">
         <AssistantAvatar thinking={isWaiting} />
         <div className="flex-1 min-w-0">
-          <div className="mb-1.5 text-[14px] font-semibold text-white">
-            {isWaiting ? (
-              <span className="mira-thinking-text">Думаю</span>
-            ) : (
-              "Mira"
-            )}
+          <div className="mb-1.5 text-[14px] font-semibold text-white relative overflow-hidden">
+            <span
+              className="inline-block transition-all duration-400"
+              style={{
+                opacity: isWaiting ? 0 : 1,
+                transform: isWaiting ? "translateY(-8px)" : "translateY(0)",
+              }}
+            >
+              Mira
+            </span>
+            <span
+              className="absolute left-0 top-0 mira-thinking-label"
+              style={{
+                opacity: isWaiting ? 1 : 0,
+                transform: isWaiting ? "translateY(0)" : "translateY(8px)",
+                transition: "opacity 400ms ease, transform 400ms ease",
+              }}
+            >
+              Думаю
+              <span className="mira-thinking-dots" />
+            </span>
           </div>
 
           {hasSteps ? (

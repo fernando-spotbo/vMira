@@ -67,8 +67,11 @@ export default function ChatArea() {
     state.current.pinTimestamp = Date.now();
     const cRect = container.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
-    const target = container.scrollTop + (eRect.top - cRect.top) - 12;
-    container.scrollTo({ top: target, behavior: "instant" });
+    // Pin the user message ~15% from the top of the viewport
+    // This accounts for TopBar height and works across screen sizes
+    const topOffset = cRect.height * 0.08;
+    const target = container.scrollTop + (eRect.top - cRect.top) - topOffset;
+    container.scrollTo({ top: Math.max(0, target), behavior: "instant" });
 
     // Unlock after browser processes the scroll
     requestAnimationFrame(() => {
@@ -247,8 +250,11 @@ export default function ChatArea() {
         {isThinking && <ThinkingIndicator />}
 
         <div
-          className="shrink-0 transition-[min-height] duration-300 ease-out"
-          style={{ minHeight: spacer ? "60vh" : "0px" }}
+          className="shrink-0"
+          style={{
+            minHeight: spacer ? "60vh" : "0px",
+            transition: spacer ? "none" : "min-height 300ms ease-out",
+          }}
           aria-hidden="true"
         />
       </div>

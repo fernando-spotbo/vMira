@@ -68,5 +68,8 @@ thiserror = "2"
 # Cancellation
 tokio-util = { version = "0.7", features = ["rt"] }
 
+# Image processing (resize + WebP compression for uploads)
+image = "0.25"
+
 # Memory safety
 zeroize = "1"

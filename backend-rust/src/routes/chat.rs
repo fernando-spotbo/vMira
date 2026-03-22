@@ -78,6 +78,35 @@ fn msg_response(m: &Message) -> MessageResponse {
         input_tokens: m.input_tokens,
         output_tokens: m.output_tokens,
         model: m.model.clone(),
+        attachments: None,
+        created_at: m.created_at,
+    }
+}
+
+fn msg_response_with_attachments(m: &Message, attachments: Vec<crate::models::Attachment>) -> MessageResponse {
+    let att_briefs: Vec<crate::schema::AttachmentBrief> = attachments
+        .into_iter()
+        .map(|a| crate::schema::AttachmentBrief {
+            id: a.id,
+            filename: a.filename,
+            original_filename: a.original_filename,
+            mime_type: a.mime_type.clone(),
+            size_bytes: a.size_bytes,
+            width: a.width,
+            height: a.height,
+            url: format!("/api/v1/attachments/{}", a.id),
+        })
+        .collect();
+
+    MessageResponse {
+        id: m.id,
+        role: m.role.clone(),
+        content: m.content.clone(),
+        steps: m.steps.clone(),
+        input_tokens: m.input_tokens,
+        output_tokens: m.output_tokens,
+        model: m.model.clone(),
+        attachments: if att_briefs.is_empty() { None } else { Some(att_briefs) },
         created_at: m.created_at,
     }
 }
@@ -217,6 +246,31 @@ async fn get_conversation(
     .fetch_all(&state.db)
     .await?;
 
+    // Load attachments for all messages in this conversation in one query
+    let attachments = sqlx::query_as::<_, crate::models::Attachment>(
+        "SELECT * FROM attachments WHERE conversation_id = $1 ORDER BY created_at ASC"
+    )
+    .bind(conv_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Group attachments by message_id
+    let mut att_by_msg: std::collections::HashMap<uuid::Uuid, Vec<crate::models::Attachment>> =
+        std::collections::HashMap::new();
+    for a in attachments {
+        if let Some(mid) = a.message_id {
+            att_by_msg.entry(mid).or_default().push(a);
+        }
+    }
+
+    let msg_responses: Vec<MessageResponse> = messages
+        .iter()
+        .map(|m| {
+            let atts = att_by_msg.remove(&m.id).unwrap_or_default();
+            msg_response_with_attachments(m, atts)
+        })
+        .collect();
+
     Ok(Json(ConversationWithMessages {
         id: conv.id,
         title: conv.title,
@@ -225,7 +279,7 @@ async fn get_conversation(
         archived: conv.archived,
         created_at: conv.created_at,
         updated_at: conv.updated_at,
-        messages: messages.iter().map(msg_response).collect(),
+        messages: msg_responses,
     }))
 }
 

@@ -53,6 +53,10 @@ pub struct Config {
     // ── YooKassa payment ──────────────────────────────────────
     pub yookassa_shop_id: String,
     pub yookassa_secret_key: String,
+
+    // ── File uploads ─────────────────────────────────────────
+    pub upload_dir: String,
+    pub max_upload_size: usize, // bytes
 }
 
 impl Config {
@@ -151,6 +155,11 @@ impl Config {
 
             yookassa_shop_id: env_or("YOOKASSA_SHOP_ID", ""),
             yookassa_secret_key: env_or("YOOKASSA_SECRET_KEY", ""),
+
+            upload_dir: env_or("UPLOAD_DIR", "/opt/mira/uploads"),
+            max_upload_size: env_or("MAX_UPLOAD_SIZE", "10485760")
+                .parse()
+                .unwrap_or(10 * 1024 * 1024), // 10MB
         }
     }
 }

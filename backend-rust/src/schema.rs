@@ -174,6 +174,18 @@ pub struct ConversationUpdate {
 }
 
 #[derive(Debug, Serialize)]
+pub struct AttachmentBrief {
+    pub id: Uuid,
+    pub filename: String,
+    pub original_filename: String,
+    pub mime_type: String,
+    pub size_bytes: i64,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct MessageResponse {
     pub id: Uuid,
     pub role: String,
@@ -186,6 +198,8 @@ pub struct MessageResponse {
     pub output_tokens: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<AttachmentBrief>>,
     pub created_at: DateTime<Utc>,
 }
 

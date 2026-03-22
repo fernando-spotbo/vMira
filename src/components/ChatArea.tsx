@@ -3,7 +3,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { useChat } from "@/context/ChatContext";
 import MessageBubble from "./MessageBubble";
-import ThinkingIndicator from "./ThinkingIndicator";
 
 /**
  * ChatArea scroll — clean implementation.

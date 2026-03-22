@@ -23,6 +23,21 @@ export interface TextBlock {
 
 export type MessageStep = ReasoningBlock | TextBlock;
 
+export interface Attachment {
+  id: string;
+  filename: string;
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  width?: number;
+  height?: number;
+  url: string;
+  /** Client-side only: local preview URL before upload completes */
+  previewUrl?: string;
+  /** Client-side only: upload progress 0-100 */
+  progress?: number;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -30,6 +45,7 @@ export interface Message {
   versions?: string[];
   versionIndex?: number;
   steps?: MessageStep[];
+  attachments?: Attachment[];
 }
 
 export interface Conversation {

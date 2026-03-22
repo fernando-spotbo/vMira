@@ -10,11 +10,11 @@ import {
   useRef,
   ReactNode,
 } from "react";
-import { Conversation, Message } from "@/lib/types";
+import { Conversation, Message, Attachment } from "@/lib/types";
 import { mockConversations } from "@/lib/mock-data";
 import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
 import * as chatApi from "@/lib/api-chat";
-import { getAccessToken } from "@/lib/api-client";
+import { getAccessToken, uploadFile } from "@/lib/api-client";
 
 // Live API when user has a token (all requests go through /api/proxy)
 function useLiveApi() {
@@ -42,6 +42,10 @@ interface ChatContextType {
   renameConversation: (id: string, title: string) => void;
   deleteConversation: (id: string) => void;
   starConversation: (id: string) => void;
+  pendingFiles: File[];
+  setPendingFiles: (files: File[]) => void;
+  addPendingFiles: (files: File[]) => void;
+  removePendingFile: (index: number) => void;
   sendMessage: (content: string) => Promise<void>;
   cancelMessage: () => void;
 }
@@ -60,6 +64,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
@@ -102,6 +107,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   role: m.role,
                   content: m.content,
                   steps: m.steps ?? undefined,
+                  attachments: m.attachments?.map((a) => ({
+                    id: a.id,
+                    filename: a.filename,
+                    original_filename: a.original_filename,
+                    mime_type: a.mime_type,
+                    size_bytes: a.size_bytes,
+                    width: a.width ?? undefined,
+                    height: a.height ?? undefined,
+                    url: a.url,
+                  })) ?? undefined,
                 })),
               }
             : c
@@ -112,6 +127,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [activeConversationId]);
 
   const toggleSidebar = useCallback(() => setSidebarOpen((prev) => !prev), []);
+
+  const addPendingFiles = useCallback((files: File[]) => {
+    setPendingFiles((prev) => [...prev, ...files]);
+  }, []);
+
+  const removePendingFile = useCallback((index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const createNewChat = useCallback(() => {
     // Don't create a conversation object — just go to empty state.
@@ -242,8 +265,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const isLive = useLiveApi();
       let convId = activeConversationId;
 
+      // Capture and clear pending files
+      const filesToUpload = [...pendingFiles];
+      setPendingFiles([]);
+
+      // Build optimistic attachments from pending files (local previews)
+      const optimisticAttachments: Attachment[] = filesToUpload.map((f, i) => ({
+        id: `pending-${Date.now()}-${i}`,
+        filename: f.name,
+        original_filename: f.name,
+        mime_type: f.type,
+        size_bytes: f.size,
+        url: "",
+        previewUrl: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined,
+        progress: 0,
+      }));
+
       // Optimistic: show user message IMMEDIATELY (before any API call)
-      const userMsg: Message = { id: `user-${Date.now()}`, role: "user", content };
+      const userMsg: Message = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content,
+        attachments: optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
+      };
 
       if (!convId) {
         convId = `optimistic-${Date.now()}`;
@@ -273,6 +317,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       } else {
         addMessage(convId, userMsg);
+      }
+
+      // Upload files in background (if any)
+      if (isLive && filesToUpload.length > 0 && convId) {
+        for (const file of filesToUpload) {
+          uploadFile(convId, file).catch((e) =>
+            console.error("File upload failed:", e)
+          );
+        }
       }
 
       if (isLive) {
@@ -375,7 +428,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         sendingRef.current = false;
       }
     },
-    [activeConversationId, addMessage, selectedModel, updateMessageContent]
+    [activeConversationId, addMessage, selectedModel, updateMessageContent, pendingFiles]
   );
 
   return (
@@ -400,6 +453,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         renameConversation,
         deleteConversation,
         starConversation,
+        pendingFiles,
+        setPendingFiles,
+        addPendingFiles,
+        removePendingFile,
         sendMessage,
         cancelMessage,
         queuePosition,

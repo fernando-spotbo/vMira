@@ -22,6 +22,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
+use axum::extract::DefaultBodyLimit;
 
 use crate::config::Config;
 use crate::db::{create_pg_pool, create_redis_client, AppState};

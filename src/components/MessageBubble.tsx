@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
-import { Message, MessageStep } from "@/lib/types";
+import { Message, MessageStep, Attachment } from "@/lib/types";
 import CodeBlock from "./CodeBlock";
 import ReasoningBlock from "./ReasoningBlock";
 import { useStreamingText } from "@/hooks/useStreamingText";
@@ -75,6 +75,72 @@ function AssistantAvatar({ thinking = false }: { thinking?: boolean }) {
           <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor"/>
         </svg>
       </div>
+    </div>
+  );
+}
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+function AttachmentGrid({ attachments }: { attachments: Attachment[] }) {
+  if (!attachments || attachments.length === 0) return null;
+
+  const images = attachments.filter((a) => IMAGE_TYPES.includes(a.mime_type));
+  const files = attachments.filter((a) => !IMAGE_TYPES.includes(a.mime_type));
+
+  return (
+    <div className="mt-2 space-y-2">
+      {/* Image grid */}
+      {images.length > 0 && (
+        <div className={`flex gap-2 flex-wrap ${images.length === 1 ? "" : "max-w-md"}`}>
+          {images.map((img) => {
+            const src = img.previewUrl || `/api/proxy/attachments/${img.id}`;
+            return (
+              <a
+                key={img.id}
+                href={src}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block overflow-hidden rounded-xl border border-white/[0.06] hover:border-white/[0.15] transition-colors"
+              >
+                <img
+                  src={src}
+                  alt={img.original_filename}
+                  className={`object-cover ${images.length === 1 ? "max-h-[360px] max-w-full" : "h-32 w-32"}`}
+                  loading="lazy"
+                />
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      {/* File links */}
+      {files.map((file) => (
+        <a
+          key={file.id}
+          href={`/api/proxy/attachments/${file.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-3 hover:bg-white/[0.07] transition-colors max-w-xs"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white/60">
+              <path d="M4 1h5l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+              <path d="M9 1v4h4" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] text-white/80">{file.original_filename}</p>
+            <p className="text-[11px] text-white/30">
+              {file.size_bytes < 1024
+                ? `${file.size_bytes} B`
+                : file.size_bytes < 1048576
+                ? `${(file.size_bytes / 1024).toFixed(0)} KB`
+                : `${(file.size_bytes / 1048576).toFixed(1)} MB`}
+            </p>
+          </div>
+        </a>
+      ))}
     </div>
   );
 }
@@ -230,6 +296,9 @@ export default function MessageBubble({
             <p className="whitespace-pre-wrap text-[16px] leading-7 text-white">
               {displayContent}
             </p>
+            {message.attachments && message.attachments.length > 0 && (
+              <AttachmentGrid attachments={message.attachments} />
+            )}
           </div>
           {/* Actions row — copy, edit, version nav */}
           <div className="flex items-center justify-end gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
@@ -389,6 +458,10 @@ export default function MessageBubble({
                 <span className="inline-block h-[18px] w-[2px] animate-pulse bg-white/50 ml-0.5 align-middle rounded-full" />
               )}
             </div>
+          )}
+
+          {message.attachments && message.attachments.length > 0 && (
+            <AttachmentGrid attachments={message.attachments} />
           )}
 
           {(!isStreaming || isComplete) && message.content.trim().length > 0 && (

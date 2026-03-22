@@ -44,6 +44,9 @@ backend/.env
 backend/.env.prod
 backend/bash.exe.stackdump
 
+# rust
+backend-rust/target/
+
 # stackdump
 bash.exe.stackdump
 

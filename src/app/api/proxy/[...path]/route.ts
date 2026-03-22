@@ -15,6 +15,7 @@ import { signRequest, BACKEND_URL } from "@/lib/server/hmac";
 
 const API_PREFIX = "/api/v1";
 const MAX_BODY_SIZE = 1_048_576; // 1MB
+const MAX_UPLOAD_SIZE = 10_485_760; // 10MB
 
 async function proxyRequest(
   req: NextRequest,
@@ -32,7 +33,7 @@ async function proxyRequest(
   }
 
   // Allowlist of valid API prefixes
-  const ALLOWED_PREFIXES = ["auth/", "chat/", "api-keys/", "sessions/", "admin/", "billing/"];
+  const ALLOWED_PREFIXES = ["auth/", "chat/", "api-keys/", "sessions/", "admin/", "billing/", "attachments/"];
   if (!ALLOWED_PREFIXES.some(prefix => joinedPath.startsWith(prefix))) {
     return new Response(JSON.stringify({ detail: "Not found" }), {
       status: 404,
@@ -53,29 +54,46 @@ async function proxyRequest(
     }
   }
 
+  // Detect multipart uploads (file attachments)
+  const contentType = req.headers.get("content-type") || "";
+  const isMultipart = contentType.startsWith("multipart/");
+  const sizeLimit = isMultipart ? MAX_UPLOAD_SIZE : MAX_BODY_SIZE;
+
   // Read body for non-GET requests with size limit
-  let body = "";
+  let bodyText = "";
+  let bodyBinary: ArrayBuffer | null = null;
   if (method !== "GET" && method !== "HEAD") {
     const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
-    if (contentLength > MAX_BODY_SIZE) {
+    if (contentLength > sizeLimit) {
       return new Response(JSON.stringify({ detail: "Request too large" }), {
         status: 413, headers: { "Content-Type": "application/json" },
       });
     }
-    body = await req.text();
-    if (body.length > MAX_BODY_SIZE) {
-      return new Response(JSON.stringify({ detail: "Request too large" }), {
-        status: 413, headers: { "Content-Type": "application/json" },
-      });
+    if (isMultipart) {
+      // Read as binary for multipart — preserve file data
+      bodyBinary = await req.arrayBuffer();
+      if (bodyBinary.byteLength > sizeLimit) {
+        return new Response(JSON.stringify({ detail: "Request too large" }), {
+          status: 413, headers: { "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      bodyText = await req.text();
+      if (bodyText.length > sizeLimit) {
+        return new Response(JSON.stringify({ detail: "Request too large" }), {
+          status: 413, headers: { "Content-Type": "application/json" },
+        });
+      }
     }
   }
 
-  // Sign the request
-  const { timestamp, nonce, signature } = signRequest(method, backendPath, body);
+  // Sign the request — multipart uses a placeholder instead of the binary body
+  const signBody = isMultipart ? "<multipart>" : bodyText;
+  const { timestamp, nonce, signature } = signRequest(method, backendPath, signBody);
 
   // Build headers — forward auth and cookies
   const headers: Record<string, string> = {
-    "Content-Type": req.headers.get("content-type") || "application/json",
+    "Content-Type": contentType || "application/json",
     "X-Request-Timestamp": timestamp,
     "X-Request-Nonce": nonce,
     "X-Request-Signature": signature,
@@ -112,7 +130,9 @@ async function proxyRequest(
     const res = await fetch(backendUrl, {
       method,
       headers,
-      body: method !== "GET" && method !== "HEAD" ? body : undefined,
+      body: method !== "GET" && method !== "HEAD"
+        ? (isMultipart ? bodyBinary : bodyText)
+        : undefined,
       signal: fetchController.signal,
     });
     clearTimeout(fetchTimeout);

@@ -104,3 +104,89 @@ export async function getMe() {
     language: string;
   }>("/auth/me");
 }
+
+// ---- File upload ----
+
+export interface UploadedAttachment {
+  id: string;
+  conversation_id: string;
+  message_id: string | null;
+  filename: string;
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  compressed_size: number | null;
+  width: number | null;
+  height: number | null;
+  url: string;
+  created_at: string;
+}
+
+export async function uploadFile(
+  conversationId: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ data: UploadedAttachment[]; ok: boolean; status: number }> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  // Use XMLHttpRequest for progress tracking
+  if (onProgress) {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${PROXY_URL}/chat/conversations/${conversationId}/attachments`);
+
+      Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+      xhr.withCredentials = true;
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        let data: UploadedAttachment[];
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch {
+          data = [] as UploadedAttachment[];
+        }
+        resolve({ data, ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status });
+      };
+
+      xhr.onerror = () => {
+        resolve({ data: [] as UploadedAttachment[], ok: false, status: 0 });
+      };
+
+      xhr.send(formData);
+    });
+  }
+
+  // Simple fetch for no-progress uploads
+  const res = await fetch(
+    `${PROXY_URL}/chat/conversations/${conversationId}/attachments`,
+    {
+      method: "POST",
+      headers,
+      body: formData,
+      credentials: "include",
+    },
+  );
+
+  let data: UploadedAttachment[];
+  try {
+    data = await res.json();
+  } catch {
+    data = [] as UploadedAttachment[];
+  }
+
+  return { data, ok: res.ok, status: res.status };
+}

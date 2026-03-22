@@ -16,12 +16,24 @@ export interface ApiConversation {
   updated_at: string;
 }
 
+export interface ApiAttachment {
+  id: string;
+  filename: string;
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+  url: string;
+}
+
 export interface ApiMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   steps: any[] | null;
   model: string | null;
+  attachments: ApiAttachment[] | null;
   created_at: string;
 }
 

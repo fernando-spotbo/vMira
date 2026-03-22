@@ -149,6 +149,14 @@ pub async fn hmac_verify(
     let method = request.method().to_string();
     let uri_path = request.uri().path().to_string();
 
+    // Check if this is a multipart upload — use placeholder instead of body
+    let content_type = request
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let is_multipart = content_type.starts_with("multipart/");
+
     // We need to read the body, verify, then reconstruct the request
     let (parts, body) = request.into_parts();
     let body_bytes = match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
@@ -158,12 +166,19 @@ pub async fn hmac_verify(
             return forbidden_response();
         }
     };
-    let body_str = String::from_utf8_lossy(&body_bytes);
+
+    // For multipart uploads, the body is binary — use a fixed placeholder
+    // so the frontend can sign without reading the file into a string.
+    let body_for_sig = if is_multipart {
+        "<multipart>".to_string()
+    } else {
+        String::from_utf8_lossy(&body_bytes).to_string()
+    };
 
     // Compute HMAC-SHA256
     let payload = format!(
         "{}\n{}\n{}\n{}\n{}",
-        method, uri_path, timestamp_str, nonce_str, body_str
+        method, uri_path, timestamp_str, nonce_str, body_for_sig
     );
 
     let mut mac = match HmacSha256::new_from_slice(state.config.hmac_secret.as_bytes()) {

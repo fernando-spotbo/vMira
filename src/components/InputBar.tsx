@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { ArrowUp, Square, Plus, Image, FileUp, Mic } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { ArrowUp, Square, Plus, Image, FileUp, Mic, X } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import VoiceRecording from "./VoiceRecording";
 import VoiceMode from "./VoiceMode";
 import { t } from "@/lib/i18n";
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ALLOWED_FILE_TYPES = [...ALLOWED_IMAGE_TYPES, "application/pdf", "text/plain"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 interface InputBarProps {
   centered?: boolean;
@@ -56,9 +60,12 @@ export default function InputBar({ centered = false }: InputBarProps) {
   const [showVoiceRecording, setShowVoiceRecording] = useState(false);
   const [showVoiceMode, setShowVoiceMode] = useState(false);
   const [voiceBtnHover, setVoiceBtnHover] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
-  const { activeConversationId, createNewChat, sendMessage: sendChatMessage, cancelMessage, isStreaming, isThinking } = useChat();
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { activeConversationId, createNewChat, sendMessage: sendChatMessage, cancelMessage, isStreaming, isThinking, pendingFiles, addPendingFiles, removePendingFile } = useChat();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -70,9 +77,48 @@ export default function InputBar({ centered = false }: InputBarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // File validation and adding
+  const validateAndAddFiles = useCallback((files: FileList | File[]) => {
+    const valid: File[] = [];
+    for (const file of Array.from(files)) {
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) continue;
+      if (file.size > MAX_FILE_SIZE) continue;
+      if (file.size === 0) continue;
+      valid.push(file);
+    }
+    if (valid.length > 0) addPendingFiles(valid);
+  }, [addPendingFiles]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) validateAndAddFiles(e.target.files);
+    e.target.value = ""; // reset so same file can be re-selected
+  }, [validateAndAddFiles]);
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    if (e.dataTransfer.files.length > 0) {
+      validateAndAddFiles(e.dataTransfer.files);
+    }
+  }, [validateAndAddFiles]);
+
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed && pendingFiles.length === 0) return;
 
     setInput("");
     if (textareaRef.current) {
@@ -80,7 +126,8 @@ export default function InputBar({ centered = false }: InputBarProps) {
     }
 
     // sendChatMessage handles: create conv if needed, add user msg, stream AI response
-    sendChatMessage(trimmed).catch((e) => console.error("sendMessage error:", e));
+    const messageContent = trimmed || (pendingFiles.length > 0 ? `[${pendingFiles.map(f => f.name).join(", ")}]` : "");
+    sendChatMessage(messageContent).catch((e) => console.error("sendMessage error:", e));
   };
 
   const handleVoiceSend = (text: string) => {
@@ -121,11 +168,72 @@ export default function InputBar({ centered = false }: InputBarProps) {
   };
 
   const hasText = input.trim().length > 0;
+  const hasFiles = pendingFiles.length > 0;
   const isGenerating = isStreaming || isThinking;
 
   // When centered (empty state), render just the input container without wrapper padding
   const inputElement = (
-    <div className="mira-input-container rounded-2xl px-5 pt-4 pb-3 transition-all duration-200">
+    <div
+      className={`mira-input-container rounded-2xl px-5 pt-4 pb-3 transition-all duration-200 ${dragOver ? "!border-white/30 !bg-white/[0.08]" : ""}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Hidden file inputs */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept={ALLOWED_IMAGE_TYPES.join(",")}
+        multiple
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ALLOWED_FILE_TYPES.join(",")}
+        multiple
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+
+      {/* File preview strip */}
+      {hasFiles && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {pendingFiles.map((file, i) => (
+            <div
+              key={`${file.name}-${i}`}
+              className="group/file relative flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2 text-sm"
+            >
+              {file.type.startsWith("image/") ? (
+                <img
+                  src={URL.createObjectURL(file)}
+                  alt={file.name}
+                  className="h-10 w-10 rounded object-cover"
+                  onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded bg-white/[0.06]">
+                  <FileUp size={16} className="text-white/50" />
+                </div>
+              )}
+              <div className="max-w-[120px]">
+                <p className="truncate text-white/80 text-[13px]">{file.name}</p>
+                <p className="text-white/30 text-[11px]">
+                  {file.size < 1024 ? `${file.size} B` : file.size < 1048576 ? `${(file.size / 1024).toFixed(0)} KB` : `${(file.size / 1048576).toFixed(1)} MB`}
+                </p>
+              </div>
+              <button
+                onClick={() => removePendingFile(i)}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#2a2a2a] border border-white/[0.1] text-white/50 hover:text-white hover:bg-[#3a3a3a] transition-colors opacity-0 group-hover/file:opacity-100"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <textarea
         ref={textareaRef}
         value={input}
@@ -160,14 +268,14 @@ export default function InputBar({ centered = false }: InputBarProps) {
           >
             <button
               className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
-              onClick={() => setShowAttachMenu(false)}
+              onClick={() => { setShowAttachMenu(false); imageInputRef.current?.click(); }}
             >
               <Image size={16} />
               {t("chat.uploadImage")}
             </button>
             <button
               className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
-              onClick={() => setShowAttachMenu(false)}
+              onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }}
             >
               <FileUp size={16} />
               {t("chat.uploadFile")}
@@ -184,7 +292,7 @@ export default function InputBar({ centered = false }: InputBarProps) {
             >
               <Square size={14} strokeWidth={0} fill="currentColor" />
             </button>
-          ) : hasText ? (
+          ) : (hasText || hasFiles) ? (
             <button
               onClick={handleSubmit}
               className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white text-[#161616] hover:bg-white/90 active:scale-95 transition-all duration-200"

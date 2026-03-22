@@ -36,6 +36,7 @@ export default function ChatArea() {
     prevUserMsgId: null as string | null,
     lastScrollTop: 0,
     pinScrolling: false, // true while pinUserMsg is executing (ignore onScroll)
+    pinTimestamp: 0,     // last time pin() was called — ignore scroll events for 500ms after
   });
 
   const [spacer, setSpacer] = useState(false);
@@ -63,6 +64,7 @@ export default function ChatArea() {
     if (!container || !el) return;
 
     state.current.pinScrolling = true;
+    state.current.pinTimestamp = Date.now();
     const cRect = container.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
     const target = container.scrollTop + (eRect.top - cRect.top) - 12;
@@ -87,10 +89,22 @@ export default function ChatArea() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [pin]);
 
-  // ── Transition to DISMISSED ──
+  // ── Transition to DISMISSED (smooth) ──
   const dismiss = useCallback(() => {
     state.current.scrollState = "dismissed";
+    // Don't remove spacer instantly — shrink it to 0 with CSS transition
+    // The spacer stays mounted, just changes height
     setSpacer(false);
+    // Clamp scroll to actual content height after spacer collapses
+    const el = scrollRef.current;
+    if (el) {
+      requestAnimationFrame(() => {
+        const maxScroll = el.scrollHeight - el.clientHeight;
+        if (el.scrollTop > maxScroll) {
+          el.scrollTop = maxScroll;
+        }
+      });
+    }
   }, []);
 
   // ── Transition to IDLE ──
@@ -163,8 +177,9 @@ export default function ChatArea() {
   //  SCROLL HANDLER
   // ═══════════════════════════════════════════════════════════
   const onScroll = useCallback(() => {
-    // Skip if we're programmatically scrolling
+    // Skip if we're programmatically scrolling or just pinned recently
     if (state.current.pinScrolling) return;
+    if (Date.now() - state.current.pinTimestamp < 500) return;
 
     const el = scrollRef.current;
     if (!el) return;
@@ -176,20 +191,20 @@ export default function ChatArea() {
 
     const delta = scrollTop - prev;
 
-    // Scrolled UP significantly → dismiss
-    if (delta < -40) {
+    // Scrolled UP → dismiss
+    if (delta < -10) {
       dismiss();
       return;
     }
 
-    // Scrolled DOWN past the response → check if last message is visible
-    if (delta > 15 && !generating) {
-      const container = scrollRef.current;
+    // Scrolled DOWN past the response → dismiss
+    if (delta > 5) {
       const lastEl = lastMsgRef.current;
-      if (container && lastEl) {
-        const cRect = container.getBoundingClientRect();
+      if (el && lastEl) {
+        const cRect = el.getBoundingClientRect();
         const mRect = lastEl.getBoundingClientRect();
-        if (mRect.bottom <= cRect.bottom + 80) {
+        // Last message bottom is visible in viewport
+        if (mRect.bottom <= cRect.bottom + 100) {
           dismiss();
         }
       }
@@ -231,7 +246,11 @@ export default function ChatArea() {
 
         {isThinking && <ThinkingIndicator />}
 
-        {spacer && <div className="shrink-0" style={{ minHeight: "60vh" }} aria-hidden="true" />}
+        <div
+          className="shrink-0 transition-[min-height] duration-300 ease-out"
+          style={{ minHeight: spacer ? "60vh" : "0px" }}
+          aria-hidden="true"
+        />
       </div>
     </div>
   );

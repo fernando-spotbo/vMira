@@ -30,15 +30,15 @@ function ChatLayout() {
   // Read conversation ID from URL on mount (e.g. /chat/abc123)
   const urlConvId = (params?.id as string[] | undefined)?.[0] ?? null;
 
-  // Set active conversation from URL param on first load
+  // Set active conversation from URL param — wait for conversations to load
   useEffect(() => {
+    if (!urlConvId) return;
     if (urlSyncedRef.current) return;
+    if (conversations.length === 0) return; // wait for async load
     urlSyncedRef.current = true;
-    if (urlConvId && conversations.length > 0) {
-      const found = conversations.find((c) => c.id === urlConvId);
-      if (found) {
-        setActiveConversationId(urlConvId);
-      }
+    const found = conversations.find((c) => c.id === urlConvId);
+    if (found) {
+      setActiveConversationId(urlConvId);
     }
   }, [urlConvId, conversations, setActiveConversationId]);
 

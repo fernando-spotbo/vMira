@@ -67,9 +67,8 @@ export default function ChatArea() {
     state.current.pinTimestamp = Date.now();
     const cRect = container.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
-    // Pin the user message ~15% from the top of the viewport
-    // This accounts for TopBar height and works across screen sizes
-    const topOffset = cRect.height * 0.08;
+    // Pin user message just below the TopBar area (~4% from top)
+    const topOffset = cRect.height * 0.03;
     const target = container.scrollTop + (eRect.top - cRect.top) - topOffset;
     container.scrollTo({ top: Math.max(0, target), behavior: "instant" });
 
@@ -252,7 +251,7 @@ export default function ChatArea() {
         <div
           className="shrink-0"
           style={{
-            minHeight: spacer ? "60vh" : "0px",
+            minHeight: spacer ? "85vh" : "0px",
             transition: spacer ? "none" : "min-height 300ms ease-out",
           }}
           aria-hidden="true"

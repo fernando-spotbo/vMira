@@ -122,6 +122,67 @@ export async function submitFeedback(messageId: string, feedback: FeedbackData) 
   });
 }
 
+// ---- Voice transcription ----
+
+export async function transcribeAudio(
+  audioBlob: Blob,
+  language?: string,
+): Promise<{ text: string; language?: string; duration?: number }> {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "voice.webm");
+  if (language) formData.append("language", language);
+
+  const headers: Record<string, string> = {
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  // Route through HMAC proxy → Rust backend → local whisper service
+  const res = await fetch(`${PROXY_URL}/voice/transcribe`, {
+    method: "POST",
+    headers,
+    body: formData,
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Transcription failed" }));
+    throw new Error(err.detail || "Transcription failed");
+  }
+
+  return res.json();
+}
+
+// ---- Voice TTS ----
+
+export async function synthesizeAudio(
+  text: string,
+  language?: string,
+): Promise<Blob> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  const res = await fetch(`${PROXY_URL}/voice/synthesize`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ text, language }),
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error("TTS synthesis failed");
+  }
+
+  return res.blob();
+}
+
 // ---- File upload ----
 
 export interface UploadedAttachment {

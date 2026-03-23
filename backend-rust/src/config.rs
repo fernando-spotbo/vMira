@@ -60,6 +60,12 @@ pub struct Config {
 
     // ── Web search (SearXNG) ────────────────────────────────
     pub searxng_url: String,
+
+    // ── Voice STT (local whisper) ─────────────────────────
+    pub whisper_url: String,
+
+    // ── Voice TTS (local piper) ───────────────────────────
+    pub piper_url: String,
 }
 
 impl Config {
@@ -165,6 +171,10 @@ impl Config {
                 .unwrap_or(10 * 1024 * 1024), // 10MB
 
             searxng_url: env_or("SEARXNG_URL", "http://127.0.0.1:8888"),
+
+            whisper_url: env_or("WHISPER_URL", "http://127.0.0.1:8787"),
+
+            piper_url: env_or("PIPER_URL", "http://127.0.0.1:5100"),
         }
     }
 }

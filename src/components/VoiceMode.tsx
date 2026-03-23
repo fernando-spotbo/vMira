@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Mic, MicOff } from "lucide-react";
 import * as chatApi from "@/lib/api-chat";
-import { getAccessToken } from "@/lib/api-client";
+import { getAccessToken, transcribeAudio, synthesizeAudio } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
 
@@ -145,6 +145,14 @@ function draw(
   ctx.restore();
 }
 
+// Whisper language name → BCP-47 locale code
+const WHISPER_LANG_MAP: Record<string, string> = {
+  russian: "ru-RU", english: "en-US", spanish: "es-ES",
+  french: "fr-FR", german: "de-DE", portuguese: "pt-BR",
+  chinese: "zh-CN", japanese: "ja-JP", korean: "ko-KR",
+  arabic: "ar-SA", hindi: "hi-IN", italian: "it-IT", turkish: "tr-TR",
+};
+
 export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [phase, setPhase] = useState<Phase>("init");
   const [elapsed, setElapsed] = useState(0);
@@ -152,19 +160,17 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [transcript, setTranscript] = useState("");
   const [responsePreview, setResponsePreview] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [langIndex, setLangIndex] = useState(0); // index into VOICE_LANGS
+  const [langIndex, setLangIndex] = useState(0);
 
   const { activeConversationId, selectedModel, addMessage, ensureConversation } = useChat();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startRef = useRef(Date.now());
   const phaseRef = useRef<Phase>("init");
-  const transcriptAccum = useRef("");
   const convIdRef = useRef(activeConversationId);
-  const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutedRef = useRef(false);
   const langIndexRef = useRef(0);
-  const recognitionRef = useRef<any>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Refs for latest values (avoids stale closures)
   const selectedModelRef = useRef(selectedModel);
@@ -183,34 +189,64 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     return () => clearInterval(id);
   }, []);
 
-  // TTS ref
-  const speakFn = (text: string): Promise<void> => {
-    return new Promise((resolve) => {
-      if (!("speechSynthesis" in window) || !text.trim()) { setTimeout(resolve, 300); return; }
-      const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1")
-        .replace(/#{1,6}\s/g, "").replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1")
-        .replace(/\[(\d+)\]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_~`#>-]/g, "")
-        .trim().slice(0, 500);
-      if (!clean) { resolve(); return; }
-      // Detect response language for correct TTS voice
-      const respLocale = detectResponseLang(clean);
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(clean);
-      utt.lang = respLocale; utt.rate = 1.0; utt.volume = 1;
-      const voices = window.speechSynthesis.getVoices();
-      const prefix = respLocale.split("-")[0];
-      const matched = voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(prefix) && v.localService)
-        || voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(prefix));
-      if (matched) utt.voice = matched;
-      let done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
-      utt.onend = finish; utt.onerror = finish;
-      window.speechSynthesis.speak(utt);
-      setTimeout(finish, 25000);
-    });
+  // TTS — server-side via Piper (natural voice, self-hosted)
+  const speakFn = async (text: string): Promise<void> => {
+    const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1")
+      .replace(/#{1,6}\s/g, "").replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1")
+      .replace(/\[(\d+)\]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_~`#>-]/g, "")
+      .trim().slice(0, 500);
+    if (!clean) return;
+
+    const langCode = detectResponseLang(clean).split("-")[0]; // "ru-RU" → "ru"
+
+    try {
+      const blob = await synthesizeAudio(clean, langCode);
+      if (!blob || blob.size < 100) {
+        console.warn("[TTS] Empty or tiny audio blob, falling back to browser TTS");
+        throw new Error("Empty audio");
+      }
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+
+      return new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          currentAudioRef.current = null;
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        audio.onended = finish;
+        audio.onerror = (e) => { console.error("[TTS] Audio playback error:", e); finish(); };
+        audio.play().catch((e) => { console.error("[TTS] Audio play() failed:", e); finish(); });
+        setTimeout(finish, 30000);
+      });
+    } catch (e) {
+      console.error("[TTS] Server TTS failed, using browser fallback:", e);
+      // Fallback to browser SpeechSynthesis
+      return new Promise<void>((resolve) => {
+        if (!("speechSynthesis" in window)) { resolve(); return; }
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(clean);
+        utt.lang = detectResponseLang(clean);
+        utt.rate = 1.0;
+        utt.volume = 1;
+        const voices = window.speechSynthesis.getVoices();
+        const prefix = detectResponseLang(clean).split("-")[0];
+        const matched = voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(prefix));
+        if (matched) utt.voice = matched;
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        utt.onend = finish; utt.onerror = (e) => { console.error("[TTS] Browser TTS error:", e); finish(); };
+        window.speechSynthesis.speak(utt);
+        setTimeout(finish, 25000);
+      });
+    }
   };
 
-  // ── Combined effect ──
+  // ── Combined effect: canvas + mic + MediaRecorder + Whisper STT + AI ──
   useEffect(() => {
     let alive = true;
     let raf = 0;
@@ -219,6 +255,21 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     let analyser: AnalyserNode | null = null;
     let dataArr: Uint8Array<ArrayBuffer> | null = null;
     const sm = new Float32Array(48).fill(0);
+
+    // MediaRecorder state (local to effect)
+    let mediaRecorder: MediaRecorder | null = null;
+    let audioChunks: Blob[] = [];
+    let silenceCheckId: ReturnType<typeof setInterval> | null = null;
+
+    // Silence detection thresholds
+    let voiceDetected = false;
+    let lastVoiceTime = 0;
+    let recordingStartTime = 0;
+
+    const SILENCE_THRESHOLD = 0.03;  // avg frequency level to count as speech
+    const SILENCE_TIMEOUT = 1000;    // 1s silence after speech → send to Whisper
+    const MIN_RECORDING = 400;       // minimum recording duration (ms)
+    const INTERRUPT_THRESHOLD = 0.12; // louder threshold for interrupt during TTS
 
     // Smooth phase blend targets
     const blendTarget = { listening: 0, thinking: 0, speaking: 0 };
@@ -234,7 +285,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     // Draw loop with smooth blending
     const tick = () => {
       if (!alive) return;
-      // Smooth blend towards target (ease factor)
       const ease = 0.08;
       blendCurrent.listening += (blendTarget.listening - blendCurrent.listening) * ease;
       blendCurrent.thinking += (blendTarget.thinking - blendCurrent.thinking) * ease;
@@ -246,27 +296,122 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     };
     raf = requestAnimationFrame(tick);
 
-    // Phase change handler — smoothly transitions blend targets
     const updateBlend = (ph: Phase) => {
       blendTarget.listening = ph === "listening" ? 1 : 0;
       blendTarget.thinking = ph === "thinking" ? 1 : 0;
       blendTarget.speaking = ph === "speaking" ? 1 : 0;
     };
 
-    // Override setPhase: update ref SYNCHRONOUSLY + blend targets
     const origSetPhase = setPhase;
     const smoothSetPhase = (ph: Phase) => {
-      phaseRef.current = ph; // sync — so onend/onresult see it immediately
+      phaseRef.current = ph; // sync — so interval checks see it immediately
       origSetPhase(ph);
       updateBlend(ph);
     };
 
-    // AI send
+    // ── MediaRecorder helpers ──
+
+    const startRecording = () => {
+      if (!stream || !alive || mutedRef.current) return;
+      audioChunks = [];
+      try {
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus" : "audio/webm";
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.start(500); // collect 500ms chunks
+        recordingStartTime = Date.now();
+        voiceDetected = false;
+        lastVoiceTime = 0;
+      } catch (e) {
+        console.error("MediaRecorder error:", e);
+      }
+    };
+
+    const stopAndTranscribe = () => {
+      if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+      voiceDetected = false;
+
+      const recorder = mediaRecorder;
+      mediaRecorder = null;
+
+      recorder.onstop = async () => {
+        if (!alive || audioChunks.length === 0) {
+          if (alive && phaseRef.current !== "error") resumeListening();
+          return;
+        }
+        const blob = new Blob(audioChunks, { type: recorder.mimeType || "audio/webm" });
+        audioChunks = [];
+
+        // Too small — probably just noise
+        if (blob.size < 1000) { if (alive) resumeListening(); return; }
+
+        smoothSetPhase("thinking");
+
+        try {
+          const result = await transcribeAudio(blob);
+          if (!alive) return;
+
+          const text = result.text?.trim();
+          if (!text) { resumeListening(); return; }
+
+          // Auto-switch language based on Whisper detection
+          if (result.language) {
+            const newCode = WHISPER_LANG_MAP[result.language];
+            if (newCode) {
+              const idx = VOICE_LANGS.findIndex(l => l.code === newCode);
+              if (idx >= 0 && idx !== langIndexRef.current) {
+                langIndexRef.current = idx;
+                setLangIndex(idx);
+              }
+            }
+          }
+
+          setTranscript(text);
+          sendToAI(text);
+        } catch (e: unknown) {
+          if (alive) {
+            const msg = e instanceof Error ? e.message : t("voice.error");
+            setError(msg);
+            smoothSetPhase("error");
+          }
+        }
+      };
+
+      try { recorder.stop(); } catch {}
+    };
+
+    // ── AI send ──
+
+    // Clean text for TTS (strip markdown)
+    const cleanForTTS = (t: string) => t
+      .replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1")
+      .replace(/#{1,6}\s/g, "").replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1")
+      .replace(/\[(\d+)\]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_~`#>]/g, "")
+      .trim();
+
+    // Play a single audio blob, returns when done
+    const playBlob = (blob: Blob): Promise<void> => {
+      if (blob.size < 100) return Promise.resolve();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+      return new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => { if (done) return; done = true; currentAudioRef.current = null; URL.revokeObjectURL(url); resolve(); };
+        audio.onended = finish;
+        audio.onerror = finish;
+        audio.play().catch(finish);
+        setTimeout(finish, 20000);
+      });
+    };
+
     const sendToAI = async (text: string) => {
       if (!text.trim() || !alive) return;
       if (!getAccessToken()) { setError(t("voice.loginRequired")); smoothSetPhase("error"); return; }
 
-      smoothSetPhase("thinking");
       setResponsePreview("");
 
       try {
@@ -276,8 +421,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           if (!c || !alive) { if (alive) { smoothSetPhase("error"); setError(t("voice.error")); } return; }
           cid = c.id;
           convIdRef.current = cid;
-          // Don't setActiveConversationId here — it would unmount VoiceMode
-          // Instead, add to sidebar and set active on close
           ensureConvRef.current(cid!, text.slice(0, 60));
         }
 
@@ -286,16 +429,68 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         const m = selectedModelRef.current.toLowerCase().replace(/\s+/g, "-");
         const model = ["mira", "mira-thinking"].includes(m) ? m : "mira";
 
+        // ── Sentence-streaming TTS ──
+        // Fire TTS per sentence as AI streams. Play each immediately when ready.
+        // Playback runs in a separate async chain so it doesn't block token processing.
         let full = "";
+        let pendingSentence = "";
+        const clauseBoundary = /[.!?,;:。！？，；]\s*$/;
+
+        // Playback chain: each sentence's TTS promise is pushed here.
+        // A background loop plays them in order as they resolve.
+        const ttsQueue: Promise<Blob | null>[] = [];
+        let playbackStarted = false;
+
+        // Background playback — plays blobs in order as they resolve
+        const runPlayback = async () => {
+          let i = 0;
+          while (alive && phaseRef.current === "speaking") {
+            if (i >= ttsQueue.length) {
+              // Wait a bit for more sentences
+              await new Promise(r => setTimeout(r, 100));
+              // If stream is done and we've played everything, stop
+              if (i >= ttsQueue.length) break;
+              continue;
+            }
+            const blob = await ttsQueue[i];
+            i++;
+            if (!alive || phaseRef.current !== "speaking") break;
+            if (blob && blob.size >= 100) {
+              await playBlob(blob);
+            }
+          }
+        };
+
         for await (const ev of chatApi.streamMessage(cid, text, model, undefined, true)) {
           if (!alive) return;
-          if (ev.type === "token") { full += ev.content; setResponsePreview(full); }
+          if (ev.type === "token") {
+            full += ev.content;
+            pendingSentence += ev.content;
+            setResponsePreview(full);
+
+            // Sentence boundary → fire TTS immediately, start playback on first
+            if (clauseBoundary.test(pendingSentence) && pendingSentence.trim().length > 3) {
+              const sentence = cleanForTTS(pendingSentence);
+              pendingSentence = "";
+              if (sentence) {
+                const lang = detectResponseLang(sentence).split("-")[0];
+                ttsQueue.push(synthesizeAudio(sentence, lang).catch(() => null));
+
+                if (!playbackStarted) {
+                  playbackStarted = true;
+                  smoothSetPhase("speaking");
+                  // Start playback loop in background — don't await
+                  runPlayback();
+                }
+              }
+            }
+          }
           if (ev.type === "error") { setError(ev.message); smoothSetPhase("error"); return; }
         }
         if (!alive) return;
         if (!full.trim()) { resumeListening(); return; }
 
-        // Check if AI detected wrong language → auto-switch STT
+        // Check for LANG:xx-XX response
         const langMatch = full.trim().match(/^LANG:([a-z]{2}-[A-Z]{2})$/);
         if (langMatch) {
           const newCode = langMatch[1];
@@ -303,9 +498,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           if (idx >= 0) {
             langIndexRef.current = idx;
             setLangIndex(idx);
-            const rec = recognitionRef.current;
-            if (rec) rec.lang = newCode;
-            // Tell user we're switching (speak in the target language)
             const switchMsg = newCode.startsWith("en") ? "Switching language. Please repeat."
               : newCode.startsWith("ru") ? "Переключаю язык. Повторите, пожалуйста."
               : newCode.startsWith("es") ? "Cambiando idioma. Por favor repita."
@@ -313,106 +505,66 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
               : newCode.startsWith("de") ? "Sprache wird gewechselt. Bitte wiederholen."
               : "Switching language. Please repeat.";
             smoothSetPhase("speaking");
-            if (recognitionRef.current && !mutedRef.current) {
-              try { recognitionRef.current.start(); } catch {}
-            }
             await speakFn(switchMsg);
             if (alive && phaseRef.current === "speaking") resumeListening();
-          } else {
-            resumeListening();
-          }
+          } else { resumeListening(); }
           return;
+        }
+
+        // TTS any remaining text
+        if (pendingSentence.trim()) {
+          const lastClean = cleanForTTS(pendingSentence);
+          if (lastClean) {
+            const lang = detectResponseLang(lastClean).split("-")[0];
+            ttsQueue.push(synthesizeAudio(lastClean, lang).catch(() => null));
+          }
         }
 
         addMessageRef.current(cid, { id: `msg-${Date.now()}`, role: "assistant", content: full });
 
-        smoothSetPhase("speaking");
-        // Keep mic listening during TTS so user can interrupt
-        if (recognitionRef.current && !mutedRef.current) {
-          try { recognitionRef.current.start(); } catch {}
+        // If playback hasn't started yet (very short response, no sentence boundary)
+        if (!playbackStarted && ttsQueue.length > 0) {
+          smoothSetPhase("speaking");
+          await runPlayback();
+        } else if (playbackStarted) {
+          // Wait for playback to finish all queued sentences
+          for (const p of ttsQueue) await p;
+          // Give playback loop time to finish the last blob
+          await new Promise(r => setTimeout(r, 500));
+        } else if (!full.trim()) {
+          resumeListening(); return;
+        } else {
+          // No TTS queued at all — fallback to browser TTS
+          smoothSetPhase("speaking");
+          await speakFn(full);
         }
-        await speakFn(full);
-        // If still speaking (wasn't interrupted), go back to listening
+
         if (alive && phaseRef.current === "speaking") resumeListening();
-      } catch (e: any) {
-        if (alive && e?.name !== "AbortError") { setError(e?.message || t("voice.error")); smoothSetPhase("error"); }
+      } catch (e: unknown) {
+        if (alive && !(e instanceof Error && e.name === "AbortError")) {
+          setError(e instanceof Error ? e.message : t("voice.error"));
+          smoothSetPhase("error");
+        }
       }
     };
 
     const resumeListening = () => {
-      transcriptAccum.current = ""; setTranscript(""); setResponsePreview("");
+      setTranscript(""); setResponsePreview("");
       smoothSetPhase("listening");
+      voiceDetected = false;
+      lastVoiceTime = 0;
       setTimeout(() => {
-        if (alive && !mutedRef.current && recognitionRef.current)
-          try { recognitionRef.current.start(); } catch {}
+        if (alive && !mutedRef.current) startRecording();
       }, 200);
     };
 
-    // STT
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { setError(t("voice.unsupported")); smoothSetPhase("error"); return; }
-    if ("speechSynthesis" in window) { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices(); }
+    // ── TTS voices preload ──
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
 
-    const rec = new SR();
-    rec.continuous = true; rec.interimResults = true;
-    rec.lang = VOICE_LANGS[langIndexRef.current].code;
-    recognitionRef.current = rec;
-
-    rec.onresult = (e: any) => {
-      const ph = phaseRef.current;
-
-      // ── Interrupt: user speaks while AI is talking → stop TTS, go to listening ──
-      if (ph === "speaking") {
-        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-        transcriptAccum.current = "";
-        smoothSetPhase("listening");
-        // Fall through to process the speech as new input
-      }
-
-      // Ignore results during thinking phase
-      if (ph === "thinking") return;
-
-      let interim = "", gotFinal = false;
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) { transcriptAccum.current += e.results[i][0].transcript + " "; gotFinal = true; }
-        else interim += e.results[i][0].transcript;
-      }
-      setTranscript((transcriptAccum.current + interim).trim());
-
-      if (gotFinal) {
-        if (silenceTimer.current) clearTimeout(silenceTimer.current);
-        silenceTimer.current = setTimeout(() => {
-          if (!alive || phaseRef.current !== "listening") return;
-          const txt = transcriptAccum.current.trim();
-          if (txt) {
-            transcriptAccum.current = "";
-            // Set thinking BEFORE stopping — prevents onend from restarting
-            smoothSetPhase("thinking");
-            try { rec.stop(); } catch {}
-            sendToAI(txt);
-          }
-        }, 1200);
-      }
-    };
-    rec.onerror = (e: any) => {
-      if (e.error === "not-allowed") { setError(t("voice.micDenied")); smoothSetPhase("error"); }
-      // "no-speech" and "aborted" are normal — just restart
-    };
-    rec.onend = () => {
-      if (!alive || mutedRef.current) return;
-      const ph = phaseRef.current;
-      // Don't restart during thinking (waiting for AI) or error
-      if (ph === "error" || ph === "init" || ph === "thinking") return;
-      // Restart: keeps listening across pauses (listening) or enables interrupt (speaking)
-      setTimeout(() => {
-        if (!alive || mutedRef.current) return;
-        const ph2 = phaseRef.current;
-        if (ph2 === "thinking" || ph2 === "error" || ph2 === "init") return;
-        rec.lang = VOICE_LANGS[langIndexRef.current].code;
-        try { rec.start(); } catch {}
-      }, 100);
-    };
-
+    // ── Mic + MediaRecorder + Silence detection setup ──
     (async () => {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -425,42 +577,87 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         src.connect(an);
         analyser = an;
         dataArr = new Uint8Array(an.frequencyBinCount) as Uint8Array<ArrayBuffer>;
-        rec.start();
+
         smoothSetPhase("listening");
+        startRecording();
+
+        // ── Silence & interrupt detection loop ──
+        silenceCheckId = setInterval(() => {
+          if (!alive || !analyser || !dataArr) return;
+
+          const ph = phaseRef.current;
+
+          // Handle mute: stop recorder, discard chunks
+          if (mutedRef.current) {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+              audioChunks = [];
+              try { mediaRecorder.stop(); } catch {}
+              mediaRecorder = null;
+            }
+            voiceDetected = false;
+            return;
+          }
+
+          // If listening but no recorder (after unmute or resume), start one
+          if (ph === "listening" && !mediaRecorder) {
+            startRecording();
+          }
+
+          // Read audio level
+          analyser.getByteFrequencyData(dataArr);
+          let sum = 0;
+          for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
+          const avg = sum / dataArr.length / 255;
+
+          const now = Date.now();
+
+          // Interrupt TTS when user speaks loudly
+          if (ph === "speaking" && avg > INTERRUPT_THRESHOLD) {
+            if (currentAudioRef.current) {
+              currentAudioRef.current.pause();
+              currentAudioRef.current = null;
+            }
+            if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+            resumeListening();
+            return;
+          }
+
+          // Silence detection during listening
+          if (ph === "listening") {
+            if (avg > SILENCE_THRESHOLD) {
+              voiceDetected = true;
+              lastVoiceTime = now;
+            }
+            // Voice was detected, now silent for SILENCE_TIMEOUT → send
+            if (voiceDetected && lastVoiceTime > 0 && now - lastVoiceTime > SILENCE_TIMEOUT) {
+              if (now - recordingStartTime > MIN_RECORDING) {
+                stopAndTranscribe();
+              }
+            }
+          }
+        }, 100);
+
       } catch { setError(t("voice.micDenied")); smoothSetPhase("error"); }
     })();
 
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
-      try { rec.stop(); } catch {}
-      recognitionRef.current = null;
+      if (silenceCheckId) clearInterval(silenceCheckId);
+      if (mediaRecorder?.state !== "inactive") try { mediaRecorder?.stop(); } catch {}
       stream?.getTracks().forEach(t => t.stop());
-      if (silenceTimer.current) clearTimeout(silenceTimer.current);
+      if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       audioCtx?.close().catch(() => {});
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!recognitionRef.current) return;
-    if (muted) try { recognitionRef.current.stop(); } catch {}
-    else if (phaseRef.current === "listening") try { recognitionRef.current.start(); } catch {}
-  }, [muted]);
-
-  // Cycle language
+  // Cycle language (just updates the hint sent to Whisper)
   const cycleLang = () => {
     const next = (langIndex + 1) % VOICE_LANGS.length;
     setLangIndex(next);
     langIndexRef.current = next;
-    // Restart recognition with new language
-    const rec = recognitionRef.current;
-    if (rec && phaseRef.current === "listening") {
-      try { rec.stop(); } catch {}
-      rec.lang = VOICE_LANGS[next].code;
-      // onend will restart it
-    }
   };
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
@@ -491,9 +688,12 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           </button>
         )}
       </div>
-      {/* Transcript while listening */}
+
+      {/* Transcript — shown during listening (live preview) and thinking (what was said) */}
       <div className="max-w-sm mx-auto px-6 min-h-[20px] text-center mb-2">
-        {phase === "listening" && transcript && <p className="text-[16px] text-white/15 line-clamp-1">{transcript}</p>}
+        {(phase === "listening" || phase === "thinking") && transcript && (
+          <p className="text-[16px] text-white/15 line-clamp-2">{transcript}</p>
+        )}
       </div>
       <p className="text-[16px] text-white/10 tabular-nums font-mono mb-14">{fmt(elapsed)}</p>
 

@@ -132,7 +132,8 @@ async fn upload_attachment(
         AppError::Internal("Storage error".to_string())
     })?;
 
-    // Process multipart — expect a single "file" field
+    // Process multipart — max 10 files per upload
+    const MAX_FILES_PER_UPLOAD: usize = 10;
     let mut results: Vec<AttachmentResponse> = Vec::new();
 
     while let Some(field) = multipart
@@ -143,6 +144,12 @@ async fn upload_attachment(
         let field_name = field.name().unwrap_or("").to_string();
         if field_name != "file" {
             continue;
+        }
+
+        if results.len() >= MAX_FILES_PER_UPLOAD {
+            return Err(AppError::BadRequest(format!(
+                "Too many files. Maximum {} per upload.", MAX_FILES_PER_UPLOAD
+            )));
         }
 
         let original_filename = field

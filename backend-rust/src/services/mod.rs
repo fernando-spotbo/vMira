@@ -10,3 +10,5 @@ pub mod search;
 pub mod token;
 pub mod token_revocation;
 pub mod usage;
+pub mod tts;
+pub mod whisper;

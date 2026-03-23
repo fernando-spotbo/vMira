@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob:",
+              "media-src 'self' blob:",
               "connect-src 'self' https://vmira.ai https://api.vmira.ai",
               "frame-ancestors 'none'",
               "base-uri 'self'",

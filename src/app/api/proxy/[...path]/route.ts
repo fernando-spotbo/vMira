@@ -33,7 +33,7 @@ async function proxyRequest(
   }
 
   // Allowlist of valid API prefixes
-  const ALLOWED_PREFIXES = ["auth/", "chat/", "api-keys/", "sessions/", "admin/", "billing/", "attachments/"];
+  const ALLOWED_PREFIXES = ["auth/", "chat/", "api-keys/", "sessions/", "admin/", "billing/", "attachments/", "voice/"];
   if (!ALLOWED_PREFIXES.some(prefix => joinedPath.startsWith(prefix))) {
     return new Response(JSON.stringify({ detail: "Not found" }), {
       status: 404,
@@ -163,6 +163,19 @@ async function proxyRequest(
         responseHeaders.append("Set-Cookie", cookie);
       }
       return new Response(res.body, { status: res.status, headers: responseHeaders });
+    }
+
+    // Binary audio response — pass through without text conversion
+    if (contentType.startsWith("audio/")) {
+      const audioBuffer = await res.arrayBuffer();
+      const audioHeaders = new Headers();
+      audioHeaders.set("Content-Type", contentType);
+      const audioSetCookies = res.headers.getSetCookie?.() || [];
+      for (let cookie of audioSetCookies) {
+        if (isLocalhost) cookie = cookie.replace(/;\s*Secure/gi, "");
+        audioHeaders.append("Set-Cookie", cookie);
+      }
+      return new Response(audioBuffer, { status: res.status, headers: audioHeaders });
     }
 
     // Regular JSON response — forward status, body, and cookies

@@ -209,3 +209,69 @@ export async function* streamMessage(
     clearInterval(timeoutChecker);
   }
 }
+
+// ── Anonymous streaming (no auth, no storage) ──
+
+function getDeviceId(): string {
+  const KEY = "mira_device_id";
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
+export async function* streamAnonymous(
+  content: string,
+  signal?: AbortSignal,
+): AsyncGenerator<StreamEvent, void, undefined> {
+  const deviceId = getDeviceId();
+
+  const res = await fetch(`${PROXY_URL}/chat/anonymous`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: JSON.stringify({ content, device_id: deviceId }),
+    signal,
+  });
+
+  if (!res.ok || !res.body) {
+    const error = await res.json().catch(() => ({ detail: "Request failed" }));
+    const err = new Error(error.detail || `API error: ${res.status}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") return;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "token") yield { type: "token", content: String(parsed.content || "") };
+            else if (parsed.type === "done") yield { type: "done" };
+            else if (parsed.type === "error") yield { type: "error", message: String(parsed.message || "Error") };
+            else if (parsed.type === "search") yield { type: "search", query: String(parsed.query || "") };
+            else if (parsed.type === "search_results") yield { type: "search_results", query: String(parsed.query || ""), results: parsed.results || [] };
+          } catch {}
+        }
+      }
+    }
+  } finally {
+    // cleanup
+  }
+}

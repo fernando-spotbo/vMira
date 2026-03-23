@@ -51,6 +51,8 @@ pub fn chat_routes() -> Router<AppState> {
                 .delete(delete_conversation),
         )
         .route("/conversations/{conv_id}/messages", post(send_message))
+        // Anonymous endpoint — no auth required, rate limited by IP+device
+        .route("/anonymous", post(anonymous_stream))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -112,12 +114,13 @@ fn msg_response_with_attachments(m: &Message, attachments: Vec<crate::models::At
 }
 
 /// Plan-based daily message limits.
+/// Free plan gets generous limits (GPT approach — fast responses, no hard wall).
 fn plan_limit(plan: &str) -> i64 {
     match plan {
-        "free" => 20,
-        "pro" => 500,
+        "free" => 1000,
+        "pro" => 5000,
         "max" | "enterprise" => -1, // unlimited
-        _ => 20,
+        _ => 1000,
     }
 }
 
@@ -424,15 +427,10 @@ async fn send_message(
         }
     }
 
-    // Pre-check: paid plan users must have a positive balance
-    // Free users use the daily limit system and don't need balance.
-    if user.plan != "free" && user.balance_kopecks <= 0 {
-        return Err(AppError::PaymentRequired(
-            "Insufficient balance. Please top up your account.".to_string(),
-        ));
-    }
+    // Subscription plans (pro/max/enterprise) don't need balance — they pay monthly.
+    // Balance is only used for API usage (completions endpoint), not chat.
 
-    // Rate limit user
+    // Rate limit user (per-minute)
     rate_limit::rate_limit_user(&state.redis, &user.id.to_string(), &state.config)
         .await
         .map_err(|e| match e {
@@ -441,6 +439,23 @@ async fn send_message(
             }
             rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
         })?;
+
+    // Free plan: additional hourly rate limit (10 messages/hour)
+    let is_free = user.plan == "free";
+    if is_free {
+        let hourly_key = format!("rl:hourly:{}", user.id);
+        let (hourly_ok, _) = rate_limit::check_rate_limit(&state.redis, &hourly_key, 10, 3600)
+            .await
+            .map_err(|e| match e {
+                rate_limit::RateLimitError::Exceeded { retry_after_seconds } => {
+                    AppError::RateLimited { retry_after: retry_after_seconds as u32 }
+                }
+                rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
+            })?;
+        if !hourly_ok {
+            return Err(AppError::RateLimited { retry_after: 3600 });
+        }
+    }
 
     // Atomically check-and-increment concurrent SSE streams using a Lua script.
     // This prevents TOCTOU race conditions where two requests both read the
@@ -821,6 +836,12 @@ async fn send_message(
         };
 
         // ── Step 2: Stream AI response ─────────────────────────────
+
+        // Free users: 1s deprioritization delay (paid users go first)
+        if user_plan == "free" {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
         let event_data = serde_json::json!({"type": "processing"});
         yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
 
@@ -830,7 +851,7 @@ async fn send_message(
             history,
             model_name.clone(),
             0.7,
-            if voice_mode { 256 } else { 4096 },
+            if voice_mode { 256 } else if user_plan == "free" { 2048 } else { 4096 },
             &user_plan,
             voice_mode,
             &state_clone.config,
@@ -1062,6 +1083,131 @@ async fn send_message(
                 .execute(&state_clone.db)
                 .await;
         }
+    };
+
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("ping"),
+    ))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  POST /anonymous  (guest streaming — no auth, no storage, IP+device rate limit)
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Deserialize)]
+struct AnonymousRequest {
+    content: String,
+    device_id: String,
+}
+
+async fn anonymous_stream(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<AnonymousRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let content = body.content.trim().to_string();
+    if content.is_empty() || content.len() > 4000 {
+        return Err(AppError::BadRequest("Message too short or too long".into()));
+    }
+
+    // Device ID validation
+    let device_id = body.device_id.trim();
+    if device_id.is_empty() || device_id.len() > 64 {
+        return Err(AppError::BadRequest("Invalid device ID".into()));
+    }
+
+    // Extract client IP
+    let client_ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .unwrap_or("unknown")
+        .trim()
+        .to_string();
+
+    // Rate limit: 5 messages per day by IP + device hash
+    let rate_key = {
+        use sha2::{Digest, Sha256};
+        let hash = Sha256::digest(format!("{}:{}", client_ip, device_id).as_bytes());
+        format!("anon:rate:{:x}", hash)
+    };
+
+    let (allowed, _remaining) = rate_limit::check_rate_limit(
+        &state.redis,
+        &rate_key,
+        5,    // max 5 messages per day
+        86400, // 24 hours
+    )
+    .await
+    .map_err(|e| match e {
+        rate_limit::RateLimitError::Exceeded { .. } => {
+            AppError::RateLimited { retry_after: 3600 }
+        }
+        rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
+    })?;
+
+    if !allowed {
+        return Err(AppError::RateLimited { retry_after: 3600 });
+    }
+
+    // Content moderation
+    let mod_result = moderation::moderate_input(&content);
+    if mod_result.blocked {
+        return Err(AppError::BadRequest("Message blocked by content filter".into()));
+    }
+
+    let config = state.config.clone();
+
+    let stream = async_stream::stream! {
+        // ── Deprioritize: 2s delay (authenticated users go first) ──
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let event_data = serde_json::json!({"type": "processing"});
+        yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+
+        let messages = vec![ChatMessage {
+            role: "user".into(),
+            content: content.clone(),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+        }];
+
+        let ai_stream = ai_proxy::stream_ai_response(
+            messages,
+            "mira".into(),
+            0.7,
+            1024, // shorter responses for guests
+            "free",
+            false,
+            &config,
+        );
+
+        tokio::pin!(ai_stream);
+
+        loop {
+            match ai_stream.next().await {
+                Some(ai_proxy::AiEvent::Token(chunk)) => {
+                    let clean = sanitize::sanitize_output(&chunk);
+                    let data = serde_json::json!({"type": "token", "content": clean});
+                    yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));
+                }
+                Some(ai_proxy::AiEvent::SearchStarted { query }) => {
+                    let data = serde_json::json!({"type": "search", "query": query});
+                    yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));
+                }
+                Some(ai_proxy::AiEvent::SearchResults { query, results }) => {
+                    let data = serde_json::json!({"type": "search_results", "query": query, "results": results});
+                    yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));
+                }
+                None => break,
+            }
+        }
+
+        let done = serde_json::json!({"type": "done"});
+        yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&done).unwrap_or_default()));
     };
 
     Ok(Sse::new(stream).keep_alive(

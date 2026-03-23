@@ -10,6 +10,7 @@ pub mod completions;
 pub mod feedback;
 pub mod health;
 pub mod sessions;
+pub mod voice;
 
 use axum::{extract::DefaultBodyLimit, routing::get, Router};
 
@@ -35,6 +36,11 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/api-keys", api_keys::api_key_routes())
         .nest("/api/v1/sessions", sessions::session_routes())
         .nest("/api/v1/admin", admin::admin_routes())
+        .nest(
+            "/api/v1/voice",
+            voice::voice_routes()
+                .layer(DefaultBodyLimit::max(upload_limit)),
+        )
         .nest("/v1", completions::completions_routes())
         // Default 2MB body limit for all non-upload routes
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))

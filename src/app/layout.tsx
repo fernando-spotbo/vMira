@@ -73,11 +73,10 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
     languages: {
       "ru": SITE_URL,
-      "en": `${SITE_URL}/en`,
     },
   },
 
-  // Open Graph
+  // Open Graph — image auto-injected from opengraph-image.tsx
   openGraph: {
     type: "website",
     locale: "ru_RU",
@@ -85,37 +84,25 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: SITE_TITLE,
     description: SITE_DESC,
-    images: [
-      {
-        url: `${SITE_URL}/og-image.png`,
-        width: 1200,
-        height: 630,
-        alt: "Мира — AI-ассистент с поиском в интернете",
-      },
-    ],
   },
 
-  // Twitter
+  // Twitter — image auto-injected from opengraph-image.tsx
   twitter: {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESC,
-    images: [`${SITE_URL}/og-image.png`],
   },
 
-  // Icons
+  // Icons — SVG for modern browsers, apple-icon.tsx generates PNG
   icons: {
     icon: "/icon.svg",
-    apple: "/icon.svg",
+    shortcut: "/icon.svg",
   },
 
   // Verification
   verification: {
-    // Add actual IDs after registering in webmaster tools
-    // google: "google-site-verification-id",
-    // yandex: "yandex-verification-id",
+    yandex: "74e453ae49930821",
     other: {
-      // Yandex-specific: region targeting (Moscow)
       "yandex-tableau-widget": `${SITE_URL}/manifest.json`,
     },
   },
@@ -124,8 +111,6 @@ export const metadata: Metadata = {
   category: "technology",
 
   other: {
-    // Yandex-specific meta tags
-    "yandex-verification": "", // Fill after Yandex.Webmaster setup
     "content-language": "ru",
   },
 };
@@ -159,7 +144,7 @@ function JsonLd() {
           "Режим мышления для сложных задач",
           "Голосовой ввод",
         ],
-        screenshot: `${SITE_URL}/og-image.png`,
+        screenshot: `${SITE_URL}/opengraph-image`,
         offers: [
           {
             "@type": "Offer",

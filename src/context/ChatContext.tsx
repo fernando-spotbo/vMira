@@ -133,27 +133,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load messages when switching to a conversation (live mode only)
   useEffect(() => {
-    if (!activeConversationId) return;
+    if (!activeConversationId || !useLiveApi()) return;
     const conv = conversations.find((c) => c.id === activeConversationId);
-    if (!conv || conv.messages.length > 0 || !useLiveApi()) return;
+    // Skip if messages already loaded OR conversation not in list yet
+    if (conv && conv.messages.length > 0) return;
     (async () => {
       const data = await chatApi.fetchConversation(activeConversationId, 50, 0);
       if (!data) return;
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === activeConversationId
-            ? {
-                ...c,
-                messages: mapApiMessages(data.messages),
-                totalMessages: data.totalMessages,
-                hasMore: data.hasMore,
-              }
-            : c
-        )
-      );
+      setConversations((prev) => {
+        const exists = prev.find((c) => c.id === activeConversationId);
+        if (exists) {
+          return prev.map((c) =>
+            c.id === activeConversationId
+              ? { ...c, messages: mapApiMessages(data.messages), totalMessages: data.totalMessages, hasMore: data.hasMore }
+              : c
+          );
+        }
+        // Conversation not in list yet — add it
+        return [
+          { id: activeConversationId, title: data.messages[0]?.content?.slice(0, 60) || "Chat", messages: mapApiMessages(data.messages), createdAt: new Date().toISOString().split("T")[0], totalMessages: data.totalMessages, hasMore: data.hasMore },
+          ...prev,
+        ];
+      });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConversationId]);
+  }, [activeConversationId, conversations.length]);
 
   // Load older messages (infinite scroll)
   const loadMoreMessages = useCallback(async () => {
@@ -195,7 +199,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const toggleSidebar = useCallback(() => setSidebarOpen((prev) => !prev), []);
 
   const addPendingFiles = useCallback((files: File[]) => {
-    setPendingFiles((prev) => [...prev, ...files]);
+    setPendingFiles((prev) => {
+      const combined = [...prev, ...files];
+      return combined.slice(0, 10); // max 10 files per message
+    });
   }, []);
 
   // Add a conversation to the sidebar list if it doesn't exist (used by voice mode)
@@ -388,8 +395,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ]);
         setActiveConversationId(convId);
 
-        // Create real conversation in background, swap ID
-        if (isLive) {
+        // Create real conversation in background, swap ID (skip for guests)
+        if (isLive && getAccessToken()) {
           const conv = await chatApi.createConversation(content.slice(0, 80));
           if (!conv) return;
           const oldId = convId;
@@ -404,8 +411,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         addMessage(convId, userMsg);
       }
 
-      // Upload files in background (if any)
-      if (isLive && filesToUpload.length > 0 && convId) {
+      // Upload files in background (if any) — skip for guests
+      if (isLive && getAccessToken() && filesToUpload.length > 0 && convId) {
         for (const file of filesToUpload) {
           uploadFile(convId, file).catch((e) =>
             console.error("File upload failed:", e)
@@ -414,6 +421,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
 
       if (isLive) {
+        const isGuest = !getAccessToken();
         const controller = new AbortController();
         setAbortController(controller);
         setIsThinking(true);
@@ -433,7 +441,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           const modelName = selectedModel.toLowerCase().replace(/\s+/g, "-");
           const safeModel = ALLOWED_MODELS.includes(modelName) ? modelName : "mira";
 
-          for await (const event of chatApi.streamMessage(convId, content, safeModel, controller.signal)) {
+          // Guest: use anonymous endpoint (no auth, no storage, 5/day limit)
+          const eventStream = isGuest
+            ? chatApi.streamAnonymous(content, controller.signal)
+            : chatApi.streamMessage(convId, content, safeModel, controller.signal);
+
+          for await (const event of eventStream) {
             switch (event.type) {
               case "queue":
                 setQueuePosition(event.position);

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ArrowUp, Square, Plus, Image, FileUp, Mic, X } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
+import { useAuth } from "@/context/AuthContext";
 import VoiceRecording from "./VoiceRecording";
 import VoiceMode from "./VoiceMode";
 import { t } from "@/lib/i18n";
@@ -66,6 +67,8 @@ export default function InputBar({ centered = false }: InputBarProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { activeConversationId, createNewChat, sendMessage: sendChatMessage, cancelMessage, isStreaming, isThinking, pendingFiles, addPendingFiles, removePendingFile, setActiveConversationId } = useChat();
+  const { user } = useAuth();
+  const hasPaidPlan = user?.plan === "pro" || user?.plan === "max" || user?.plan === "enterprise";
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -311,16 +314,18 @@ export default function InputBar({ centered = false }: InputBarProps) {
                 <Mic size={20} strokeWidth={1.8} />
               </button>
 
-              {/* Waveform button — voice mode (real-time conversation) */}
-              <button
-                onClick={() => setShowVoiceMode(true)}
-                onMouseEnter={() => setVoiceBtnHover(true)}
-                onMouseLeave={() => setVoiceBtnHover(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-[10px] text-white/40 hover:text-white/70 hover:bg-black/30 transition-all duration-200"
-                title="Voice mode"
-              >
-                <VoiceModeIcon animated={voiceBtnHover} />
-              </button>
+              {/* Waveform button — voice mode (Pro+ only) */}
+              {hasPaidPlan && (
+                <button
+                  onClick={() => setShowVoiceMode(true)}
+                  onMouseEnter={() => setVoiceBtnHover(true)}
+                  onMouseLeave={() => setVoiceBtnHover(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-[10px] text-white/40 hover:text-white/70 hover:bg-black/30 transition-all duration-200"
+                  title="Voice mode"
+                >
+                  <VoiceModeIcon animated={voiceBtnHover} />
+                </button>
+              )}
             </>
           )}
         </div>

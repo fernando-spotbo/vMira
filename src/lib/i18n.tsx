@@ -214,6 +214,63 @@ const translations: Record<string, Record<Locale, string>> = {
   "platform.apiStatus": { ru: "Статус API", en: "API status" },
   "platform.helpSupport": { ru: "Помощь", en: "Help & support" },
   "platform.feedback": { ru: "Обратная связь", en: "Feedback" },
+
+  // ---- Feedback modal ----
+  "feedback.goodTitle": { ru: "Что понравилось?", en: "What did you like?" },
+  "feedback.badTitle": { ru: "Что пошло не так?", en: "What went wrong?" },
+  "feedback.goodSection": { ru: "Что было хорошо", en: "What was good" },
+  "feedback.badSection": { ru: "Тип проблемы", en: "Issue type" },
+  "feedback.severityLabel": { ru: "Насколько серьёзно", en: "How serious" },
+  "feedback.correctionLabel": { ru: "Как правильно?", en: "What's the correct answer?" },
+  "feedback.correctionPlaceholder": { ru: "Напишите правильный ответ или укажите что должно было быть...", en: "Write the correct answer or describe what it should have been..." },
+  "feedback.commentLabel.good": { ru: "Комментарий", en: "Comment" },
+  "feedback.commentLabel.bad": { ru: "Дополнительно", en: "Additional details" },
+  "feedback.commentPlaceholder.good": { ru: "Что именно понравилось...", en: "What exactly did you like..." },
+  "feedback.commentPlaceholder.bad": { ru: "Подробности проблемы...", en: "Details about the issue..." },
+  "feedback.anonymous": { ru: "Анонимно", en: "Anonymous" },
+  "feedback.cancel": { ru: "Отмена", en: "Cancel" },
+  "feedback.submit": { ru: "Отправить", en: "Submit" },
+  "feedback.thanks": { ru: "Спасибо за отзыв", en: "Thanks for your feedback" },
+  "feedback.thanksDetail": { ru: "Это помогает улучшить Миру", en: "This helps improve Mira" },
+  // Severity
+  "feedback.severity.minor": { ru: "Мелочь", en: "Minor" },
+  "feedback.severity.major": { ru: "Серьёзно", en: "Major" },
+  "feedback.severity.critical": { ru: "Критично", en: "Critical" },
+  // Bad categories
+  "feedback.cat.hallucination": { ru: "Выдумал факты", en: "Hallucinated facts" },
+  "feedback.cat.factual_error": { ru: "Фактическая ошибка", en: "Factual error" },
+  "feedback.cat.ignored_instructions": { ru: "Проигнорировал запрос", en: "Ignored instructions" },
+  "feedback.cat.outdated": { ru: "Устаревшая информация", en: "Outdated info" },
+  "feedback.cat.harmful": { ru: "Вредный контент", en: "Harmful content" },
+  "feedback.cat.repetitive": { ru: "Повторяется", en: "Repetitive" },
+  "feedback.cat.too_long": { ru: "Слишком длинный", en: "Too long" },
+  "feedback.cat.wrong_language": { ru: "Не тот язык", en: "Wrong language" },
+  // Good categories
+  "feedback.cat.accurate": { ru: "Точный и верный", en: "Accurate" },
+  "feedback.cat.helpful": { ru: "Полезный", en: "Helpful" },
+  "feedback.cat.well_written": { ru: "Хорошо написано", en: "Well written" },
+  "feedback.cat.creative": { ru: "Креативный", en: "Creative" },
+  "feedback.cat.good_search": { ru: "Хороший поиск", en: "Good search" },
+  "feedback.cat.other": { ru: "Другое", en: "Other" },
+
+  // ---- Error messages ----
+  "error.rateLimit": { ru: "Достигнут лимит сообщений на сегодня.", en: "Daily message limit reached." },
+  "error.payment": { ru: "Недостаточно средств на балансе.", en: "Insufficient balance." },
+  "error.cancelled": { ru: "Запрос отменён.", en: "Request cancelled." },
+  "error.generic": { ru: "Произошла ошибка. Попробуйте ещё раз.", en: "Something went wrong. Try again." },
+  "error.noResponse": { ru: "Модель не ответила. Попробуйте ещё раз.", en: "Model didn't respond. Try again." },
+  "error.upgradeCta": { ru: "Увеличить лимит", en: "Increase limit" },
+  "error.topupCta": { ru: "Пополнить баланс", en: "Top up balance" },
+  "error.retryAfter": { ru: "Лимит обновится через", en: "Limit resets in" },
+  "error.min": { ru: "мин.", en: "min." },
+
+  // ---- Search phases ----
+  "search.searching": { ru: "Ищу в интернете", en: "Searching the web" },
+  "search.found": { ru: "Найдено", en: "Found" },
+  "search.sources": { ru: "источников", en: "sources" },
+  "search.label": { ru: "Поиск", en: "Search" },
+  "search.source": { ru: "источник", en: "source" },
+  "search.sources.label": { ru: "Источники", en: "Sources" },
 };
 
 // ---- React Context for reactive locale changes ----

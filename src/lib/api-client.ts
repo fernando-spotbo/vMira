@@ -105,6 +105,23 @@ export async function getMe() {
   }>("/auth/me");
 }
 
+// ---- Feedback ----
+
+export interface FeedbackData {
+  rating: "good" | "bad";
+  severity?: "minor" | "major" | "critical";
+  categories?: string[];
+  comment?: string;
+  correction?: string;
+}
+
+export async function submitFeedback(messageId: string, feedback: FeedbackData) {
+  return apiCall<{ id: string; rating: string }>(`/chat/messages/${messageId}/feedback`, {
+    method: "POST",
+    body: JSON.stringify(feedback),
+  });
+}
+
 // ---- File upload ----
 
 export interface UploadedAttachment {

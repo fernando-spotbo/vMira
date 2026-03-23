@@ -15,13 +15,16 @@ use crate::services::search;
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-/// System prompt with search instructions.
+/// System prompt with search and citation instructions.
 pub const MIRA_SYSTEM_PROMPT: &str = "\
 Ты Мира — умный AI-ассистент. Думай кратко.\n\
 Если пользователь задаёт вопрос о текущих событиях, новостях, ценах, погоде, \
 датах, фактах которые могли измениться, или о чём-то что ты не знаешь наверняка — \
-используй функцию web_search для поиска актуальной информации.\n\
-Когда используешь результаты поиска, отвечай на основе найденной информации.";
+используй функцию web_search для поиска актуальной информации.\n\n\
+КРИТИЧЕСКИ ВАЖНО: Когда отвечаешь на основе результатов поиска, ты ДОЛЖЕН ставить номера источников \
+в квадратных скобках [1], [2], [3] после каждого факта или утверждения. Номера соответствуют порядку \
+результатов поиска. Без номеров ответ считается неполным.\n\
+Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»";
 
 const MAX_RETRIES: u32 = 2;
 const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
@@ -333,9 +336,10 @@ pub fn stream_ai_response(
 
                 let (search_content, results_for_event) = match search_result {
                     Ok(sr) => {
-                        let content = sr.results.iter().enumerate().map(|(i, r)| {
+                        let mut content = sr.results.iter().enumerate().map(|(i, r)| {
                             format!("{}. {} — {}\n   {}", i + 1, r.title, r.url, r.content)
                         }).collect::<Vec<_>>().join("\n\n");
+                        content.push_str("\n\n[ВАЖНО: В ответе ОБЯЗАТЕЛЬНО указывай номера источников в квадратных скобках, например [1], [2], после каждого факта.]");
                         let results = sr.results.clone();
                         (content, results)
                     }

@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
-import { Message, MessageStep, Attachment } from "@/lib/types";
+import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, CreditCard, Clock, Globe } from "lucide-react";
+import { Message, MessageStep, Attachment, MessageError } from "@/lib/types";
 import CodeBlock from "./CodeBlock";
 import ReasoningBlock from "./ReasoningBlock";
 import { useStreamingText } from "@/hooks/useStreamingText";
@@ -12,11 +12,98 @@ import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
 import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
 import MessageReactions from "./MessageReactions";
+import PricingModal from "./PricingModal";
+import FeedbackModal from "./FeedbackModal";
 
 interface MessageBubbleProps {
   message: Message;
   isNew?: boolean;
   isStreaming?: boolean;
+}
+
+const UPGRADE_PLANS = [
+  { id: "pro", name: "Pro", price: "199 ₽/мес", messages: "500 сообщ./день" },
+  { id: "max", name: "Max", price: "990 ₽/мес", messages: "Безлимит" },
+];
+
+function ErrorBanner({ error, onUpgrade }: { error: MessageError; onUpgrade?: () => void }) {
+  const config = {
+    rate_limit: {
+      icon: <Clock size={15} />,
+      accent: "text-white/60",
+      bg: "bg-white/[0.03]",
+      border: "border-white/[0.06]",
+    },
+    payment: {
+      icon: <CreditCard size={15} />,
+      accent: "text-white/60",
+      bg: "bg-white/[0.03]",
+      border: "border-white/[0.06]",
+    },
+    cancelled: {
+      icon: <AlertCircle size={15} />,
+      accent: "text-white/35",
+      bg: "bg-white/[0.02]",
+      border: "border-white/[0.05]",
+    },
+    generic: {
+      icon: <AlertCircle size={15} />,
+      accent: "text-white/50",
+      bg: "bg-white/[0.03]",
+      border: "border-white/[0.06]",
+    },
+  }[error.type];
+
+  return (
+    <div className="mt-1.5 space-y-2.5 error-banner-enter">
+      {/* Error message */}
+      <div className={`flex items-start gap-2.5 rounded-xl ${config.bg} border ${config.border} px-3.5 py-2.5`}>
+        <div className={`mt-[1px] shrink-0 ${config.accent}`}>
+          {config.icon}
+        </div>
+        <div className="min-w-0">
+          <p className={`text-[13.5px] leading-relaxed ${config.accent}`}>
+            {error.message}
+          </p>
+          {error.type === "payment" && (
+            <a
+              href="/platform/billing/topup"
+              className="inline-flex items-center gap-1 text-[16px] text-white/50 hover:text-white/70 mt-1.5 transition-colors duration-200"
+            >
+              {t("error.topupCta")}
+              <span className="text-[14px]">→</span>
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Upgrade cards for rate limit */}
+      {error.type === "rate_limit" && (
+        <div className="space-y-2 error-banner-enter" style={{ animationDelay: "120ms" }}>
+          <p className="text-[16px] text-white/30">{t("error.upgradeCta")}</p>
+          <div className="flex gap-2">
+            {UPGRADE_PLANS.map((plan, i) => (
+              <button
+                key={plan.id}
+                onClick={onUpgrade}
+                className="upgrade-card flex-1 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3 text-left error-banner-enter"
+                style={{
+                  animationDelay: `${180 + i * 80}ms`,
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="h-1.5 w-1.5 rounded-full bg-white/30" />
+                  <span className="text-[16px] font-medium text-white/80">{plan.name}</span>
+                </div>
+                <p className="text-[16px] text-white/40">{plan.messages}</p>
+                <p className="text-[16px] text-white/20 mt-0.5">{plan.price}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AssistantAvatar({ thinking = false }: { thinking?: boolean }) {
@@ -74,6 +161,115 @@ function AssistantAvatar({ thinking = false }: { thinking?: boolean }) {
           <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor"/>
           <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor"/>
         </svg>
+      </div>
+    </div>
+  );
+}
+
+// ── Source citations ─────────────────────────────────────────
+
+/** Extract a flat list of sources from message steps. */
+function extractSources(steps?: MessageStep[]): { title: string; domain: string; url?: string }[] {
+  if (!steps) return [];
+  const sources: { title: string; domain: string; url?: string }[] = [];
+  for (const step of steps) {
+    if (step.type === "reasoning" && step.searches) {
+      for (const sq of step.searches) {
+        for (const r of sq.results) {
+          sources.push(r);
+        }
+      }
+    }
+  }
+  return sources;
+}
+
+/**
+ * Pre-process markdown to convert [1], [2] citation refs into custom HTML
+ * that ReactMarkdown won't eat as link references.
+ * Converts [1] → <cite-1> which we handle in the code renderer.
+ */
+function preprocessCitations(text: string): string {
+  return text.replace(/\[(\d+)\]/g, "⟨cite:$1⟩");
+}
+
+/** Render citation markers in text as clickable superscript pills. */
+function renderWithCitations(text: string, sources: { url?: string }[]): React.ReactNode[] {
+  if (sources.length === 0 || !text.includes("⟨cite:")) return [text];
+  const parts = text.split(/(⟨cite:\d+⟩)/g);
+  return parts.map((part, i) => {
+    const match = part.match(/^⟨cite:(\d+)⟩$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      const source = sources[num - 1];
+      if (source?.url) {
+        return (
+          <a
+            key={i}
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-md bg-white/[0.08] text-[11px] font-medium text-white/50 hover:bg-white/[0.14] hover:text-white/70 transition-colors no-underline align-super ml-0.5 cursor-pointer"
+            title={source.url}
+          >
+            {num}
+          </a>
+        );
+      }
+      return <span key={i} className="text-white/30 text-[11px] align-super ml-0.5">[{num}]</span>;
+    }
+    return part ? <span key={i}>{part}</span> : null;
+  });
+}
+
+/** Single expandable sources badge. */
+function SourcesBadge({ sources }: { sources: { title: string; domain: string; url?: string }[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (sources.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2 text-[16px] text-white/45 hover:bg-white/[0.05] hover:border-white/[0.10] hover:text-white/60 transition-all"
+      >
+        <Globe size={14} />
+        <span>{sources.length} {sources.length === 1 ? t("search.source") : t("search.sources")}</span>
+        <ChevronDown
+          size={14}
+          className={`transition-transform duration-300 ${expanded ? "rotate-0" : "-rotate-90"}`}
+        />
+      </button>
+
+      <div
+        className="overflow-hidden"
+        style={{
+          maxHeight: expanded ? `${sources.length * 44 + 16}px` : "0px",
+          opacity: expanded ? 1 : 0,
+          transition: expanded
+            ? "max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease 0.05s"
+            : "max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease",
+        }}
+      >
+        <div className="mt-2 rounded-xl border border-white/[0.05] overflow-hidden bg-white/[0.01]">
+          {sources.map((s, i) => (
+            <a
+              key={i}
+              href={s.url || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center gap-2.5 px-3.5 py-2.5 text-[16px] no-underline hover:bg-white/[0.03] transition-colors ${
+                i < sources.length - 1 ? "border-b border-white/[0.04]" : ""
+              }`}
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-[11px] font-semibold text-white/35">
+                {i + 1}
+              </span>
+              <span className="text-white/50 truncate flex-1">{s.title}</span>
+              <span className="text-[16px] text-white/20 shrink-0">{s.domain}</span>
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -153,6 +349,9 @@ export default function MessageBubble({
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
+  const [showPricing, setShowPricing] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState<"good" | "bad" | null>(null);
+  const [showFeedback, setShowFeedback] = useState<"good" | "bad" | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === "user";
   const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, setIsThinking } = useChat();
@@ -167,7 +366,8 @@ export default function MessageBubble({
     isStreaming && !isUser
   );
 
-  const contentToRender = isStreaming && !isUser ? displayedText : (isUser ? displayContent : message.content);
+  const rawContent = isStreaming && !isUser ? displayedText : (isUser ? displayContent : message.content);
+  const contentToRender = !isUser ? preprocessCitations(rawContent) : rawContent;
 
   useEffect(() => {
     if (editing && editRef.current) {
@@ -345,7 +545,26 @@ export default function MessageBubble({
     );
   }
 
+  // Extract sources for citation rendering
+  const sources = extractSources(message.steps);
+
   const markdownComponents = {
+    // Render paragraphs with inline [1], [2] citations
+    p({ children }: { children?: React.ReactNode }) {
+      if (sources.length === 0) return <p>{children}</p>;
+      // Process text children to replace [N] with citation links
+      const processed = Array.isArray(children) ? children : [children];
+      return (
+        <p>
+          {processed.map((child, ci) => {
+            if (typeof child === "string") {
+              return <span key={ci}>{renderWithCitations(child, sources)}</span>;
+            }
+            return child;
+          })}
+        </p>
+      );
+    },
     a({ href, children, ...props }: { href?: string; children?: React.ReactNode; [key: string]: any }) {
       const isSafe = href && !/^(javascript|data|vbscript):/i.test(href);
       return (
@@ -397,9 +616,10 @@ export default function MessageBubble({
   };
 
   const hasSteps = message.steps && message.steps.length > 0;
+  const hasError = !!message.error;
 
-  // Is this message in a "thinking" state? (empty content, fresh ID)
-  const isWaiting = !isUser && message.id.startsWith("asst-") && message.content.trim().length === 0;
+  // Is this message in a "thinking" state? (empty content, fresh ID, no error)
+  const isWaiting = !isUser && message.id.startsWith("asst-") && message.content.trim().length === 0 && !hasError;
 
   // Assistant message
   return (
@@ -430,15 +650,21 @@ export default function MessageBubble({
             </span>
           </div>
 
-          {hasSteps ? (
+          {hasError ? (
+            <>
+              <ErrorBanner error={message.error!} onUpgrade={() => setShowPricing(true)} />
+              {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
+            </>
+          ) : hasSteps ? (
             <div className="markdown-body text-[16px] leading-7 text-white">
               {message.steps!.map((step, i) => {
                 if (step.type === "reasoning") {
-                  return <ReasoningBlock key={i} summary={step.summary} thinking={step.thinking} searches={step.searches} />;
+                  return <ReasoningBlock key={i} summary={step.summary} thinking={step.thinking} searches={step.searches} searchPhase={step.searchPhase} />;
                 }
                 // text step
                 const isLastStep = i === message.steps!.length - 1;
-                const textContent = isLastStep && isStreaming && !isUser ? displayedText : step.content;
+                const rawText = isLastStep && isStreaming && !isUser ? displayedText : step.content;
+                const textContent = preprocessCitations(rawText);
                 return (
                   <div key={i}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{textContent}</ReactMarkdown>
@@ -464,7 +690,12 @@ export default function MessageBubble({
             <AttachmentGrid attachments={message.attachments} />
           )}
 
-          {(!isStreaming || isComplete) && message.content.trim().length > 0 && (
+          {/* Source citations */}
+          {!hasError && (!isStreaming || isComplete) && sources.length > 0 && (
+            <SourcesBadge sources={sources} />
+          )}
+
+          {!hasError && (!isStreaming || isComplete) && message.content.trim().length > 0 && (
             <div className="mt-3 flex items-center gap-0.5">
               <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <button
@@ -475,13 +706,37 @@ export default function MessageBubble({
                   {copied ? <Check size={15} /> : <Copy size={15} />}
                 </button>
                 <button
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white/70 transition-colors"
+                  onClick={() => {
+                    if (feedbackRating === "good") {
+                      setFeedbackRating(null);
+                    } else {
+                      setFeedbackRating("good");
+                      setShowFeedback("good");
+                    }
+                  }}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                    feedbackRating === "good"
+                      ? "text-white bg-white/[0.10]"
+                      : "text-white/40 hover:bg-white/[0.06] hover:text-white/70"
+                  }`}
                   title="Good response"
                 >
                   <ThumbsUp size={15} />
                 </button>
                 <button
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white/70 transition-colors"
+                  onClick={() => {
+                    if (feedbackRating === "bad") {
+                      setFeedbackRating(null);
+                    } else {
+                      setFeedbackRating("bad");
+                      setShowFeedback("bad");
+                    }
+                  }}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                    feedbackRating === "bad"
+                      ? "text-white bg-white/[0.10]"
+                      : "text-white/40 hover:bg-white/[0.06] hover:text-white/70"
+                  }`}
                   title="Bad response"
                 >
                   <ThumbsDown size={15} />
@@ -497,6 +752,16 @@ export default function MessageBubble({
                 <MessageReactions messageId={message.id} />
               </div>
             </div>
+          )}
+
+          {/* Feedback modal */}
+          {showFeedback && (
+            <FeedbackModal
+              messageId={message.id}
+              rating={showFeedback}
+              onClose={() => setShowFeedback(null)}
+              onSubmitted={(r) => setFeedbackRating(r)}
+            />
           )}
         </div>
       </div>

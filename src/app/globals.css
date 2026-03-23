@@ -396,6 +396,101 @@ textarea {
   60% { transform: scale(0.97); }
 }
 
+/* Search globe — organic wobble, not mechanical spin */
+.search-globe-spin {
+  animation: globeWobble 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  transform-origin: center;
+}
+
+@keyframes globeWobble {
+  0%   { transform: rotate(0deg) scale(1); opacity: 0.6; }
+  25%  { transform: rotate(12deg) scale(1.05); opacity: 0.8; }
+  50%  { transform: rotate(-8deg) scale(0.97); opacity: 0.6; }
+  75%  { transform: rotate(6deg) scale(1.02); opacity: 0.75; }
+  100% { transform: rotate(0deg) scale(1); opacity: 0.6; }
+}
+
+/* Search pulse dot — layered glow */
+.search-pulse-ring {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  animation: searchDotBreathe 2s ease-in-out infinite;
+}
+
+.search-pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  animation: searchRingExpand 2s ease-in-out infinite;
+}
+
+@keyframes searchDotBreathe {
+  0%, 100% { transform: scale(0.7); opacity: 0.3; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+@keyframes searchRingExpand {
+  0%, 100% { transform: scale(0.8); opacity: 0.15; }
+  50% { transform: scale(1.5); opacity: 0; }
+}
+
+/* Search result row entrance — slide in from left with fade */
+@keyframes searchResultSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.search-result-enter {
+  animation: searchResultSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Error banner entrance */
+@keyframes errorSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.error-banner-enter {
+  animation: errorSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Upgrade card hover glow */
+.upgrade-card {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.upgrade-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Search header crossfade text */
+@keyframes searchTextFadeSwap {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.search-text-swap {
+  animation: searchTextFadeSwap 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Scale-in animation for reactions */
 .animate-scale-in {
   animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;

@@ -596,6 +596,7 @@ async fn send_message(
 
         const MAX_RESPONSE_SIZE: usize = 256 * 1024;
         let mut full_content = String::new();
+        let mut search_steps: Vec<serde_json::Value> = Vec::new();
 
         // ── Step 1: Try to acquire a GPU slot ──────────────────────
         let queue_start = Instant::now();
@@ -818,15 +819,28 @@ async fn send_message(
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
                         }
                         Some(ai_proxy::AiEvent::SearchResults { query, results }) => {
+                            let results_json: Vec<serde_json::Value> = results.iter().map(|r| serde_json::json!({
+                                "title": r.title,
+                                "url": r.url,
+                                "domain": r.domain,
+                                "content": r.content,
+                            })).collect();
+
+                            // Collect for DB persistence
+                            search_steps.push(serde_json::json!({
+                                "query": query,
+                                "resultCount": results_json.len(),
+                                "results": results_json.iter().map(|r| serde_json::json!({
+                                    "title": r["title"],
+                                    "domain": r["domain"],
+                                    "url": r["url"],
+                                })).collect::<Vec<_>>(),
+                            }));
+
                             let event_data = serde_json::json!({
                                 "type": "search_results",
                                 "query": query,
-                                "results": results.iter().map(|r| serde_json::json!({
-                                    "title": r.title,
-                                    "url": r.url,
-                                    "domain": r.domain,
-                                    "content": r.content,
-                                })).collect::<Vec<_>>(),
+                                "results": results_json,
                             });
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
                         }
@@ -953,13 +967,34 @@ async fn send_message(
                 sanitize::sanitize_output(&full_content)
             };
 
+            // Build steps JSON if we have search data
+            let steps_json: Option<serde_json::Value> = if !search_steps.is_empty() {
+                Some(serde_json::json!([
+                    {
+                        "type": "reasoning",
+                        "summary": search_steps.iter()
+                            .map(|s| s["query"].as_str().unwrap_or(""))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        "searches": search_steps,
+                    },
+                    {
+                        "type": "text",
+                        "content": final_content,
+                    }
+                ]))
+            } else {
+                None
+            };
+
             let save_result = sqlx::query(
-                "INSERT INTO messages (id, conversation_id, role, content, model, input_tokens, output_tokens, created_at)
-                 VALUES ($1, $2, 'assistant', $3, $4, $5, $6, $7)"
+                "INSERT INTO messages (id, conversation_id, role, content, steps, model, input_tokens, output_tokens, created_at)
+                 VALUES ($1, $2, 'assistant', $3, $4, $5, $6, $7, $8)"
             )
             .bind(Uuid::new_v4())
             .bind(conversation_id)
             .bind(&final_content)
+            .bind(&steps_json)
             .bind(&model_name)
             .bind(input_tokens)
             .bind(output_tokens)

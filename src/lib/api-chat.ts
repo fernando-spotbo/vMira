@@ -114,7 +114,11 @@ export async function* streamMessage(
 
   if (!res.ok || !res.body) {
     const error = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(error.detail || `API error: ${res.status}`);
+    const err = new Error(error.detail || `API error: ${res.status}`) as Error & { status?: number; retryAfter?: number };
+    err.status = res.status;
+    const retryHeader = res.headers.get("Retry-After");
+    if (retryHeader) err.retryAfter = parseInt(retryHeader, 10);
+    throw err;
   }
 
   const reader = res.body.getReader();

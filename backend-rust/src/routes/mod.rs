@@ -7,6 +7,7 @@ pub mod auth;
 pub mod billing;
 pub mod chat;
 pub mod completions;
+pub mod feedback;
 pub mod health;
 pub mod sessions;
 
@@ -29,6 +30,7 @@ pub fn create_router(state: AppState) -> Router {
                 .layer(DefaultBodyLimit::max(upload_limit)),
         )
         .nest("/api/v1/attachments", attachments::serve_routes())
+        .nest("/api/v1/chat", feedback::feedback_routes())
         .nest("/api/v1/billing", billing::billing_routes())
         .nest("/api/v1/api-keys", api_keys::api_key_routes())
         .nest("/api/v1/sessions", sessions::session_routes())

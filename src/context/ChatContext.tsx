@@ -10,9 +10,10 @@ import {
   useRef,
   ReactNode,
 } from "react";
-import { Conversation, Message, Attachment, MessageStep, SearchQuery } from "@/lib/types";
+import { Conversation, Message, Attachment, MessageStep, MessageError, SearchQuery } from "@/lib/types";
 import { mockConversations } from "@/lib/mock-data";
 import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
+import { t } from "@/lib/i18n";
 import * as chatApi from "@/lib/api-chat";
 import { getAccessToken, uploadFile } from "@/lib/api-client";
 
@@ -106,7 +107,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   id: m.id,
                   role: m.role,
                   content: m.content,
-                  steps: m.steps ?? undefined,
+                  steps: m.steps?.map((step: any) => {
+                    if (step.type === "reasoning") {
+                      return {
+                        type: "reasoning" as const,
+                        summary: step.summary || "",
+                        thinking: step.thinking,
+                        searches: step.searches?.map((sq: any) => ({
+                          query: sq.query || "",
+                          resultCount: sq.resultCount || sq.results?.length || 0,
+                          results: (sq.results || []).map((r: any) => ({
+                            title: r.title || "",
+                            domain: r.domain || "",
+                            url: r.url,
+                          })),
+                        })),
+                        searchPhase: "done" as const,
+                      };
+                    }
+                    return {
+                      type: "text" as const,
+                      content: step.content || "",
+                    };
+                  }) ?? undefined,
                   attachments: m.attachments?.map((a) => ({
                     id: a.id,
                     filename: a.filename,
@@ -256,6 +279,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  // Helper: set error on a message (replaces content with error state)
+  const setMessageError = useCallback((convId: string, msgId: string, error: MessageError) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === convId
+          ? { ...c, messages: c.messages.map((m) => m.id === msgId ? { ...m, content: "", error } : m) }
+          : c
+      )
+    );
+  }, []);
+
   // Send message — optimistic UI: show instantly, stream in background
   const sendMessage = useCallback(
     async (content: string) => {
@@ -361,9 +395,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 break;
 
               case "search":
-                // Model is searching the web
+                // Model is searching the web — show animated search indicator
                 currentSearchQuery = event.query;
                 setIsThinking(true);
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === convId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === asstId
+                              ? {
+                                  ...m,
+                                  steps: [
+                                    { type: "reasoning" as const, summary: event.query, searches: [], searchPhase: "searching" as const },
+                                  ],
+                                }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
                 break;
 
               case "search_results":
@@ -377,7 +430,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     url: r.url,
                   })),
                 });
-                // Update the message to show search results while waiting for response
+                // Update the message to show search results with animation
                 setConversations((prev) =>
                   prev.map((c) =>
                     c.id === convId
@@ -388,7 +441,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                               ? {
                                   ...m,
                                   steps: [
-                                    { type: "reasoning" as const, summary: `Искал: ${event.query}`, searches: [...searches] },
+                                    { type: "reasoning" as const, summary: event.query, searches: [...searches], searchPhase: "results" as const },
                                   ],
                                 }
                               : m
@@ -407,6 +460,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
                 fullContent += event.content;
                 // Update message: include steps (search) + content
+                const phase = streamingStarted && fullContent.length < 20 ? "answering" as const : "done" as const;
                 setConversations((prev) =>
                   prev.map((c) =>
                     c.id === convId
@@ -419,7 +473,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                                   content: fullContent,
                                   steps: searches.length > 0
                                     ? [
-                                        { type: "reasoning" as const, summary: `Искал: ${searches.map(s => s.query).join(", ")}`, searches: [...searches] },
+                                        { type: "reasoning" as const, summary: searches.map(s => s.query).join(", "), searches: [...searches], searchPhase: phase },
                                         { type: "text" as const, content: fullContent },
                                       ]
                                     : undefined,
@@ -436,7 +490,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 break;
 
               case "error":
-                updateMessageContent(convId!, asstId, event.message || "Произошла ошибка.");
+                setMessageError(convId!, asstId, {
+                  type: "generic",
+                  message: event.message || t("error.generic"),
+                });
                 break;
             }
           }
@@ -446,16 +503,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setQueuePosition(null);
 
           if (!fullContent.trim()) {
-            updateMessageContent(convId, asstId, "Модель не ответила. Попробуйте ещё раз.");
+            setMessageError(convId, asstId, {
+              type: "generic",
+              message: t("error.noResponse"),
+            });
           }
         } catch (err: any) {
           setIsThinking(false);
           setIsStreaming(false);
           setQueuePosition(null);
           if (err?.name === "AbortError") {
-            updateMessageContent(convId, asstId, "Запрос отменён.");
+            setMessageError(convId, asstId, {
+              type: "cancelled",
+              message: t("error.cancelled"),
+            });
+          } else if (err?.status === 429) {
+            const mins = err.retryAfter ? Math.ceil(err.retryAfter / 60) : null;
+            setMessageError(convId, asstId, {
+              type: "rate_limit",
+              message: t("error.rateLimit"),
+              retryAfterMinutes: mins ?? undefined,
+            });
+          } else if (err?.status === 402) {
+            setMessageError(convId, asstId, {
+              type: "payment",
+              message: t("error.payment"),
+            });
           } else {
-            updateMessageContent(convId, asstId, "Произошла ошибка. Попробуйте ещё раз.");
+            setMessageError(convId, asstId, {
+              type: "generic",
+              message: t("error.generic"),
+            });
           }
         } finally {
           setAbortController(null);

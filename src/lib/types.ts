@@ -10,11 +10,14 @@ export interface SearchQuery {
   results: SearchResult[];
 }
 
+export type SearchPhase = "searching" | "results" | "answering" | "done";
+
 export interface ReasoningBlock {
   type: "reasoning";
   summary: string;
   thinking?: string;
   searches?: SearchQuery[];
+  searchPhase?: SearchPhase;
 }
 
 export interface TextBlock {
@@ -39,6 +42,12 @@ export interface Attachment {
   progress?: number;
 }
 
+export interface MessageError {
+  type: "rate_limit" | "payment" | "cancelled" | "generic";
+  message: string;
+  retryAfterMinutes?: number;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -47,6 +56,7 @@ export interface Message {
   versionIndex?: number;
   steps?: MessageStep[];
   attachments?: Attachment[];
+  error?: MessageError;
 }
 
 export interface Conversation {

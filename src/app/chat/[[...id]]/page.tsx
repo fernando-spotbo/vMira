@@ -9,7 +9,6 @@ import ChatArea from "@/components/ChatArea";
 import InputBar from "@/components/InputBar";
 import { MiraHeading } from "@/components/MiraHeading";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
 
 function ChatLayout() {
   const {
@@ -19,6 +18,7 @@ function ChatLayout() {
     isThinking,
     createNewChat,
     addMessage,
+    sendMessage,
     setActiveConversationId,
     setIsThinking,
   } = useChat();
@@ -67,51 +67,16 @@ function ChatLayout() {
     createNewChat();
   }, [searchParams, createNewChat]);
 
-  // Once a new chat is created from the landing page query, send the message
+  // Once a new chat is created from the landing page query, send the message via real API
   useEffect(() => {
     if (!initialMessageHandled.current) return;
     const q = searchParams.get("q");
     if (!q || !activeConversationId) return;
-    // Check if this conversation already has messages (avoid double-send)
     if (activeConversation && activeConversation.messages.length > 0) return;
 
-    // Send the user message
-    addMessage(activeConversationId, {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: q,
-    });
-
-    // Simulate AI response
-    setIsThinking(true);
-    const stepped = getRandomSteppedResponse();
-    const thinkingDuration = 1500 + Math.random() * 2000;
-
-    if (stepped) {
-      setTimeout(() => {
-        setIsThinking(false);
-        addMessage(activeConversationId, {
-          id: `asst-${Date.now()}`,
-          role: "assistant",
-          content: stepped.content,
-          steps: stepped.steps,
-        });
-      }, thinkingDuration);
-    } else {
-      const response = getRandomMockResponse();
-      setTimeout(() => {
-        setIsThinking(false);
-        addMessage(activeConversationId, {
-          id: `asst-${Date.now()}`,
-          role: "assistant",
-          content: response,
-        });
-      }, thinkingDuration);
-    }
-
-    // Clean the URL
+    sendMessage(q);
     window.history.replaceState({}, "", "/chat");
-  }, [activeConversationId, activeConversation, searchParams, addMessage, setIsThinking]);
+  }, [activeConversationId, activeConversation, searchParams, sendMessage]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#161616]">

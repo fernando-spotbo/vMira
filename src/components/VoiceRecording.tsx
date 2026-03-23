@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, ArrowUp } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { transcribeAudio } from "@/lib/api-client";
 
 interface VoiceRecordingProps {
   onClose: () => void;
@@ -13,73 +14,25 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
   const [elapsed, setElapsed] = useState(0);
   const [bars, setBars] = useState<number[]>(Array(32).fill(0.08));
   const [transcript, setTranscript] = useState("");
-  const [interimText, setInterimText] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
 
   const startRef = useRef(Date.now());
-  const recognitionRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number>(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
-  // ── Initialize speech recognition + microphone ──
+  // ── Initialize microphone + MediaRecorder ──
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError(t("voice.unsupported"));
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "ru-RU";
-    recognition.maxAlternatives = 1;
-    recognitionRef.current = recognition;
-
-    let finalTranscript = "";
-
-    recognition.onresult = (event: any) => {
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript + " ";
-          setTranscript(finalTranscript.trim());
-          setInterimText("");
-        } else {
-          interim += result[0].transcript;
-        }
-      }
-      if (interim) setInterimText(interim);
-    };
-
-    recognition.onerror = (event: any) => {
-      if (event.error === "not-allowed") {
-        setError(t("voice.micDenied"));
-      } else if (event.error !== "aborted") {
-        setError(t("voice.error"));
-      }
-    };
-
-    recognition.onend = () => {
-      // Auto-restart if still active (browser stops after silence)
-      if (recognitionRef.current && isListening) {
-        try { recognition.start(); } catch {}
-      }
-    };
-
-    // Start mic + speech recognition
     let unmounted = false;
+
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // If unmounted while waiting for mic, stop immediately
-        if (unmounted) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
+        if (unmounted) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
 
         const audioCtx = new AudioContext();
@@ -90,7 +43,16 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
         source.connect(analyser);
         analyserRef.current = analyser;
 
-        recognition.start();
+        // Start recording
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus" : "audio/webm";
+        const recorder = new MediaRecorder(stream, { mimeType });
+        chunksRef.current = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunksRef.current.push(e.data);
+        };
+        recorder.start(500);
+        mediaRecorderRef.current = recorder;
         setIsListening(true);
       } catch {
         setError(t("voice.micDenied"));
@@ -99,8 +61,9 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
 
     return () => {
       unmounted = true;
-      try { recognition.stop(); } catch {}
-      recognitionRef.current = null;
+      if (mediaRecorderRef.current?.state !== "inactive") {
+        try { mediaRecorderRef.current?.stop(); } catch {}
+      }
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       analyserRef.current = null;
@@ -146,14 +109,43 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const handleSend = () => {
-    const text = (transcript + " " + interimText).trim();
-    if (text) onSend(text);
-    onClose();
+  const handleSend = async () => {
+    if (transcript.trim()) {
+      onSend(transcript.trim());
+      onClose();
+      return;
+    }
+
+    // Stop recording and transcribe
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") { onClose(); return; }
+
+    setIsProcessing(true);
+
+    recorder.onstop = async () => {
+      if (chunksRef.current.length === 0) { onClose(); return; }
+      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      chunksRef.current = [];
+
+      if (blob.size < 1000) { onClose(); return; }
+
+      try {
+        const result = await transcribeAudio(blob);
+        const text = result.text?.trim();
+        if (text) {
+          onSend(text);
+        }
+      } catch (e) {
+        console.error("Transcription failed:", e);
+      }
+      onClose();
+    };
+
+    try { recorder.stop(); } catch { onClose(); }
   };
 
-  const displayText = transcript + (interimText ? " " + interimText : "");
-  const hasText = displayText.trim().length > 0;
+  const displayText = transcript || (isProcessing ? t("voice.thinking") : "");
+  const hasText = transcript.trim().length > 0;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 mira-fade-in">
@@ -188,16 +180,11 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
 
               {/* Live transcript */}
               <div className="text-center mb-5 min-h-[56px] max-h-[120px] overflow-y-auto">
-                {hasText ? (
-                  <p className="text-[16px] text-white/70 leading-relaxed">
-                    {transcript}
-                    {interimText && (
-                      <span className="text-white/30">{" "}{interimText}</span>
-                    )}
-                  </p>
+                {displayText ? (
+                  <p className="text-[16px] text-white/70 leading-relaxed">{displayText}</p>
                 ) : (
                   <p className="text-[16px] text-white/30">
-                    {t("voice.listening")}
+                    {t("voice.listening")}<span className="mira-thinking-dots" />
                   </p>
                 )}
               </div>
@@ -221,8 +208,8 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
 
                 <button
                   onClick={handleSend}
-                  disabled={!hasText}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#161616] hover:bg-white/90 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-default"
+                  disabled={isProcessing}
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#161616] hover:bg-white/90 active:scale-95 transition-all disabled:opacity-50"
                   title={t("voice.send")}
                 >
                   <ArrowUp size={20} strokeWidth={2.5} />

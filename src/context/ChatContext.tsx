@@ -11,16 +11,9 @@ import {
   ReactNode,
 } from "react";
 import { Conversation, Message, Attachment, MessageStep, MessageError, SearchQuery } from "@/lib/types";
-import { mockConversations } from "@/lib/mock-data";
-import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
 import { t } from "@/lib/i18n";
 import * as chatApi from "@/lib/api-chat";
 import { getAccessToken, uploadFile } from "@/lib/api-client";
-
-// Live API when user has a token (all requests go through /api/proxy)
-function useLiveApi() {
-  return !!getAccessToken();
-}
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -58,9 +51,7 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const sendingRef = useRef(false);
-  const [conversations, setConversations] = useState<Conversation[]>(
-    useLiveApi() ? [] : mockConversations
-  );
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState("Mira");
@@ -77,7 +68,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load conversations from API on mount
   useEffect(() => {
-    if (!useLiveApi()) return;
+    if (!getAccessToken()) return;
     (async () => {
       const convs = await chatApi.fetchConversations();
       setConversations(
@@ -133,7 +124,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load messages when switching to a conversation (live mode only)
   useEffect(() => {
-    if (!activeConversationId || !useLiveApi()) return;
+    if (!activeConversationId || !getAccessToken()) return;
     const conv = conversations.find((c) => c.id === activeConversationId);
     // Skip if messages already loaded OR conversation not in list yet
     if (conv && conv.messages.length > 0) return;
@@ -161,7 +152,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load older messages (infinite scroll)
   const loadMoreMessages = useCallback(async () => {
-    if (!activeConversationId || !useLiveApi()) return;
+    if (!activeConversationId || !getAccessToken()) return;
     const conv = conversations.find((c) => c.id === activeConversationId);
     if (!conv || !conv.hasMore || conv.loadingMore) return;
 
@@ -271,7 +262,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const renameConversation = useCallback(
     async (id: string, title: string) => {
-      if (useLiveApi()) {
+      if (getAccessToken()) {
         await chatApi.updateConversation(id, { title });
       }
       setConversations((prev) =>
@@ -283,7 +274,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const deleteConversation = useCallback(
     async (id: string) => {
-      if (useLiveApi()) {
+      if (getAccessToken()) {
         await chatApi.deleteConversation(id);
       }
       setConversations((prev) => {
@@ -303,7 +294,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const conv = conversations.find((c) => c.id === id);
       if (!conv) return;
       const newStarred = !conv.starred;
-      if (useLiveApi()) {
+      if (getAccessToken()) {
         await chatApi.updateConversation(id, { starred: newStarred });
       }
       setConversations((prev) =>
@@ -354,7 +345,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (sendingRef.current) return;
       sendingRef.current = true;
       try {
-      const isLive = useLiveApi();
+      const isLive = true; // always live — mock data removed
       let convId = activeConversationId;
 
       // Capture and clear pending files
@@ -610,28 +601,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         } finally {
           setAbortController(null);
         }
-      } else {
-        // Mock response
-        setIsThinking(true);
-        const stepped = getRandomSteppedResponse();
-        const mockConvId = convId;
-
-        setTimeout(() => {
-          setIsThinking(false);
-          const asstMsg: Message = stepped
-            ? { id: `asst-${Date.now()}`, role: "assistant", content: stepped.content, steps: stepped.steps }
-            : { id: `asst-${Date.now()}`, role: "assistant", content: getRandomMockResponse() };
-
-          setConversations((prev) => {
-            const found = prev.find((c) => c.id === mockConvId);
-            if (!found) return prev;
-            return prev.map((c) =>
-              c.id === mockConvId
-                ? { ...c, messages: [...c.messages, asstMsg] }
-                : c
-            );
-          });
-        }, 2000);
       }
       } finally {
         sendingRef.current = false;
@@ -649,7 +618,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const convId = activeConversationId;
 
       try {
-        if (!useLiveApi()) return;
+        if (!getAccessToken()) return;
 
         const controller = new AbortController();
         setAbortController(controller);

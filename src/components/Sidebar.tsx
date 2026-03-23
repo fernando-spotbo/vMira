@@ -257,10 +257,20 @@ export default function Sidebar() {
       {/* Mobile sidebar */}
       <aside
         className={`
-          fixed left-0 top-0 z-50 flex h-full w-[260px] flex-col bg-[#131313]
+          fixed left-0 top-0 z-50 flex h-full w-[280px] max-w-[85vw] flex-col bg-[#131313]
           transition-transform duration-300 ease-in-out md:hidden
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
+        onTouchStart={(e) => {
+          const touch = e.touches[0];
+          (e.currentTarget as any)._touchStartX = touch.clientX;
+        }}
+        onTouchEnd={(e) => {
+          const startX = (e.currentTarget as any)._touchStartX;
+          if (startX === undefined) return;
+          const endX = e.changedTouches[0].clientX;
+          if (startX - endX > 60) setSidebarOpen(false); // swipe left to close
+        }}
       >
         <SidebarContent
           expanded

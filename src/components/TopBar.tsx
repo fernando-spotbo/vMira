@@ -77,18 +77,17 @@ export default function TopBar() {
   return (
     <header className="absolute top-0 left-0 right-0 flex h-12 items-center justify-between px-3 md:px-4 z-10 pointer-events-none">
       <div className="flex items-center gap-1 pointer-events-auto">
-        {/* Mobile sidebar toggle */}
-        {!sidebarOpen && (
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="md:hidden flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="3" y="3" width="18" height="18" rx="3" />
-              <line x1="9" y1="3" x2="9" y2="21" />
-            </svg>
-          </button>
-        )}
+        {/* Mobile sidebar toggle — always visible on mobile */}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden flex h-10 w-10 items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <line x1="4" y1="7" x2="20" y2="7" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="17" x2="20" y2="17" />
+          </svg>
+        </button>
 
         {/* Chat title with dropdown OR model selector */}
         {hasConversation ? (

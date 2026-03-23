@@ -32,12 +32,24 @@ export default function LandingPage() {
     textareaRef.current?.focus();
   }, []);
 
-  // Redirect to chat if already logged in
+  // Redirect to chat if already logged in — immediate, no flash
   useEffect(() => {
     if (!loading && user) {
-      router.push("/chat");
+      router.replace("/chat");
     }
   }, [loading, user, router]);
+
+  // Don't render landing while checking auth or if user is logged in (prevents flash)
+  if (loading || user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#161616]">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-white/20 animate-pulse">
+          <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor" />
+          <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor" />
+        </svg>
+      </div>
+    );
+  }
 
   const navigateToChat = () => {
     setLeaving(true);

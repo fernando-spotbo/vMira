@@ -12,6 +12,7 @@ import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
 import MessageReactions from "./MessageReactions";
 import PricingModal from "./PricingModal";
+import AuthModal from "./AuthModal";
 import FeedbackModal from "./FeedbackModal";
 import ExternalLinkModal from "./ExternalLinkModal";
 
@@ -26,7 +27,7 @@ const UPGRADE_PLANS = [
   { id: "max", name: "Max", price: "990 ₽/мес", messages: "Безлимит" },
 ];
 
-function ErrorBanner({ error, onUpgrade }: { error: MessageError; onUpgrade?: () => void }) {
+function ErrorBanner({ error, onUpgrade, onLogin }: { error: MessageError; onUpgrade?: () => void; onLogin?: () => void }) {
   const config = {
     rate_limit: {
       icon: <Clock size={15} />,
@@ -77,8 +78,20 @@ function ErrorBanner({ error, onUpgrade }: { error: MessageError; onUpgrade?: ()
         </div>
       </div>
 
-      {/* Upgrade cards for rate limit */}
-      {error.type === "rate_limit" && (
+      {/* Guest limit — offer login */}
+      {error.type === "rate_limit" && error.message === t("error.guestLimit") && onLogin && (
+        <div className="error-banner-enter" style={{ animationDelay: "120ms" }}>
+          <button
+            onClick={onLogin}
+            className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-[16px] text-white/60 hover:text-white/80 hover:bg-white/[0.07] transition-all"
+          >
+            {t("error.loginCta")} <span className="text-[14px]">→</span>
+          </button>
+        </div>
+      )}
+
+      {/* Upgrade cards for rate limit (authenticated users only) */}
+      {error.type === "rate_limit" && error.message !== t("error.guestLimit") && (
         <div className="space-y-2 error-banner-enter" style={{ animationDelay: "120ms" }}>
           <p className="text-[16px] text-white/30">{t("error.upgradeCta")}</p>
           <div className="flex gap-2">
@@ -376,6 +389,7 @@ export default function MessageBubble({
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content);
   const [showPricing, setShowPricing] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState<"good" | "bad" | null>(null);
   const [showFeedback, setShowFeedback] = useState<"good" | "bad" | null>(null);
   const [externalLink, setExternalLink] = useState<string | null>(null);
@@ -661,8 +675,13 @@ export default function MessageBubble({
 
           {hasError ? (
             <>
-              <ErrorBanner error={message.error!} onUpgrade={() => setShowPricing(true)} />
+              <ErrorBanner
+                error={message.error!}
+                onUpgrade={() => setShowPricing(true)}
+                onLogin={() => setShowAuthModal(true)}
+              />
               {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
+              {showAuthModal && <AuthModal mode="register" onClose={() => setShowAuthModal(false)} />}
             </>
           ) : hasSteps ? (
             <div className="markdown-body text-[16px] leading-7 text-white">

@@ -1,22 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import AuthModal from "./AuthModal";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
-  const [showAuth, setShowAuth] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      setShowAuth(true);
-    }
-  }, [loading, user]);
+  const { loading } = useAuth();
 
   // Loading state — show nothing (prevents flash)
   if (loading) {
@@ -32,23 +23,6 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // Not authenticated — show auth modal over a dark background
-  if (!user) {
-    return (
-      <div className="h-screen w-screen bg-[#161616]">
-        {showAuth && (
-          <AuthModal
-            mode="login"
-            onClose={() => {
-              // Can't close — must log in. Redirect to landing instead.
-              window.location.href = "/";
-            }}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Authenticated — render children
+  // Allow both authenticated and guest users through
   return <>{children}</>;
 }

@@ -255,6 +255,8 @@ const translations: Record<string, Record<Locale, string>> = {
 
   // ---- Error messages ----
   "error.rateLimit": { ru: "Достигнут лимит сообщений на сегодня.", en: "Daily message limit reached." },
+  "error.guestLimit": { ru: "Лимит гостевых сообщений исчерпан. Войдите, чтобы получить в 2 раза больше.", en: "Guest message limit reached. Sign in to get 2x more messages." },
+  "error.loginCta": { ru: "Войти", en: "Sign in" },
   "error.payment": { ru: "Недостаточно средств на балансе.", en: "Insufficient balance." },
   "error.cancelled": { ru: "Запрос отменён.", en: "Request cancelled." },
   "error.generic": { ru: "Произошла ошибка. Попробуйте ещё раз.", en: "Something went wrong. Try again." },

@@ -582,12 +582,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               message: t("error.cancelled"),
             });
           } else if (err?.status === 429) {
-            const mins = err.retryAfter ? Math.ceil(err.retryAfter / 60) : null;
-            setMessageError(convId, asstId, {
-              type: "rate_limit",
-              message: t("error.rateLimit"),
-              retryAfterMinutes: mins ?? undefined,
-            });
+            const isGuest = !getAccessToken();
+            if (isGuest) {
+              setMessageError(convId, asstId, {
+                type: "rate_limit",
+                message: t("error.guestLimit"),
+              });
+            } else {
+              const mins = err.retryAfter ? Math.ceil(err.retryAfter / 60) : null;
+              setMessageError(convId, asstId, {
+                type: "rate_limit",
+                message: t("error.rateLimit"),
+                retryAfterMinutes: mins ?? undefined,
+              });
+            }
           } else if (err?.status === 402) {
             setMessageError(convId, asstId, {
               type: "payment",

@@ -299,7 +299,11 @@ async fn serve_attachment(
                 } else {
                     format!(
                         "attachment; filename=\"{}\"",
-                        attachment.original_filename.replace('"', "")
+                        attachment.original_filename
+                            .replace('"', "")
+                            .replace('\r', "")
+                            .replace('\n', "")
+                            .replace('\0', "")
                     )
                 },
             ),
@@ -323,6 +327,19 @@ fn compress_image(
     let reader = ImageReader::new(Cursor::new(raw))
         .with_guessed_format()
         .map_err(|e| format!("Failed to detect image format: {e}"))?;
+
+    // Check dimensions BEFORE decoding to prevent decompression bombs
+    // (a 10MB PNG can decompress to several GB of pixel data)
+    let (check_w, check_h) = {
+        let reader2 = ImageReader::new(Cursor::new(raw))
+            .with_guessed_format()
+            .map_err(|e| format!("Failed to detect format: {e}"))?;
+        reader2.into_dimensions().map_err(|e| format!("Failed to read dimensions: {e}"))?
+    };
+    const MAX_PIXELS: u64 = 16384 * 16384; // ~268 megapixels
+    if (check_w as u64) * (check_h as u64) > MAX_PIXELS {
+        return Err(format!("Image too large: {}x{} exceeds maximum dimensions", check_w, check_h));
+    }
 
     let img = reader
         .decode()

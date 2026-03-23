@@ -341,40 +341,33 @@ async fn handle_payment_succeeded(
 /// YooKassa sends webhooks from a known set of IP addresses.
 /// See: <https://yookassa.ru/developers/using-api/webhooks#ip>
 pub fn verify_webhook_ip(client_ip: &str) -> bool {
-    // YooKassa webhook source IPs (as of 2025)
-    const YOOKASSA_IPS: &[&str] = &[
-        "185.71.76.0/27",
-        "185.71.77.0/27",
-        "77.75.153.0/25",
-        "77.75.156.11",
-        "77.75.156.35",
-        "77.75.154.128/25",
-        "2a02:5180::/32",
-    ];
+    use std::net::IpAddr;
+    use std::sync::LazyLock;
 
-    // In production, check if client_ip falls within these CIDR ranges.
-    // For simplicity and safety, we also accept any IP in debug mode.
-    // The webhook handler also verifies payment existence via API call if needed.
-    for allowed in YOOKASSA_IPS {
-        if allowed.contains('/') {
-            // CIDR check — simplified: check prefix match for the network portion
-            if let Some(prefix) = allowed.split('/').next() {
-                // Compare the network prefix (rough check — a real CIDR library would be better)
-                let prefix_parts: Vec<&str> = prefix.split('.').collect();
-                let ip_parts: Vec<&str> = client_ip.split('.').collect();
-                if prefix_parts.len() >= 3
-                    && ip_parts.len() >= 3
-                    && prefix_parts[0] == ip_parts[0]
-                    && prefix_parts[1] == ip_parts[1]
-                    && prefix_parts[2] == ip_parts[2]
-                {
-                    return true;
-                }
-            }
-        } else if client_ip == *allowed {
-            return true;
+    /// YooKassa webhook source IP ranges (as of 2025).
+    /// Each entry is either a CIDR range or a single IP (stored as /32 or /128).
+    static YOOKASSA_NETS: LazyLock<Vec<ipnet::IpNet>> = LazyLock::new(|| {
+        let raw = [
+            "185.71.76.0/27",
+            "185.71.77.0/27",
+            "77.75.153.0/25",
+            "77.75.156.11/32",
+            "77.75.156.35/32",
+            "77.75.154.128/25",
+            "2a02:5180::/32",
+        ];
+        raw.iter()
+            .map(|s| s.parse::<ipnet::IpNet>().expect("invalid YooKassa CIDR"))
+            .collect()
+    });
+
+    let addr: IpAddr = match client_ip.parse() {
+        Ok(a) => a,
+        Err(_) => {
+            tracing::warn!(ip = %client_ip, "Failed to parse webhook client IP");
+            return false;
         }
-    }
+    };
 
-    false
+    YOOKASSA_NETS.iter().any(|net| net.contains(&addr))
 }

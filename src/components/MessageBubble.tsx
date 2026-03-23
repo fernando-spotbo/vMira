@@ -10,10 +10,10 @@ import ReasoningBlock from "./ReasoningBlock";
 import { useStreamingText } from "@/hooks/useStreamingText";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
-import { getRandomMockResponse, getRandomSteppedResponse } from "@/lib/mock-responses";
 import MessageReactions from "./MessageReactions";
 import PricingModal from "./PricingModal";
 import FeedbackModal from "./FeedbackModal";
+import ExternalLinkModal from "./ExternalLinkModal";
 
 interface MessageBubbleProps {
   message: Message;
@@ -166,6 +166,26 @@ function AssistantAvatar({ thinking = false }: { thinking?: boolean }) {
   );
 }
 
+// ── External link helpers ────────────────────────────────────
+
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+function isExternal(href: string): boolean {
+  if (!href || href === "#") return false;
+  try {
+    const url = new URL(href, window.location.origin);
+    return url.origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 // ── Source citations ─────────────────────────────────────────
 
 /** Extract a flat list of sources from message steps. */
@@ -194,7 +214,11 @@ function preprocessCitations(text: string): string {
 }
 
 /** Render citation markers in text as clickable superscript pills. */
-function renderWithCitations(text: string, sources: { url?: string }[]): React.ReactNode[] {
+function renderWithCitations(
+  text: string,
+  sources: { url?: string }[],
+  onExternalLink?: (url: string) => void,
+): React.ReactNode[] {
   if (sources.length === 0 || !text.includes("⟨cite:")) return [text];
   const parts = text.split(/(⟨cite:\d+⟩)/g);
   return parts.map((part, i) => {
@@ -204,26 +228,30 @@ function renderWithCitations(text: string, sources: { url?: string }[]): React.R
       const source = sources[num - 1];
       if (source?.url) {
         return (
-          <a
+          <button
             key={i}
-            href={source.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-md bg-white/[0.08] text-[11px] font-medium text-white/50 hover:bg-white/[0.14] hover:text-white/70 transition-colors no-underline align-super ml-0.5 cursor-pointer"
+            onClick={(e) => { e.preventDefault(); onExternalLink?.(source.url!); }}
+            className="inline-flex items-center justify-center h-[20px] min-w-[20px] px-1.5 rounded-md bg-white/[0.07] text-[12px] font-medium text-white/45 hover:bg-white/[0.14] hover:text-white/70 transition-colors align-super ml-0.5 cursor-pointer border-none"
             title={source.url}
           >
             {num}
-          </a>
+          </button>
         );
       }
-      return <span key={i} className="text-white/30 text-[11px] align-super ml-0.5">[{num}]</span>;
+      return <span key={i} className="text-white/30 text-[12px] align-super ml-0.5">[{num}]</span>;
     }
     return part ? <span key={i}>{part}</span> : null;
   });
 }
 
 /** Single expandable sources badge. */
-function SourcesBadge({ sources }: { sources: { title: string; domain: string; url?: string }[] }) {
+function SourcesBadge({
+  sources,
+  onExternalLink,
+}: {
+  sources: { title: string; domain: string; url?: string }[];
+  onExternalLink?: (url: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   if (sources.length === 0) return null;
 
@@ -231,20 +259,20 @@ function SourcesBadge({ sources }: { sources: { title: string; domain: string; u
     <div className="mt-3">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="inline-flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2 text-[16px] text-white/45 hover:bg-white/[0.05] hover:border-white/[0.10] hover:text-white/60 transition-all"
+        className="inline-flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5 text-[16px] text-white/40 hover:bg-white/[0.05] hover:border-white/[0.10] hover:text-white/55 transition-all"
       >
-        <Globe size={14} />
+        <Globe size={15} className="text-white/30" />
         <span>{sources.length} {sources.length === 1 ? t("search.source") : t("search.sources")}</span>
         <ChevronDown
           size={14}
-          className={`transition-transform duration-300 ${expanded ? "rotate-0" : "-rotate-90"}`}
+          className={`text-white/25 transition-transform duration-300 ${expanded ? "rotate-0" : "-rotate-90"}`}
         />
       </button>
 
       <div
         className="overflow-hidden"
         style={{
-          maxHeight: expanded ? `${sources.length * 44 + 16}px` : "0px",
+          maxHeight: expanded ? `${sources.length * 48 + 16}px` : "0px",
           opacity: expanded ? 1 : 0,
           transition: expanded
             ? "max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease 0.05s"
@@ -253,21 +281,19 @@ function SourcesBadge({ sources }: { sources: { title: string; domain: string; u
       >
         <div className="mt-2 rounded-xl border border-white/[0.05] overflow-hidden bg-white/[0.01]">
           {sources.map((s, i) => (
-            <a
+            <button
               key={i}
-              href={s.url || "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 text-[16px] no-underline hover:bg-white/[0.03] transition-colors ${
+              onClick={() => s.url && onExternalLink?.(s.url)}
+              className={`flex items-center gap-3 w-full text-left px-4 py-2.5 text-[16px] hover:bg-white/[0.03] transition-colors ${
                 i < sources.length - 1 ? "border-b border-white/[0.04]" : ""
               }`}
             >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-[11px] font-semibold text-white/35">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-[12px] font-semibold text-white/30">
                 {i + 1}
               </span>
               <span className="text-white/50 truncate flex-1">{s.title}</span>
               <span className="text-[16px] text-white/20 shrink-0">{s.domain}</span>
-            </a>
+            </button>
           ))}
         </div>
       </div>
@@ -352,9 +378,10 @@ export default function MessageBubble({
   const [showPricing, setShowPricing] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState<"good" | "bad" | null>(null);
   const [showFeedback, setShowFeedback] = useState<"good" | "bad" | null>(null);
+  const [externalLink, setExternalLink] = useState<string | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === "user";
-  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, setIsThinking } = useChat();
+  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, resendMessage } = useChat();
 
   const versions = message.versions ?? [message.content];
   const versionIndex = message.versionIndex ?? versions.length - 1;
@@ -402,32 +429,8 @@ export default function MessageBubble({
 
     setEditing(false);
 
-    // Trigger new AI response
-    setIsThinking(true);
-    const stepped = getRandomSteppedResponse();
-    const thinkingDuration = 1500 + Math.random() * 2000;
-
-    if (stepped) {
-      setTimeout(() => {
-        setIsThinking(false);
-        addMessage(activeConversationId, {
-          id: `asst-${Date.now()}`,
-          role: "assistant",
-          content: stepped.content,
-          steps: stepped.steps,
-        });
-      }, thinkingDuration);
-    } else {
-      const response = getRandomMockResponse();
-      setTimeout(() => {
-        setIsThinking(false);
-        addMessage(activeConversationId, {
-          id: `asst-${Date.now()}`,
-          role: "assistant",
-          content: response,
-        });
-      }, thinkingDuration);
-    }
+    // Send the edited message through the real API (skips user msg creation)
+    resendMessage(trimmed).catch((e) => console.error("Edit resend error:", e));
   };
 
   const handleVersionNav = (direction: -1 | 1) => {
@@ -552,13 +555,12 @@ export default function MessageBubble({
     // Render paragraphs with inline [1], [2] citations
     p({ children }: { children?: React.ReactNode }) {
       if (sources.length === 0) return <p>{children}</p>;
-      // Process text children to replace [N] with citation links
       const processed = Array.isArray(children) ? children : [children];
       return (
         <p>
           {processed.map((child, ci) => {
             if (typeof child === "string") {
-              return <span key={ci}>{renderWithCitations(child, sources)}</span>;
+              return <span key={ci}>{renderWithCitations(child, sources, setExternalLink)}</span>;
             }
             return child;
           })}
@@ -566,15 +568,22 @@ export default function MessageBubble({
       );
     },
     a({ href, children, ...props }: { href?: string; children?: React.ReactNode; [key: string]: any }) {
-      const isSafe = href && !/^(javascript|data|vbscript):/i.test(href);
+      const cleanHref = (href || "").replace(/[\s\x00-\x1f]/g, "");
+      const isSafe = cleanHref && !/^(javascript|data|vbscript):/i.test(cleanHref);
+      const safeHref = isSafe ? cleanHref : "#";
+      if (isExternal(safeHref)) {
+        return (
+          <button
+            onClick={(e) => { e.preventDefault(); setExternalLink(safeHref); }}
+            className="text-white/60 hover:text-white/80 underline underline-offset-2 decoration-white/20 hover:decoration-white/40 transition-colors cursor-pointer bg-transparent border-none p-0 text-left inline"
+            {...props}
+          >
+            {children}
+          </button>
+        );
+      }
       return (
-        <a
-          href={isSafe ? href : "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-400 hover:text-blue-300 underline"
-          {...props}
-        >
+        <a href={safeHref} className="text-white/60 hover:text-white/80 underline underline-offset-2 decoration-white/20" {...props}>
           {children}
         </a>
       );
@@ -659,7 +668,7 @@ export default function MessageBubble({
             <div className="markdown-body text-[16px] leading-7 text-white">
               {message.steps!.map((step, i) => {
                 if (step.type === "reasoning") {
-                  return <ReasoningBlock key={i} summary={step.summary} thinking={step.thinking} searches={step.searches} searchPhase={step.searchPhase} />;
+                  return <ReasoningBlock key={i} summary={step.summary} thinking={step.thinking} searches={step.searches} searchPhase={step.searchPhase} onExternalLink={setExternalLink} />;
                 }
                 // text step
                 const isLastStep = i === message.steps!.length - 1;
@@ -692,7 +701,7 @@ export default function MessageBubble({
 
           {/* Source citations */}
           {!hasError && (!isStreaming || isComplete) && sources.length > 0 && (
-            <SourcesBadge sources={sources} />
+            <SourcesBadge sources={sources} onExternalLink={setExternalLink} />
           )}
 
           {!hasError && (!isStreaming || isComplete) && message.content.trim().length > 0 && (
@@ -761,6 +770,19 @@ export default function MessageBubble({
               rating={showFeedback}
               onClose={() => setShowFeedback(null)}
               onSubmitted={(r) => setFeedbackRating(r)}
+            />
+          )}
+
+          {/* External link confirmation */}
+          {externalLink && (
+            <ExternalLinkModal
+              url={externalLink}
+              domain={getDomain(externalLink)}
+              onConfirm={() => {
+                window.open(externalLink, "_blank", "noopener,noreferrer");
+                setExternalLink(null);
+              }}
+              onClose={() => setExternalLink(null)}
             />
           )}
         </div>

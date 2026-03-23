@@ -52,11 +52,17 @@ export async function createConversation(title: string = "New chat", model: stri
   return result.ok ? result.data : null;
 }
 
-export async function fetchConversation(id: string): Promise<{ conversation: ApiConversation; messages: ApiMessage[] } | null> {
-  const result = await apiCall<ApiConversation & { messages: ApiMessage[] }>(`/chat/conversations/${id}`);
+export async function fetchConversation(
+  id: string,
+  limit = 50,
+  offset = 0,
+): Promise<{ conversation: ApiConversation; messages: ApiMessage[]; totalMessages: number; hasMore: boolean } | null> {
+  const result = await apiCall<ApiConversation & { messages: ApiMessage[]; total_messages: number; has_more: boolean }>(
+    `/chat/conversations/${id}?limit=${limit}&offset=${offset}`
+  );
   if (!result.ok) return null;
-  const { messages, ...conversation } = result.data;
-  return { conversation, messages };
+  const { messages, total_messages, has_more, ...conversation } = result.data;
+  return { conversation, messages, totalMessages: total_messages, hasMore: has_more };
 }
 
 export async function updateConversation(id: string, data: { title?: string; starred?: boolean; archived?: boolean }): Promise<boolean> {
@@ -97,6 +103,7 @@ export async function* streamMessage(
   content: string,
   model: string = "mira",
   signal?: AbortSignal,
+  voice: boolean = false,
 ): AsyncGenerator<StreamEvent, void, undefined> {
   const token = getAccessToken();
 
@@ -108,7 +115,7 @@ export async function* streamMessage(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: "include",
-    body: JSON.stringify({ content, model }),
+    body: JSON.stringify({ content, model, voice }),
     signal,
   });
 

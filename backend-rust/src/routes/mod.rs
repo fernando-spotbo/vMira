@@ -36,5 +36,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/sessions", sessions::session_routes())
         .nest("/api/v1/admin", admin::admin_routes())
         .nest("/v1", completions::completions_routes())
+        // Default 2MB body limit for all non-upload routes
+        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state)
 }

@@ -65,7 +65,7 @@ export default function InputBar({ centered = false }: InputBarProps) {
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { activeConversationId, createNewChat, sendMessage: sendChatMessage, cancelMessage, isStreaming, isThinking, pendingFiles, addPendingFiles, removePendingFile } = useChat();
+  const { activeConversationId, createNewChat, sendMessage: sendChatMessage, cancelMessage, isStreaming, isThinking, pendingFiles, addPendingFiles, removePendingFile, setActiveConversationId } = useChat();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -131,8 +131,8 @@ export default function InputBar({ centered = false }: InputBarProps) {
   };
 
   const handleVoiceSend = (text: string) => {
-    setInput(text);
-    // Will be sent on next render cycle
+    if (!text.trim()) return;
+    sendChatMessage(text.trim()).catch((e) => console.error("Voice send error:", e));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -350,7 +350,10 @@ export default function InputBar({ centered = false }: InputBarProps) {
 
       {/* Voice mode overlay */}
       {showVoiceMode && (
-        <VoiceMode onClose={() => setShowVoiceMode(false)} />
+        <VoiceMode onClose={(convId) => {
+          setShowVoiceMode(false);
+          if (convId) setActiveConversationId(convId);
+        }} />
       )}
     </>
   );

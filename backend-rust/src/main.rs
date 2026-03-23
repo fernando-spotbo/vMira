@@ -116,7 +116,7 @@ fn build_router(state: AppState) -> Router {
             middleware::hmac_verify::hmac_verify,
         ))
         .layer(CompressionLayer::new())
-        .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024)) // 2 MiB
+        .layer(RequestBodyLimitLayer::new(12 * 1024 * 1024)) // 12 MiB (allows 10MB uploads + multipart overhead; route-level DefaultBodyLimit further restricts non-upload routes)
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
         .layer(TraceLayer::new_for_http())
         .layer(cors)

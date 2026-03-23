@@ -269,7 +269,27 @@ const translations: Record<string, Record<Locale, string>> = {
   "search.found": { ru: "Найдено", en: "Found" },
   "search.sources": { ru: "источников", en: "sources" },
   "search.label": { ru: "Поиск", en: "Search" },
+  // ---- Voice ----
+  "voice.listening": { ru: "Слушаю...", en: "Listening..." },
+  "voice.thinking": { ru: "Думаю...", en: "Thinking..." },
+  "voice.speaking": { ru: "Отвечаю...", en: "Speaking..." },
+  "voice.unsupported": { ru: "Голосовой ввод не поддерживается в этом браузере", en: "Voice input not supported in this browser" },
+  "voice.micDenied": { ru: "Доступ к микрофону запрещён", en: "Microphone access denied" },
+  "voice.error": { ru: "Ошибка голосового ввода", en: "Voice input error" },
+  "voice.loginRequired": { ru: "Войдите в аккаунт для голосового режима", en: "Log in to use voice mode" },
+  "voice.close": { ru: "Закрыть", en: "Close" },
+  "voice.send": { ru: "Отправить", en: "Send" },
+  "voice.mute": { ru: "Выключить микрофон", en: "Mute" },
+  "voice.unmute": { ru: "Включить микрофон", en: "Unmute" },
+  "voice.end": { ru: "Завершить", en: "End" },
+
   "search.source": { ru: "источник", en: "source" },
+
+  // ---- External link modal ----
+  "external.title": { ru: "Внешняя ссылка", en: "External link" },
+  "external.subtitle": { ru: "Вы покидаете Миру", en: "You are leaving Mira" },
+  "external.cancel": { ru: "Отмена", en: "Cancel" },
+  "external.go": { ru: "Перейти", en: "Continue" },
   "search.sources.label": { ru: "Источники", en: "Sources" },
 };
 

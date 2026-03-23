@@ -2,121 +2,506 @@
 
 import { useState, useEffect, useRef } from "react";
 import { X, Mic, MicOff } from "lucide-react";
+import * as chatApi from "@/lib/api-chat";
+import { getAccessToken } from "@/lib/api-client";
+import { t } from "@/lib/i18n";
+import { useChat } from "@/context/ChatContext";
 
 interface VoiceModeProps {
-  onClose: () => void;
+  onClose: (createdConvId?: string) => void;
+}
+
+type Phase = "init" | "listening" | "thinking" | "speaking" | "error";
+// Supported languages for voice mode — user cycles through these
+const VOICE_LANGS = [
+  { code: "ru-RU", label: "RU", name: "Русский" },
+  { code: "en-US", label: "EN", name: "English" },
+  { code: "es-ES", label: "ES", name: "Español" },
+  { code: "fr-FR", label: "FR", name: "Français" },
+  { code: "de-DE", label: "DE", name: "Deutsch" },
+  { code: "pt-BR", label: "PT", name: "Português" },
+  { code: "zh-CN", label: "中", name: "中文" },
+  { code: "ja-JP", label: "日", name: "日本語" },
+  { code: "ko-KR", label: "한", name: "한국어" },
+  { code: "ar-SA", label: "ع", name: "العربية" },
+  { code: "hi-IN", label: "हि", name: "हिन्दी" },
+  { code: "it-IT", label: "IT", name: "Italiano" },
+  { code: "tr-TR", label: "TR", name: "Türkçe" },
+];
+
+// Detect language from AI response text for correct TTS voice
+function detectResponseLang(text: string): string {
+  if (/[\u0400-\u04FF]/.test(text)) return "ru-RU";
+  if (/[\u4E00-\u9FFF]/.test(text)) return "zh-CN";
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "ja-JP";
+  if (/[\uAC00-\uD7AF]/.test(text)) return "ko-KR";
+  if (/[\u0600-\u06FF]/.test(text)) return "ar-SA";
+  if (/[\u0900-\u097F]/.test(text)) return "hi-IN";
+  return "en-US"; // default
+}
+
+// ── Smooth canvas draw with phase interpolation ──
+function draw(
+  ctx: CanvasRenderingContext2D, S: number, dpr: number,
+  analyser: AnalyserNode | null, data: Uint8Array<ArrayBuffer> | null,
+  sm: Float32Array, phase: Phase, time: number,
+  // Blend factor 0→1 for phase transitions (smooths visual changes)
+  blend: { listening: number; thinking: number; speaking: number },
+) {
+  const N = 48, CX = S / 2, CY = S / 2, IR = S * 0.24;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, S, S);
+
+  // Read mic
+  if (analyser && data && phase === "listening") analyser.getByteFrequencyData(data);
+
+  const bL = blend.listening, bT = blend.thinking, bS = blend.speaking;
+
+  let avg = 0;
+  for (let i = 0; i < N; i++) {
+    // Blend raw values across phases
+    const micV = (data && data.length > 0) ? data[Math.floor((i / N) * data.length)] / 255 : 0;
+    const speakV = 0.35 + Math.sin(time * 4 + i * 0.4) * 0.22 + Math.sin(time * 6 + i * 0.7) * 0.12 + Math.sin(time * 2 + i * 0.15) * 0.1;
+    const thinkV = 0.06 + Math.sin(time * 1.2 + i * 0.15) * 0.04;
+    const idleV = 0.03;
+
+    const raw = micV * bL + speakV * bS + thinkV * bT + idleV * (1 - bL - bT - bS);
+    sm[i] = sm[i] * 0.4 + Math.max(0, Math.min(1, raw)) * 0.6;
+    avg += sm[i];
+  }
+  avg /= N;
+
+  // Glow — multi-stop for smooth falloff
+  const glowR = IR * (2.5 + avg * 1.2);
+  const grd = ctx.createRadialGradient(CX, CY, 0, CX, CY, glowR);
+  grd.addColorStop(0, `rgba(255,255,255,${0.015 + avg * 0.04})`);
+  grd.addColorStop(0.35, `rgba(255,255,255,${0.008 + avg * 0.02})`);
+  grd.addColorStop(0.7, `rgba(255,255,255,${avg * 0.005})`);
+  grd.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(CX, CY, glowR, 0, Math.PI * 2); ctx.fill();
+
+  // Bars
+  ctx.lineCap = "round";
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    const v = sm[i];
+    const len = 3 + v * S * (0.06 + bL * 0.14 + bS * 0.06);
+    const alpha = 0.03 + v * (0.15 + bL * 0.5 + bS * 0.25 + bT * 0.07);
+    ctx.lineWidth = 2 + v * 1.5;
+    ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, alpha)})`;
+    ctx.beginPath();
+    ctx.moveTo(CX + Math.cos(a) * IR, CY + Math.sin(a) * IR);
+    ctx.lineTo(CX + Math.cos(a) * (IR + len), CY + Math.sin(a) * (IR + len));
+    ctx.stroke();
+  }
+
+  // Orb
+  const orbBase = S * 0.2;
+  const orbScale = 1 + avg * 0.15 * bL + (Math.sin(time * 1.5) * 0.03) * bT + 0.04 * bS;
+  const oR = orbBase * orbScale;
+
+  // Thinking pulsing rings (faded by blend)
+  if (bT > 0.01) {
+    const pulseA = bT * (0.04 + Math.sin(time * 2) * 0.03);
+    ctx.strokeStyle = `rgba(255,255,255,${pulseA})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(CX, CY, oR * (1.1 + Math.sin(time * 2) * 0.15), 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${pulseA * 0.5})`;
+    ctx.beginPath(); ctx.arc(CX, CY, oR * (1.3 + Math.sin(time * 2 + 1) * 0.1), 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // Speaking ripples (faded by blend)
+  if (bS > 0.01) {
+    for (let r = 1; r <= 3; r++) {
+      ctx.strokeStyle = `rgba(255,255,255,${bS * (0.05 - r * 0.012)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(CX, CY, oR * (1 + r * 0.3 + Math.sin(time * 3 + r) * 0.05), 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  // Listening glow (faded by blend)
+  if (bL > 0.01 && avg > 0.08) {
+    const og = ctx.createRadialGradient(CX, CY, oR, CX, CY, oR * 1.6);
+    og.addColorStop(0, `rgba(255,255,255,${bL * avg * 0.06})`);
+    og.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = og; ctx.beginPath(); ctx.arc(CX, CY, oR * 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Orb body
+  const orbGrd = ctx.createRadialGradient(CX - oR * 0.2, CY - oR * 0.2, 0, CX, CY, oR);
+  orbGrd.addColorStop(0, `rgba(255,255,255,${0.06 + avg * 0.1})`);
+  orbGrd.addColorStop(1, "rgba(255,255,255,0.018)");
+  ctx.fillStyle = orbGrd; ctx.beginPath(); ctx.arc(CX, CY, oR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = `rgba(255,255,255,${0.06 + avg * 0.04})`; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(CX, CY, oR, 0, Math.PI * 2); ctx.stroke();
+
+  // Star
+  const starA = 0.35 + avg * 0.3 + bL * 0.1;
+  ctx.save(); ctx.translate(CX, CY);
+  if (bT > 0.01) ctx.rotate(time * 0.4 * bT);
+  if (bS > 0.01) { const p = 1 + Math.sin(time * 4) * 0.03 * bS; ctx.scale(p, p); }
+  ctx.fillStyle = `rgba(255,255,255,${Math.min(1, starA)})`;
+  ctx.beginPath(); ctx.moveTo(0, -18); ctx.quadraticCurveTo(10, 0, 0, 18); ctx.quadraticCurveTo(-10, 0, 0, -18); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-18, 0); ctx.quadraticCurveTo(0, -10, 18, 0); ctx.quadraticCurveTo(0, 10, -18, 0); ctx.fill();
+  ctx.restore();
 }
 
 export default function VoiceMode({ onClose }: VoiceModeProps) {
-  const [phase, setPhase] = useState<"listening" | "thinking" | "speaking">("listening");
+  const [phase, setPhase] = useState<Phase>("init");
   const [elapsed, setElapsed] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [ripples, setRipples] = useState([1, 2, 3]);
+  const [transcript, setTranscript] = useState("");
+  const [responsePreview, setResponsePreview] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [langIndex, setLangIndex] = useState(0); // index into VOICE_LANGS
+
+  const { activeConversationId, selectedModel, addMessage, ensureConversation } = useChat();
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const startRef = useRef(Date.now());
+  const phaseRef = useRef<Phase>("init");
+  const transcriptAccum = useRef("");
+  const convIdRef = useRef(activeConversationId);
+  const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mutedRef = useRef(false);
+  const langIndexRef = useRef(0);
+  const recognitionRef = useRef<any>(null);
 
-  // Timer
+  // Refs for latest values (avoids stale closures)
+  const selectedModelRef = useRef(selectedModel);
+  const addMessageRef = useRef(addMessage);
+  const ensureConvRef = useRef(ensureConversation);
+
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { convIdRef.current = activeConversationId; }, [activeConversationId]);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { selectedModelRef.current = selectedModel; }, [selectedModel]);
+  useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
+  useEffect(() => { ensureConvRef.current = ensureConversation; }, [ensureConversation]);
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    return () => clearInterval(id);
   }, []);
 
-  // Cycle through phases for demo
+  // TTS ref
+  const speakFn = (text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!("speechSynthesis" in window) || !text.trim()) { setTimeout(resolve, 300); return; }
+      const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1")
+        .replace(/#{1,6}\s/g, "").replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1")
+        .replace(/\[(\d+)\]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_~`#>-]/g, "")
+        .trim().slice(0, 500);
+      if (!clean) { resolve(); return; }
+      // Detect response language for correct TTS voice
+      const respLocale = detectResponseLang(clean);
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(clean);
+      utt.lang = respLocale; utt.rate = 1.0; utt.volume = 1;
+      const voices = window.speechSynthesis.getVoices();
+      const prefix = respLocale.split("-")[0];
+      const matched = voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(prefix) && v.localService)
+        || voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(prefix));
+      if (matched) utt.voice = matched;
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      utt.onend = finish; utt.onerror = finish;
+      window.speechSynthesis.speak(utt);
+      setTimeout(finish, 25000);
+    });
+  };
+
+  // ── Combined effect ──
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("thinking"), 4000);
-    const t2 = setTimeout(() => setPhase("speaking"), 6000);
-    const t3 = setTimeout(() => setPhase("listening"), 10000);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    let alive = true;
+    let raf = 0;
+    let stream: MediaStream | null = null;
+    let audioCtx: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let dataArr: Uint8Array<ArrayBuffer> | null = null;
+    const sm = new Float32Array(48).fill(0);
+
+    // Smooth phase blend targets
+    const blendTarget = { listening: 0, thinking: 0, speaking: 0 };
+    const blendCurrent = { listening: 0, thinking: 0, speaking: 0 };
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const SIZE = 300;
+    canvas.width = SIZE * dpr; canvas.height = SIZE * dpr;
+    const ctx = canvas.getContext("2d")!;
+
+    // Draw loop with smooth blending
+    const tick = () => {
+      if (!alive) return;
+      // Smooth blend towards target (ease factor)
+      const ease = 0.08;
+      blendCurrent.listening += (blendTarget.listening - blendCurrent.listening) * ease;
+      blendCurrent.thinking += (blendTarget.thinking - blendCurrent.thinking) * ease;
+      blendCurrent.speaking += (blendTarget.speaking - blendCurrent.speaking) * ease;
+
+      draw(ctx, SIZE, dpr, analyser, dataArr, sm, phaseRef.current,
+        (Date.now() - startRef.current) / 1000, blendCurrent);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    // Phase change handler — smoothly transitions blend targets
+    const updateBlend = (ph: Phase) => {
+      blendTarget.listening = ph === "listening" ? 1 : 0;
+      blendTarget.thinking = ph === "thinking" ? 1 : 0;
+      blendTarget.speaking = ph === "speaking" ? 1 : 0;
+    };
+
+    // Override setPhase: update ref SYNCHRONOUSLY + blend targets
+    const origSetPhase = setPhase;
+    const smoothSetPhase = (ph: Phase) => {
+      phaseRef.current = ph; // sync — so onend/onresult see it immediately
+      origSetPhase(ph);
+      updateBlend(ph);
+    };
+
+    // AI send
+    const sendToAI = async (text: string) => {
+      if (!text.trim() || !alive) return;
+      if (!getAccessToken()) { setError(t("voice.loginRequired")); smoothSetPhase("error"); return; }
+
+      smoothSetPhase("thinking");
+      setResponsePreview("");
+
+      try {
+        let cid = convIdRef.current;
+        if (!cid) {
+          const c = await chatApi.createConversation(text.slice(0, 60));
+          if (!c || !alive) { if (alive) { smoothSetPhase("error"); setError(t("voice.error")); } return; }
+          cid = c.id;
+          convIdRef.current = cid;
+          // Don't setActiveConversationId here — it would unmount VoiceMode
+          // Instead, add to sidebar and set active on close
+          ensureConvRef.current(cid!, text.slice(0, 60));
+        }
+
+        addMessageRef.current(cid, { id: `user-${Date.now()}`, role: "user", content: text });
+
+        const m = selectedModelRef.current.toLowerCase().replace(/\s+/g, "-");
+        const model = ["mira", "mira-thinking"].includes(m) ? m : "mira";
+
+        let full = "";
+        for await (const ev of chatApi.streamMessage(cid, text, model, undefined, true)) {
+          if (!alive) return;
+          if (ev.type === "token") { full += ev.content; setResponsePreview(full); }
+          if (ev.type === "error") { setError(ev.message); smoothSetPhase("error"); return; }
+        }
+        if (!alive) return;
+        if (!full.trim()) { resumeListening(); return; }
+
+        // Check if AI detected wrong language → auto-switch STT
+        const langMatch = full.trim().match(/^LANG:([a-z]{2}-[A-Z]{2})$/);
+        if (langMatch) {
+          const newCode = langMatch[1];
+          const idx = VOICE_LANGS.findIndex(l => l.code === newCode);
+          if (idx >= 0) {
+            langIndexRef.current = idx;
+            setLangIndex(idx);
+            const rec = recognitionRef.current;
+            if (rec) rec.lang = newCode;
+            // Tell user we're switching (speak in the target language)
+            const switchMsg = newCode.startsWith("en") ? "Switching language. Please repeat."
+              : newCode.startsWith("ru") ? "Переключаю язык. Повторите, пожалуйста."
+              : newCode.startsWith("es") ? "Cambiando idioma. Por favor repita."
+              : newCode.startsWith("fr") ? "Changement de langue. Veuillez répéter."
+              : newCode.startsWith("de") ? "Sprache wird gewechselt. Bitte wiederholen."
+              : "Switching language. Please repeat.";
+            smoothSetPhase("speaking");
+            if (recognitionRef.current && !mutedRef.current) {
+              try { recognitionRef.current.start(); } catch {}
+            }
+            await speakFn(switchMsg);
+            if (alive && phaseRef.current === "speaking") resumeListening();
+          } else {
+            resumeListening();
+          }
+          return;
+        }
+
+        addMessageRef.current(cid, { id: `msg-${Date.now()}`, role: "assistant", content: full });
+
+        smoothSetPhase("speaking");
+        // Keep mic listening during TTS so user can interrupt
+        if (recognitionRef.current && !mutedRef.current) {
+          try { recognitionRef.current.start(); } catch {}
+        }
+        await speakFn(full);
+        // If still speaking (wasn't interrupted), go back to listening
+        if (alive && phaseRef.current === "speaking") resumeListening();
+      } catch (e: any) {
+        if (alive && e?.name !== "AbortError") { setError(e?.message || t("voice.error")); smoothSetPhase("error"); }
+      }
+    };
+
+    const resumeListening = () => {
+      transcriptAccum.current = ""; setTranscript(""); setResponsePreview("");
+      smoothSetPhase("listening");
+      setTimeout(() => {
+        if (alive && !mutedRef.current && recognitionRef.current)
+          try { recognitionRef.current.start(); } catch {}
+      }, 200);
+    };
+
+    // STT
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { setError(t("voice.unsupported")); smoothSetPhase("error"); return; }
+    if ("speechSynthesis" in window) { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices(); }
+
+    const rec = new SR();
+    rec.continuous = true; rec.interimResults = true;
+    rec.lang = VOICE_LANGS[langIndexRef.current].code;
+    recognitionRef.current = rec;
+
+    rec.onresult = (e: any) => {
+      const ph = phaseRef.current;
+
+      // ── Interrupt: user speaks while AI is talking → stop TTS, go to listening ──
+      if (ph === "speaking") {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        transcriptAccum.current = "";
+        smoothSetPhase("listening");
+        // Fall through to process the speech as new input
+      }
+
+      // Ignore results during thinking phase
+      if (ph === "thinking") return;
+
+      let interim = "", gotFinal = false;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) { transcriptAccum.current += e.results[i][0].transcript + " "; gotFinal = true; }
+        else interim += e.results[i][0].transcript;
+      }
+      setTranscript((transcriptAccum.current + interim).trim());
+
+      if (gotFinal) {
+        if (silenceTimer.current) clearTimeout(silenceTimer.current);
+        silenceTimer.current = setTimeout(() => {
+          if (!alive || phaseRef.current !== "listening") return;
+          const txt = transcriptAccum.current.trim();
+          if (txt) {
+            transcriptAccum.current = "";
+            // Set thinking BEFORE stopping — prevents onend from restarting
+            smoothSetPhase("thinking");
+            try { rec.stop(); } catch {}
+            sendToAI(txt);
+          }
+        }, 1200);
+      }
+    };
+    rec.onerror = (e: any) => {
+      if (e.error === "not-allowed") { setError(t("voice.micDenied")); smoothSetPhase("error"); }
+      // "no-speech" and "aborted" are normal — just restart
+    };
+    rec.onend = () => {
+      if (!alive || mutedRef.current) return;
+      const ph = phaseRef.current;
+      // Don't restart during thinking (waiting for AI) or error
+      if (ph === "error" || ph === "init" || ph === "thinking") return;
+      // Restart: keeps listening across pauses (listening) or enables interrupt (speaking)
+      setTimeout(() => {
+        if (!alive || mutedRef.current) return;
+        const ph2 = phaseRef.current;
+        if (ph2 === "thinking" || ph2 === "error" || ph2 === "init") return;
+        rec.lang = VOICE_LANGS[langIndexRef.current].code;
+        try { rec.start(); } catch {}
+      }, 100);
+    };
+
+    (async () => {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!alive) { s.getTracks().forEach(t => t.stop()); return; }
+        stream = s;
+        audioCtx = new AudioContext();
+        const src = audioCtx.createMediaStreamSource(s);
+        const an = audioCtx.createAnalyser();
+        an.fftSize = 128; an.smoothingTimeConstant = 0.65; an.minDecibels = -85; an.maxDecibels = -10;
+        src.connect(an);
+        analyser = an;
+        dataArr = new Uint8Array(an.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+        rec.start();
+        smoothSetPhase("listening");
+      } catch { setError(t("voice.micDenied")); smoothSetPhase("error"); }
+    })();
+
+    return () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+      try { rec.stop(); } catch {}
+      recognitionRef.current = null;
+      stream?.getTracks().forEach(t => t.stop());
+      if (silenceTimer.current) clearTimeout(silenceTimer.current);
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      audioCtx?.close().catch(() => {});
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+  useEffect(() => {
+    if (!recognitionRef.current) return;
+    if (muted) try { recognitionRef.current.stop(); } catch {}
+    else if (phaseRef.current === "listening") try { recognitionRef.current.start(); } catch {}
+  }, [muted]);
+
+  // Cycle language
+  const cycleLang = () => {
+    const next = (langIndex + 1) % VOICE_LANGS.length;
+    setLangIndex(next);
+    langIndexRef.current = next;
+    // Restart recognition with new language
+    const rec = recognitionRef.current;
+    if (rec && phaseRef.current === "listening") {
+      try { rec.stop(); } catch {}
+      rec.lang = VOICE_LANGS[next].code;
+      // onend will restart it
+    }
   };
 
-  const phaseLabel = {
-    listening: "Listening...",
-    thinking: "Thinking...",
-    speaking: "Speaking...",
-  };
-
-  const orbColors = {
-    listening: "from-white/20 to-white/5",
-    thinking: "from-white/10 to-white/[0.02]",
-    speaking: "from-white/25 to-white/8",
-  };
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
   return (
-    <div className="fixed inset-0 z-[250] flex flex-col items-center justify-center bg-[#0a0a0a]">
-      {/* Close button */}
-      <button
-        onClick={onClose}
-        className="absolute top-6 right-6 flex h-10 w-10 items-center justify-center rounded-full text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all"
-      >
+    <div className="fixed inset-0 z-[250] flex flex-col items-center justify-center bg-[#080808]">
+      <button onClick={() => onClose(convIdRef.current || undefined)} className="absolute top-6 right-6 z-10 flex h-10 w-10 items-center justify-center rounded-full text-white/25 hover:text-white/50 hover:bg-white/[0.05] transition-all">
         <X size={22} strokeWidth={1.8} />
       </button>
 
-      {/* Animated orb */}
-      <div className="relative flex items-center justify-center mb-10">
-        {/* Ripple rings */}
-        {ripples.map((r) => (
-          <div
-            key={r}
-            className={`absolute rounded-full border border-white/[0.06] ${
-              phase === "listening" ? "voice-ripple" : phase === "speaking" ? "voice-ripple-fast" : ""
-            }`}
-            style={{
-              width: 120 + r * 40,
-              height: 120 + r * 40,
-              animationDelay: `${r * 0.3}s`,
-              opacity: phase === "thinking" ? 0.3 : 1,
-            }}
-          />
-        ))}
+      <canvas ref={canvasRef} style={{ width: 300, height: 300 }} className="mb-6" />
 
-        {/* Core orb */}
-        <div
-          className={`relative w-28 h-28 rounded-full bg-gradient-to-b ${orbColors[phase]} backdrop-blur-sm border border-white/[0.1] flex items-center justify-center transition-all duration-700 ${
-            phase === "thinking" ? "voice-orb-think" : phase === "speaking" ? "voice-orb-speak" : "voice-orb-listen"
-          }`}
-        >
-          {/* Logo inside orb */}
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-white/70">
-            <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor"/>
-            <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor"/>
-          </svg>
-        </div>
+      {/* Status + language */}
+      <div className="flex items-center gap-2.5 mb-3">
+        <span className="text-[16px] text-white/30">
+          {phase === "listening" && <>{t("voice.listening")}<span className="mira-thinking-dots" /></>}
+          {phase === "thinking" && <>{t("voice.thinking")}<span className="mira-thinking-dots" /></>}
+          {phase === "speaking" && t("voice.speaking")}
+          {phase === "error" && (error || t("voice.error"))}
+        </span>
+        {phase !== "error" && phase !== "init" && (
+          <button
+            onClick={cycleLang}
+            className="text-[12px] font-mono text-white/25 border border-white/[0.08] rounded-md px-2 py-0.5 hover:text-white/40 hover:border-white/[0.15] hover:bg-white/[0.04] transition-all active:scale-95"
+            title={VOICE_LANGS[langIndex].name}
+          >
+            {VOICE_LANGS[langIndex].label}
+          </button>
+        )}
       </div>
+      {/* Transcript while listening */}
+      <div className="max-w-sm mx-auto px-6 min-h-[20px] text-center mb-2">
+        {phase === "listening" && transcript && <p className="text-[16px] text-white/15 line-clamp-1">{transcript}</p>}
+      </div>
+      <p className="text-[16px] text-white/10 tabular-nums font-mono mb-14">{fmt(elapsed)}</p>
 
-      {/* Phase label */}
-      <p className="text-[18px] text-white/60 mb-2 transition-all duration-300">
-        {phaseLabel[phase]}
-      </p>
-      <p className="text-[14px] text-white/25 tabular-nums font-mono mb-16">
-        {formatTime(elapsed)}
-      </p>
-
-      {/* Bottom controls */}
       <div className="flex items-center gap-6">
-        <button
-          onClick={() => setMuted(!muted)}
-          className={`flex h-14 w-14 items-center justify-center rounded-full transition-all ${
-            muted
-              ? "bg-red-500/20 text-red-400 border border-red-500/30"
-              : "bg-white/[0.06] text-white/50 border border-white/[0.08] hover:bg-white/[0.1]"
-          }`}
-          title={muted ? "Unmute" : "Mute"}
-        >
+        <button onClick={() => setMuted(!muted)} className={`flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 ${muted ? "bg-white/[0.06] text-white/25 border border-white/[0.08]" : "bg-white/[0.05] text-white/40 border border-white/[0.07] hover:bg-white/[0.08]"}`}>
           {muted ? <MicOff size={22} /> : <Mic size={22} />}
         </button>
-
-        <button
-          onClick={onClose}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600 active:scale-95 transition-all"
-          title="End call"
-        >
+        <button onClick={() => onClose(convIdRef.current || undefined)} className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.08] border border-white/[0.10] text-white/45 hover:bg-white/[0.12] active:scale-95 transition-all">
           <X size={24} strokeWidth={2} />
         </button>
       </div>

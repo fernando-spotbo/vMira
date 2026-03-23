@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import LegalLayout, { LegalHeading, LegalSection, LegalAccordion, LegalAccordionGroup } from "@/components/LegalLayout";
+
+export const metadata: Metadata = {
+  title: "Правила использования",
+  description: "Допустимое использование AI-ассистента Мира. Ограничения и правила.",
+  alternates: { canonical: "https://vmira.ai/legal/usage-policy" },
+};
 
 export default function UsagePolicyPage() {
   return (

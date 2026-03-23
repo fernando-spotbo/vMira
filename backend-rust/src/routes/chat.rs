@@ -225,10 +225,23 @@ async fn create_conversation(
 //  GET /conversations/:id
 // ═══════════════════════════════════════════════════════════════════════════
 
+#[derive(Debug, Deserialize)]
+struct MessagePagination {
+    #[serde(default = "default_msg_limit")]
+    limit: i64,
+    #[serde(default)]
+    offset: i64,
+}
+
+fn default_msg_limit() -> i64 {
+    50
+}
+
 async fn get_conversation(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
     Path(conv_id): Path<Uuid>,
+    Query(pg): Query<MessagePagination>,
 ) -> Result<Json<ConversationWithMessages>, AppError> {
     let conv = sqlx::query_as::<_, Conversation>(
         "SELECT * FROM conversations WHERE id = $1 AND user_id = $2"
@@ -239,20 +252,44 @@ async fn get_conversation(
     .await?
     .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
-    let messages = sqlx::query_as::<_, Message>(
-        "SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC"
+    let msg_limit = pg.limit.min(200).max(1);
+    let msg_offset = pg.offset.max(0);
+
+    // Total message count for pagination
+    let total_messages: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM messages WHERE conversation_id = $1"
     )
     .bind(conv_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    // Load messages: get the last N by using a subquery that picks from the end
+    // offset=0 means the most recent `limit` messages
+    let messages = sqlx::query_as::<_, Message>(
+        "SELECT * FROM (
+            SELECT * FROM messages WHERE conversation_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+        ) sub ORDER BY created_at ASC"
+    )
+    .bind(conv_id)
+    .bind(msg_limit)
+    .bind(msg_offset)
     .fetch_all(&state.db)
     .await?;
 
-    // Load attachments for all messages in this conversation in one query
-    let attachments = sqlx::query_as::<_, crate::models::Attachment>(
-        "SELECT * FROM attachments WHERE conversation_id = $1 ORDER BY created_at ASC"
-    )
-    .bind(conv_id)
-    .fetch_all(&state.db)
-    .await?;
+    // Load attachments only for the fetched messages
+    let msg_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+    let attachments = if msg_ids.is_empty() {
+        vec![]
+    } else {
+        sqlx::query_as::<_, crate::models::Attachment>(
+            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at ASC"
+        )
+        .bind(&msg_ids)
+        .fetch_all(&state.db)
+        .await?
+    };
 
     // Group attachments by message_id
     let mut att_by_msg: std::collections::HashMap<uuid::Uuid, Vec<crate::models::Attachment>> =
@@ -271,6 +308,7 @@ async fn get_conversation(
         })
         .collect();
 
+    let loaded = msg_offset + msg_limit;
     Ok(Json(ConversationWithMessages {
         id: conv.id,
         title: conv.title,
@@ -280,6 +318,8 @@ async fn get_conversation(
         created_at: conv.created_at,
         updated_at: conv.updated_at,
         messages: msg_responses,
+        total_messages,
+        has_more: loaded < total_messages,
     }))
 }
 
@@ -576,6 +616,7 @@ async fn send_message(
 
     // Build SSE stream with queue, cancellation, and metering
     let model_name = body.model.clone();
+    let voice_mode = body.voice;
     let conversation_id = conv.id;
     let user_id = user.id;
     let user_plan = user.plan.clone();
@@ -789,7 +830,9 @@ async fn send_message(
             history,
             model_name.clone(),
             0.7,
-            4096,
+            if voice_mode { 256 } else { 4096 },
+            &user_plan,
+            voice_mode,
             &state_clone.config,
         );
 
@@ -804,6 +847,8 @@ async fn send_message(
                                 tracing::warn!("AI response exceeded maximum size, truncating");
                                 break;
                             }
+                            // Sanitize each token before sending to the client
+                            let chunk = sanitize::sanitize_output(&chunk);
                             full_content.push_str(&chunk);
                             let event_data = serde_json::json!({
                                 "type": "token",

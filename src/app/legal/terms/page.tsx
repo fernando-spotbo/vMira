@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import LegalLayout, { LegalHeading, LegalSection } from "@/components/LegalLayout";
+
+export const metadata: Metadata = {
+  title: "Условия использования",
+  description: "Пользовательское соглашение сервиса Мира AI. Правила и условия использования.",
+  alternates: { canonical: "https://vmira.ai/legal/terms" },
+};
 
 export default function TermsPage() {
   return (

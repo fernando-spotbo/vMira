@@ -2,21 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { X, Check, Zap, Brain, Rocket, Gem, ArrowRight, ExternalLink } from "lucide-react";
+import { X, Check } from "lucide-react";
 import { t } from "@/lib/i18n";
 
 interface PricingModalProps {
   onClose: () => void;
 }
-
-// ---- Per-token model pricing ----
-
-const modelPricing = [
-  { key: "mira", label: "Mira Fast", icon: Zap, color: "#4ade80", input_1k: "0,10 \u20BD", output_1k: "0,30 \u20BD" },
-  { key: "mira-thinking", label: "Mira Thinking", icon: Brain, color: "#60a5fa", input_1k: "0,15 \u20BD", output_1k: "0,50 \u20BD" },
-  { key: "mira-pro", label: "Mira Pro", icon: Rocket, color: "#c084fc", input_1k: "0,30 \u20BD", output_1k: "0,90 \u20BD" },
-  { key: "mira-max", label: "Mira Max", icon: Gem, color: "#f472b6", input_1k: "1,50 \u20BD", output_1k: "6,00 \u20BD" },
-];
 
 function getPlans() {
   return [
@@ -101,7 +92,6 @@ function getPlans() {
 export default function PricingModal({ onClose }: PricingModalProps) {
   const [visible, setVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [showTokenPricing, setShowTokenPricing] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
@@ -233,60 +223,7 @@ export default function PricingModal({ onClose }: PricingModalProps) {
             ))}
           </div>
 
-          {/* Per-token pricing toggle */}
-          <div className="px-8 pb-6">
-            <button
-              onClick={() => setShowTokenPricing(!showTokenPricing)}
-              className="flex items-center gap-2 text-[13px] text-white/40 hover:text-white/60 transition-colors mb-4"
-            >
-              <span>{showTokenPricing ? "Скрыть цены за токен" : "Показать цены за токен"}</span>
-              <ArrowRight size={12} className={`transition-transform duration-200 ${showTokenPricing ? "rotate-90" : ""}`} />
-            </button>
-
-            {showTokenPricing && (
-              <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-4">
-                <div className="grid grid-cols-[1fr_100px_100px] gap-4 px-5 py-2.5 bg-white/[0.02] border-b border-white/[0.04] text-[11px] font-medium text-white/30 uppercase tracking-wider">
-                  <span>Модель</span>
-                  <span className="text-right">Ввод / 1K</span>
-                  <span className="text-right">Вывод / 1K</span>
-                </div>
-                {modelPricing.map((m) => {
-                  const Icon = m.icon;
-                  return (
-                    <div
-                      key={m.key}
-                      className="grid grid-cols-[1fr_100px_100px] gap-4 items-center px-5 py-3 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ backgroundColor: m.color + "18" }}>
-                          <Icon size={12} style={{ color: m.color }} />
-                        </div>
-                        <span className="text-[13px] text-white/80 font-medium">{m.label}</span>
-                      </div>
-                      <span className="text-[13px] text-white/60 text-right font-mono">{m.input_1k}</span>
-                      <span className="text-[13px] text-white/60 text-right font-mono">{m.output_1k}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Top-up link */}
-            <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-4">
-              <div>
-                <p className="text-[13px] text-white/60">Нужно пополнить баланс?</p>
-                <p className="text-[11px] text-white/30 mt-0.5">Банковские карты, СБП, YooMoney</p>
-              </div>
-              <Link
-                href="/platform/billing/topup"
-                onClick={() => { setVisible(false); setTimeout(onClose, 250); }}
-                className="flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-4 py-2 text-[13px] text-white/60 hover:bg-white/[0.1] hover:text-white/80 transition-all"
-              >
-                Пополнить
-                <ExternalLink size={12} />
-              </Link>
-            </div>
-          </div>
+          <div className="px-8 pb-6" />
         </div>
 
         {/* Footer */}

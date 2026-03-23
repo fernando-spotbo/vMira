@@ -328,6 +328,8 @@ async fn chat_completions(
                 model_clone.clone(),
                 temperature as f64,
                 max_tokens,
+                &user_plan,
+                false,
                 &state_clone.config,
             );
 
@@ -342,6 +344,8 @@ async fn chat_completions(
                                     tracing::warn!("AI response exceeded maximum size, truncating");
                                     break;
                                 }
+                                // Sanitize each token before sending to the client
+                                let chunk = sanitize::sanitize_output(&chunk);
                                 total_size += chunk.len();
                                 full_content.push_str(&chunk);
 
@@ -543,6 +547,8 @@ async fn chat_completions(
             model.clone(),
             temperature as f64,
             max_tokens,
+            &user.plan,
+            false,
             &state.config,
         );
 

@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import LegalLayout, { LegalHeading, LegalSection, LegalList } from "@/components/LegalLayout";
+
+export const metadata: Metadata = {
+  title: "Политика конфиденциальности",
+  description: "Как Мира AI обрабатывает и защищает ваши персональные данные. Соответствие 152-ФЗ.",
+  alternates: { canonical: "https://vmira.ai/legal/privacy" },
+};
 
 export default function PrivacyPage() {
   return (

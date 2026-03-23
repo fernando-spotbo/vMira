@@ -48,6 +48,9 @@ interface ChatContextType {
   addPendingFiles: (files: File[]) => void;
   removePendingFile: (index: number) => void;
   sendMessage: (content: string) => Promise<void>;
+  resendMessage: (content: string) => Promise<void>;
+  loadMoreMessages: () => Promise<void>;
+  ensureConversation: (id: string, title: string) => void;
   cancelMessage: () => void;
 }
 
@@ -89,58 +92,61 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  // Load messages when switching to a conversation that has no messages loaded (live mode only)
+  // Helper: map API messages to frontend Message type
+  function mapApiMessages(apiMessages: chatApi.ApiMessage[]): Message[] {
+    return apiMessages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      steps: m.steps?.map((step: any) => {
+        if (step.type === "reasoning") {
+          return {
+            type: "reasoning" as const,
+            summary: step.summary || "",
+            thinking: step.thinking,
+            searches: step.searches?.map((sq: any) => ({
+              query: sq.query || "",
+              resultCount: sq.resultCount || sq.results?.length || 0,
+              results: (sq.results || []).map((r: any) => ({
+                title: r.title || "",
+                domain: r.domain || "",
+                url: r.url,
+              })),
+            })),
+            searchPhase: "done" as const,
+          };
+        }
+        return { type: "text" as const, content: step.content || "" };
+      }) ?? undefined,
+      attachments: m.attachments?.map((a) => ({
+        id: a.id,
+        filename: a.filename,
+        original_filename: a.original_filename,
+        mime_type: a.mime_type,
+        size_bytes: a.size_bytes,
+        width: a.width ?? undefined,
+        height: a.height ?? undefined,
+        url: a.url,
+      })) ?? undefined,
+    }));
+  }
+
+  // Load messages when switching to a conversation (live mode only)
   useEffect(() => {
     if (!activeConversationId) return;
-    // Only fetch from API if: live mode AND conversation has 0 messages (not yet loaded)
     const conv = conversations.find((c) => c.id === activeConversationId);
     if (!conv || conv.messages.length > 0 || !useLiveApi()) return;
     (async () => {
-      const data = await chatApi.fetchConversation(activeConversationId);
-      if (!data || data.messages.length === 0) return;
+      const data = await chatApi.fetchConversation(activeConversationId, 50, 0);
+      if (!data) return;
       setConversations((prev) =>
         prev.map((c) =>
           c.id === activeConversationId
             ? {
                 ...c,
-                messages: data.messages.map((m) => ({
-                  id: m.id,
-                  role: m.role,
-                  content: m.content,
-                  steps: m.steps?.map((step: any) => {
-                    if (step.type === "reasoning") {
-                      return {
-                        type: "reasoning" as const,
-                        summary: step.summary || "",
-                        thinking: step.thinking,
-                        searches: step.searches?.map((sq: any) => ({
-                          query: sq.query || "",
-                          resultCount: sq.resultCount || sq.results?.length || 0,
-                          results: (sq.results || []).map((r: any) => ({
-                            title: r.title || "",
-                            domain: r.domain || "",
-                            url: r.url,
-                          })),
-                        })),
-                        searchPhase: "done" as const,
-                      };
-                    }
-                    return {
-                      type: "text" as const,
-                      content: step.content || "",
-                    };
-                  }) ?? undefined,
-                  attachments: m.attachments?.map((a) => ({
-                    id: a.id,
-                    filename: a.filename,
-                    original_filename: a.original_filename,
-                    mime_type: a.mime_type,
-                    size_bytes: a.size_bytes,
-                    width: a.width ?? undefined,
-                    height: a.height ?? undefined,
-                    url: a.url,
-                  })) ?? undefined,
-                })),
+                messages: mapApiMessages(data.messages),
+                totalMessages: data.totalMessages,
+                hasMore: data.hasMore,
               }
             : c
         )
@@ -149,10 +155,55 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
 
+  // Load older messages (infinite scroll)
+  const loadMoreMessages = useCallback(async () => {
+    if (!activeConversationId || !useLiveApi()) return;
+    const conv = conversations.find((c) => c.id === activeConversationId);
+    if (!conv || !conv.hasMore || conv.loadingMore) return;
+
+    // Mark as loading
+    setConversations((prev) =>
+      prev.map((c) => c.id === activeConversationId ? { ...c, loadingMore: true } : c)
+    );
+
+    const offset = conv.messages.length;
+    const data = await chatApi.fetchConversation(activeConversationId, 50, offset);
+    if (!data) {
+      setConversations((prev) =>
+        prev.map((c) => c.id === activeConversationId ? { ...c, loadingMore: false } : c)
+      );
+      return;
+    }
+
+    const olderMessages = mapApiMessages(data.messages);
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeConversationId
+          ? {
+              ...c,
+              // Prepend older messages (they come in chronological order)
+              messages: [...olderMessages, ...c.messages],
+              hasMore: data.hasMore,
+              loadingMore: false,
+            }
+          : c
+      )
+    );
+  }, [activeConversationId, conversations]);
+
   const toggleSidebar = useCallback(() => setSidebarOpen((prev) => !prev), []);
 
   const addPendingFiles = useCallback((files: File[]) => {
     setPendingFiles((prev) => [...prev, ...files]);
+  }, []);
+
+  // Add a conversation to the sidebar list if it doesn't exist (used by voice mode)
+  const ensureConversation = useCallback((id: string, title: string) => {
+    setConversations((prev) => {
+      if (prev.find((c) => c.id === id)) return prev;
+      return [{ id, title, messages: [], createdAt: new Date().toISOString().split("T")[0] }, ...prev];
+    });
   }, []);
 
   const removePendingFile = useCallback((index: number) => {
@@ -568,6 +619,96 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [activeConversationId, addMessage, selectedModel, updateMessageContent, pendingFiles]
   );
 
+  // Resend: for edited messages — skips user message creation, just streams a new AI response
+  const resendMessage = useCallback(
+    async (content: string) => {
+      if (sendingRef.current) return;
+      if (!activeConversationId) return;
+      sendingRef.current = true;
+      const convId = activeConversationId;
+
+      try {
+        if (!useLiveApi()) return;
+
+        const controller = new AbortController();
+        setAbortController(controller);
+        setIsThinking(true);
+        setQueuePosition(null);
+        const asstId = `asst-${Date.now()}`;
+
+        addMessage(convId, { id: asstId, role: "assistant", content: "" });
+
+        let fullContent = "";
+        let streamingStarted = false;
+        const searches: SearchQuery[] = [];
+
+        const ALLOWED_MODELS = ["mira", "mira-thinking"];
+        const modelName = selectedModel.toLowerCase().replace(/\s+/g, "-");
+        const safeModel = ALLOWED_MODELS.includes(modelName) ? modelName : "mira";
+
+        try {
+          for await (const event of chatApi.streamMessage(convId, content, safeModel, controller.signal)) {
+            switch (event.type) {
+              case "queue":
+                setQueuePosition(event.position);
+                break;
+              case "processing":
+                setQueuePosition(null);
+                break;
+              case "search":
+                setConversations((prev) =>
+                  prev.map((c) => c.id === convId ? { ...c, messages: c.messages.map((m) => m.id === asstId ? { ...m, steps: [{ type: "reasoning" as const, summary: event.query, searches: [], searchPhase: "searching" as const }] } : m) } : c)
+                );
+                break;
+              case "search_results":
+                searches.push({ query: event.query, resultCount: event.results.length, results: event.results.map((r) => ({ title: r.title, domain: r.domain, url: r.url })) });
+                setConversations((prev) =>
+                  prev.map((c) => c.id === convId ? { ...c, messages: c.messages.map((m) => m.id === asstId ? { ...m, steps: [{ type: "reasoning" as const, summary: event.query, searches: [...searches], searchPhase: "results" as const }] } : m) } : c)
+                );
+                break;
+              case "token":
+                if (!streamingStarted) { streamingStarted = true; setIsThinking(false); setIsStreaming(true); }
+                fullContent += event.content;
+                const phase = fullContent.length < 20 ? "answering" as const : "done" as const;
+                setConversations((prev) =>
+                  prev.map((c) => c.id === convId ? { ...c, messages: c.messages.map((m) => m.id === asstId ? { ...m, content: fullContent, steps: searches.length > 0 ? [{ type: "reasoning" as const, summary: searches.map(s => s.query).join(", "), searches: [...searches], searchPhase: phase }, { type: "text" as const, content: fullContent }] : undefined } : m) } : c)
+                );
+                break;
+              case "error":
+                setMessageError(convId, asstId, { type: "generic", message: event.message || t("error.generic") });
+                break;
+            }
+          }
+          setIsStreaming(false);
+          setIsThinking(false);
+          setQueuePosition(null);
+          if (!fullContent.trim()) {
+            setMessageError(convId, asstId, { type: "generic", message: t("error.noResponse") });
+          }
+        } catch (err: any) {
+          setIsThinking(false);
+          setIsStreaming(false);
+          setQueuePosition(null);
+          if (err?.name === "AbortError") {
+            setMessageError(convId, asstId, { type: "cancelled", message: t("error.cancelled") });
+          } else if (err?.status === 429) {
+            const mins = err.retryAfter ? Math.ceil(err.retryAfter / 60) : null;
+            setMessageError(convId, asstId, { type: "rate_limit", message: t("error.rateLimit"), retryAfterMinutes: mins ?? undefined });
+          } else if (err?.status === 402) {
+            setMessageError(convId, asstId, { type: "payment", message: t("error.payment") });
+          } else {
+            setMessageError(convId, asstId, { type: "generic", message: t("error.generic") });
+          }
+        } finally {
+          setAbortController(null);
+        }
+      } finally {
+        sendingRef.current = false;
+      }
+    },
+    [activeConversationId, addMessage, selectedModel, setMessageError]
+  );
+
   return (
     <ChatContext.Provider
       value={{
@@ -595,6 +736,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         addPendingFiles,
         removePendingFile,
         sendMessage,
+        resendMessage,
+        loadMoreMessages,
+        ensureConversation,
         cancelMessage,
         queuePosition,
       }}

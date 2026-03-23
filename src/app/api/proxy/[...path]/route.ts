@@ -145,6 +145,8 @@ async function proxyRequest(
       });
     }
 
+    const isLocalhost = req.nextUrl.hostname === "localhost" || req.nextUrl.hostname === "127.0.0.1";
+
     // Check if this is an SSE stream
     const contentType = res.headers.get("content-type") || "";
     if (contentType.includes("text/event-stream") && res.body) {
@@ -156,7 +158,8 @@ async function proxyRequest(
         "X-Accel-Buffering": "no",
       });
       const sseSetCookies = res.headers.getSetCookie?.() || [];
-      for (const cookie of sseSetCookies) {
+      for (let cookie of sseSetCookies) {
+        if (isLocalhost) cookie = cookie.replace(/;\s*Secure/gi, "");
         responseHeaders.append("Set-Cookie", cookie);
       }
       return new Response(res.body, { status: res.status, headers: responseHeaders });
@@ -167,9 +170,10 @@ async function proxyRequest(
     const responseHeaders = new Headers();
     responseHeaders.set("Content-Type", contentType || "application/json");
 
-    // Forward Set-Cookie headers for refresh token
+    // Forward Set-Cookie headers — strip Secure flag on localhost (HTTP)
     const setCookies = res.headers.getSetCookie?.() || [];
-    for (const cookie of setCookies) {
+    for (let cookie of setCookies) {
+      if (isLocalhost) cookie = cookie.replace(/;\s*Secure/gi, "");
       responseHeaders.append("Set-Cookie", cookie);
     }
 

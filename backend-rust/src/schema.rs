@@ -145,6 +145,9 @@ pub struct MessageRequest {
 
     #[serde(default = "default_model")]
     pub model: String,
+
+    #[serde(default)]
+    pub voice: bool,
 }
 
 fn default_model() -> String {
@@ -224,6 +227,8 @@ pub struct ConversationWithMessages {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub messages: Vec<MessageResponse>,
+    pub total_messages: i64,
+    pub has_more: bool,
 }
 
 // ═══════════════════════════════════════════════════════════════

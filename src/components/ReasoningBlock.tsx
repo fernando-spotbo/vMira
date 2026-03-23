@@ -10,9 +10,10 @@ interface ReasoningBlockProps {
   thinking?: string;
   searches?: SearchQuery[];
   searchPhase?: SearchPhase;
+  onExternalLink?: (url: string) => void;
 }
 
-export default function ReasoningBlock({ summary, thinking, searches, searchPhase }: ReasoningBlockProps) {
+export default function ReasoningBlock({ summary, thinking, searches, searchPhase, onExternalLink }: ReasoningBlockProps) {
   const [manualExpand, setManualExpand] = useState<boolean | null>(null);
   const [prevPhase, setPrevPhase] = useState<SearchPhase | undefined>(searchPhase);
   const [contentHeight, setContentHeight] = useState(0);
@@ -161,14 +162,12 @@ export default function ReasoningBlock({ summary, thinking, searches, searchPhas
               {q.results.length > 0 && (
                 <div className="rounded-lg border border-white/[0.05] overflow-hidden bg-white/[0.01]">
                   {q.results.map((r, ri) => (
-                    <a
+                    <button
                       key={ri}
-                      href={r.url || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`search-result-enter flex items-center gap-2 px-3 py-[7px] text-[12.5px] ${
+                      onClick={() => r.url && onExternalLink?.(r.url)}
+                      className={`search-result-enter flex items-center gap-2 w-full text-left px-3 py-[7px] text-[12.5px] ${
                         ri < q.results.length - 1 ? "border-b border-white/[0.03]" : ""
-                      } hover:bg-white/[0.03] transition-colors duration-150 no-underline`}
+                      } hover:bg-white/[0.03] transition-colors duration-150`}
                       style={{ animationDelay: `${ri * 50 + 80}ms` }}
                     >
                       {/* Favicon placeholder */}
@@ -177,7 +176,7 @@ export default function ReasoningBlock({ summary, thinking, searches, searchPhas
                       </div>
                       <span className="text-white/55 truncate flex-1 leading-snug">{r.title}</span>
                       <span className="text-[10.5px] text-white/15 shrink-0 font-mono">{r.domain}</span>
-                    </a>
+                    </button>
                   ))}
                 </div>
               )}

@@ -144,16 +144,17 @@ async fn issue_tokens(
 
 /// Build a Set-Cookie header for the refresh token.
 /// Path=/ so the cookie is sent on all requests (the proxy rewrites paths).
-fn refresh_cookie_header(raw_token: &str, max_age_days: i64, _api_prefix: &str) -> String {
+/// When `secure` is false (debug mode), omits `Secure` flag for HTTP localhost.
+fn refresh_cookie_header(raw_token: &str, max_age_days: i64, _api_prefix: &str, secure: bool) -> String {
     let max_age = max_age_days * 86400;
-    format!(
-        "refresh_token={raw_token}; HttpOnly; Secure; SameSite=Lax; Max-Age={max_age}; Path=/"
-    )
+    let sec = if secure { "; Secure" } else { "" };
+    format!("refresh_token={raw_token}; HttpOnly{sec}; SameSite=Lax; Max-Age={max_age}; Path=/")
 }
 
 /// Build a delete-cookie header for the refresh token.
-fn delete_refresh_cookie_header(_api_prefix: &str) -> String {
-    "refresh_token=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/".to_string()
+fn delete_refresh_cookie_header(_api_prefix: &str, secure: bool) -> String {
+    let sec = if secure { "; Secure" } else { "" };
+    format!("refresh_token=; HttpOnly{sec}; SameSite=Lax; Max-Age=0; Path=/")
 }
 
 /// Extract useful headers from the request parts via the axum extension.
@@ -444,6 +445,7 @@ async fn login(
         &raw_refresh,
         state.config.refresh_token_expire_days,
         &state.config.api_prefix,
+        !state.config.debug,
     );
 
     Ok((
@@ -620,6 +622,7 @@ async fn refresh(
         &raw_refresh,
         state.config.refresh_token_expire_days,
         &state.config.api_prefix,
+        !state.config.debug,
     );
 
     Ok((
@@ -657,7 +660,7 @@ async fn logout(
             .await?;
     }
 
-    let cookie = delete_refresh_cookie_header(&state.config.api_prefix);
+    let cookie = delete_refresh_cookie_header(&state.config.api_prefix, !state.config.debug);
 
     Ok((
         StatusCode::OK,
@@ -1005,8 +1008,27 @@ async fn delete_account(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
+    // Collect attachment file paths BEFORE deleting from DB (for disk cleanup)
+    let attachment_paths: Vec<String> = sqlx::query_scalar(
+        "SELECT storage_path FROM attachments WHERE user_id = $1"
+    )
+    .bind(user.id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
     // Delete all user data in a transaction
     let mut tx = state.db.begin().await?;
+
+    sqlx::query("DELETE FROM message_feedback WHERE user_id = $1")
+        .bind(user.id)
+        .execute(&mut *tx)
+        .await?;
+
+    sqlx::query("DELETE FROM attachments WHERE user_id = $1")
+        .bind(user.id)
+        .execute(&mut *tx)
+        .await?;
 
     sqlx::query("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = $1)")
         .bind(user.id)
@@ -1034,6 +1056,11 @@ async fn delete_account(
         .await?;
 
     tx.commit().await?;
+
+    // Delete attachment files from disk (best-effort, after DB commit)
+    for path in &attachment_paths {
+        let _ = tokio::fs::remove_file(path).await;
+    }
 
     log_auth_event(
         "account_deleted",

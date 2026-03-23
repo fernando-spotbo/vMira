@@ -65,4 +65,7 @@ export interface Conversation {
   messages: Message[];
   createdAt: string;
   starred?: boolean;
+  totalMessages?: number;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }

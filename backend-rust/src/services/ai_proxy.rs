@@ -26,9 +26,41 @@ pub const MIRA_SYSTEM_PROMPT: &str = "\
 результатов поиска. Без номеров ответ считается неполным.\n\
 Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»";
 
+/// Voice mode system prompt — short, conversational, TTS-friendly, multilingual.
+pub const MIRA_VOICE_PROMPT: &str = "\
+Ты Мира — голосовой AI-ассистент. Пользователь разговаривает с тобой голосом.\n\n\
+ПРАВИЛА ДЛЯ ГОЛОСОВОГО РЕЖИМА:\n\
+- Отвечай КОРОТКО: максимум 2-3 предложения. Это устная беседа, не эссе.\n\
+- НЕ используй markdown, списки, заголовки, звёздочки, номера. Только чистый текст.\n\
+- Говори естественно, как человек в разговоре.\n\
+- Если нужен длинный ответ, дай краткую суть и предложи уточнить.\n\
+- НЕ используй ссылки [1], [2] — пользователь не видит текст, он слушает.\n\n\
+ЯЗЫКИ:\n\
+- Отвечай НА ТОМ ЖЕ языке, на котором говорит пользователь.\n\
+- Ты полиглот: русский, английский, испанский, французский, немецкий, китайский, японский, корейский, арабский, хинди, португальский, итальянский, турецкий и другие.\n\
+- Переключайся между языками мгновенно.\n\
+- Если пользователь просит перевести — переводи на указанный язык.\n\n\
+ОПРЕДЕЛЕНИЕ ЯЗЫКА:\n\
+Если сообщение пользователя выглядит бессмысленно, содержит набор несвязных слогов или слов, \
+которые не складываются в осмысленную фразу — скорее всего, распознавание речи настроено на неправильный язык. \
+В этом случае попытайся угадать настоящий язык пользователя и ответь ТОЛЬКО одной строкой в формате:\n\
+LANG:xx-XX\n\
+Например: LANG:es-ES или LANG:en-US или LANG:fr-FR\n\
+НЕ добавляй ничего кроме этой строки. Пользователь будет автоматически переключён.";
+
 const MAX_RETRIES: u32 = 2;
 const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
-const MAX_SEARCH_RESULTS: usize = 6;
+
+/// Search results limit per plan.
+pub fn search_results_for_plan(plan: &str) -> usize {
+    match plan {
+        "free" => 4,
+        "pro" => 10,
+        "max" => 20,
+        "enterprise" => 20,
+        _ => 4,
+    }
+}
 
 // ── Event types ─────────────────────────────────────────────────────────────
 
@@ -240,18 +272,22 @@ pub fn stream_ai_response(
     model: String,
     temperature: f64,
     max_tokens: u32,
+    user_plan: &str,
+    voice_mode: bool,
     config: &Config,
 ) -> Pin<Box<dyn Stream<Item = AiEvent> + Send>> {
     let url = format!("{}/chat/completions", config.ai_model_url);
     let api_key = config.ai_model_api_key.clone();
     let allowed_hosts = config.ai_model_allowed_hosts.clone();
+    let max_search = search_results_for_plan(user_plan);
     let config = Arc::new(config.clone());
 
     let (tx, rx) = tokio::sync::mpsc::channel::<AiEvent>(32);
 
+    let system_prompt = if voice_mode { MIRA_VOICE_PROMPT } else { MIRA_SYSTEM_PROMPT };
     let mut full_messages: Vec<serde_json::Value> = vec![json!({
         "role": "system",
-        "content": MIRA_SYSTEM_PROMPT,
+        "content": system_prompt,
     })];
     for m in &messages {
         full_messages.push(json!({
@@ -332,7 +368,7 @@ pub fn stream_ai_response(
                 let _ = tx.send(AiEvent::SearchStarted { query: args.query.clone() }).await;
 
                 // Execute search
-                let search_result = search::web_search(&args.query, MAX_SEARCH_RESULTS, &config).await;
+                let search_result = search::web_search(&args.query, max_search, &config).await;
 
                 let (search_content, results_for_event) = match search_result {
                     Ok(sr) => {

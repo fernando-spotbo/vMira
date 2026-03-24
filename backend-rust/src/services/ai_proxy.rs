@@ -470,6 +470,26 @@ pub fn stream_ai_response(
 
                     // Try to create the reminder in the database
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
+                        // Validate title length and rrule
+                        let title = if args.title.len() > 200 {
+                            args.title[..200].to_string()
+                        } else {
+                            args.title.clone()
+                        };
+
+                        // Validate RRULE: reject INTERVAL=0 and overly long strings
+                        if let Some(ref rrule) = args.recurrence {
+                            if rrule.len() > 200 || rrule.contains("INTERVAL=0") {
+                                tool_result_content = "Invalid recurrence rule".to_string();
+                                full_messages.push(json!({
+                                    "role": "assistant", "content": null,
+                                    "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_reminder", "arguments": tc.function.arguments}}]
+                                }));
+                                full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
+                                continue;
+                            }
+                        }
+
                         let remind_at = chrono::DateTime::parse_from_rfc3339(&args.remind_at)
                             .or_else(|_| chrono::DateTime::parse_from_str(&args.remind_at, "%Y-%m-%dT%H:%M:%S%z"))
                             .map(|dt| dt.with_timezone(&chrono::Utc));
@@ -482,7 +502,7 @@ pub fn stream_ai_response(
                                      RETURNING id"
                                 )
                                 .bind(uid)
-                                .bind(&args.title)
+                                .bind(&title)
                                 .bind(dt)
                                 .bind(&tz)
                                 .bind(&args.recurrence)

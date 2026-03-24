@@ -74,10 +74,10 @@ impl Config {
     /// Panics in production (`debug = false`) when security-sensitive values
     /// still contain the development placeholder strings.
     pub fn from_env() -> Self {
-        let debug = env_or("DEBUG", "true")
+        let debug = env_or("DEBUG", "false")
             .to_ascii_lowercase()
             .parse::<bool>()
-            .unwrap_or(true);
+            .unwrap_or(false);
 
         let secret_key = env_or("SECRET_KEY", "CHANGE-ME-IN-PRODUCTION");
         let hmac_secret = env_or("HMAC_SECRET", "CHANGE-ME-IN-PRODUCTION");

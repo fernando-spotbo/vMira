@@ -178,6 +178,14 @@ async fn create_topup(
         ));
     }
 
+    // Validate return_url against allowed origins (prevent open redirect / phishing)
+    let return_url_valid = state.config.allowed_origins.iter().any(|origin| {
+        body.return_url.starts_with(origin)
+    }) || body.return_url.starts_with("https://vmira.ai") || body.return_url.starts_with("http://localhost:");
+    if !return_url_valid {
+        return Err(AppError::BadRequest("Invalid return URL".to_string()));
+    }
+
     let amount_kopecks = (body.amount_rubles * 100.0).round() as i64;
 
     // User needs an email for fiscal receipts (54-FZ)

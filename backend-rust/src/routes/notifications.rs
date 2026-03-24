@@ -148,6 +148,7 @@ async fn mark_all_read(
 #[derive(Deserialize)]
 struct ListRemindersQuery {
     status: Option<String>,
+    limit: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -189,21 +190,25 @@ async fn list_reminders(
     AuthUser(user): AuthUser,
     Query(q): Query<ListRemindersQuery>,
 ) -> Result<Json<Vec<ReminderResponse>>, AppError> {
+    let limit = q.limit.unwrap_or(100).min(500);
+
     let reminders = if let Some(status) = &q.status {
         sqlx::query_as::<_, Reminder>(
             "SELECT * FROM reminders WHERE user_id = $1 AND status = $2
-             ORDER BY remind_at ASC"
+             ORDER BY remind_at ASC LIMIT $3"
         )
         .bind(user.id)
         .bind(status)
+        .bind(limit)
         .fetch_all(&state.db)
         .await?
     } else {
         sqlx::query_as::<_, Reminder>(
             "SELECT * FROM reminders WHERE user_id = $1
-             ORDER BY remind_at ASC"
+             ORDER BY remind_at ASC LIMIT $2"
         )
         .bind(user.id)
+        .bind(limit)
         .fetch_all(&state.db)
         .await?
     };
@@ -229,6 +234,18 @@ async fn create_reminder(
     Json(body): Json<CreateReminderRequest>,
 ) -> Result<(StatusCode, Json<ReminderResponse>), AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
+
+    // Enforce max 500 active reminders per user
+    let active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND status = 'pending'"
+    )
+    .bind(user.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if active_count >= 500 {
+        return Err(AppError::BadRequest("Maximum 500 active reminders reached".to_string()));
+    }
 
     let remind_at = DateTime::parse_from_rfc3339(&body.remind_at)
         .or_else(|_| DateTime::parse_from_str(&body.remind_at, "%Y-%m-%dT%H:%M:%S"))
@@ -369,13 +386,13 @@ async fn snooze_reminder(
     let reminder = sqlx::query_as::<_, Reminder>(
         "UPDATE reminders SET
             status = 'pending',
-            remind_at = now() + ($1 || ' minutes')::interval,
+            remind_at = now() + make_interval(mins => $1::double precision),
             fired_at = NULL,
             updated_at = now()
          WHERE id = $2 AND user_id = $3
          RETURNING *"
     )
-    .bind(body.duration_minutes.to_string())
+    .bind(body.duration_minutes as f64)
     .bind(id)
     .bind(user.id)
     .fetch_optional(&state.db)
@@ -434,11 +451,25 @@ struct UpdateSettingsRequest {
     quiet_end: Option<String>,
 }
 
+const VALID_TIMEZONES: &[&str] = &[
+    "Europe/Moscow", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Omsk",
+    "Asia/Novosibirsk", "Asia/Krasnoyarsk", "Asia/Irkutsk", "Asia/Yakutsk",
+    "Asia/Vladivostok", "Asia/Magadan", "Asia/Kamchatka", "Europe/Kaliningrad",
+    "UTC",
+];
+
 async fn update_settings(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
     Json(body): Json<UpdateSettingsRequest>,
 ) -> Result<Json<SettingsResponse>, AppError> {
+    // Validate timezone against supported list
+    if let Some(ref tz) = body.timezone {
+        if !VALID_TIMEZONES.contains(&tz.as_str()) {
+            return Err(AppError::BadRequest(format!("Unsupported timezone: {tz}")));
+        }
+    }
+
     let quiet_start = body.quiet_start
         .as_ref()
         .and_then(|s| NaiveTime::parse_from_str(s, "%H:%M").ok());

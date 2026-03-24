@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
-use rand::Rng;
+use rand::rngs::OsRng;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -20,10 +21,11 @@ pub struct ApiKey {
 }
 
 /// Generate a new API key in the format `sk-mira-{40 hex chars}`.
+/// Uses OS-level CSPRNG (OsRng) for cryptographic security.
 pub fn generate_api_key() -> String {
-    let mut rng = rand::thread_rng();
-    let random_bytes: [u8; 20] = rng.gen();
-    let hex: String = random_bytes.iter().map(|b| format!("{b:02x}")).collect();
+    let mut bytes = [0u8; 20];
+    OsRng.fill_bytes(&mut bytes);
+    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     format!("sk-mira-{hex}")
 }
 

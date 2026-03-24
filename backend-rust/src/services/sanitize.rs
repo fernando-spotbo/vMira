@@ -72,13 +72,25 @@ pub fn sanitize_input(content: &str) -> String {
 static RE_SCRIPT_TAG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap());
 
+static RE_DANGEROUS_TAGS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?is)<(iframe|object|embed|form|style|meta|link|base|svg)[^>]*>.*?</\1>|<(iframe|object|embed|form|style|meta|link|base|svg)[^>]*/?>" ).unwrap());
+
 static RE_EVENT_HANDLER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?i)\s+on\w+\s*=\s*(["'][^"']*["']|[^\s>]+)"#).unwrap());
 
-/// Remove `<script>` blocks and inline event-handler attributes (`onclick`, etc.)
-/// from AI-generated output.
+static RE_JAVASCRIPT_URI: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?i)href\s*=\s*["']?\s*javascript:"#).unwrap());
+
+static RE_DATA_URI: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?i)(src|href)\s*=\s*["']?\s*data:"#).unwrap());
+
+/// Strip dangerous HTML from AI-generated output: script, iframe, object, embed,
+/// form, style, meta, link, base, svg tags; event handlers; javascript: and data: URIs.
 pub fn sanitize_output(content: &str) -> String {
-    let no_scripts = RE_SCRIPT_TAG.replace_all(content, "");
-    let no_handlers = RE_EVENT_HANDLER.replace_all(&no_scripts, "");
-    no_handlers.into_owned()
+    let s = RE_SCRIPT_TAG.replace_all(content, "");
+    let s = RE_DANGEROUS_TAGS.replace_all(&s, "");
+    let s = RE_EVENT_HANDLER.replace_all(&s, "");
+    let s = RE_JAVASCRIPT_URI.replace_all(&s, "");
+    let s = RE_DATA_URI.replace_all(&s, "");
+    s.into_owned()
 }

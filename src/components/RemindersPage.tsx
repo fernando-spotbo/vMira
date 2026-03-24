@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Clock, CheckCircle2, ArrowLeft } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Clock, CheckCircle2 } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { getAccessToken } from "@/lib/api-client";
 import EditReminderModal from "./EditReminderModal";
@@ -90,19 +91,13 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
 
   return (
     <div className="flex h-full flex-col bg-[#161616]">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06]">
-        <button
-          onClick={onBack}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors md:hidden"
-        >
-          <ArrowLeft size={18} strokeWidth={1.8} />
-        </button>
-        <h1 className="text-[18px] font-semibold text-white">Напоминания</h1>
+      {/* Header — matches GPT "Calendarios" style: just title, left-aligned */}
+      <div className="px-5 pt-5 pb-4">
+        <h1 className="text-[18px] font-semibold text-white">{t("reminders.title")}</h1>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-6">
+      <div className="flex-1 overflow-y-auto px-5">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="h-5 w-5 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
@@ -117,14 +112,14 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
           <div className="max-w-2xl mx-auto">
             {/* Scheduled section */}
             {pending.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-[15px] font-semibold text-white mb-4">Запланировано</h2>
-                <div className="space-y-0.5">
+              <div className="mb-10">
+                <h2 className="text-[15px] font-semibold text-white mb-5">Запланировано</h2>
+                <div className="space-y-1">
                   {pending.map((reminder) => (
                     <button
                       key={reminder.id}
                       onClick={() => setEditingReminder(reminder)}
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-3 hover:bg-white/[0.04] transition-colors text-left group"
+                      className="flex w-full items-center gap-3 py-3 hover:bg-white/[0.03] -mx-2 px-2 rounded-lg transition-colors text-left"
                     >
                       <Clock size={16} strokeWidth={1.8} className="text-white/40 shrink-0" />
                       <span className="flex-1 text-[15px] text-white truncate">{reminder.title}</span>
@@ -138,13 +133,13 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
             {/* Recent section */}
             {recent.length > 0 && (
               <div>
-                <h2 className="text-[15px] font-semibold text-white mb-4">Недавние</h2>
-                <div className="space-y-0.5">
+                <h2 className="text-[15px] font-semibold text-white mb-5">Недавние</h2>
+                <div className="space-y-1">
                   {recent.map((reminder) => (
                     <button
                       key={reminder.id}
                       onClick={() => setEditingReminder(reminder)}
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-3 hover:bg-white/[0.04] transition-colors text-left group"
+                      className="flex w-full items-center gap-3 py-3 hover:bg-white/[0.03] -mx-2 px-2 rounded-lg transition-colors text-left"
                     >
                       <CheckCircle2 size={16} strokeWidth={1.8} className="text-white/25 shrink-0" />
                       <span className="flex-1 text-[15px] text-white/50 truncate">{reminder.title}</span>
@@ -158,14 +153,15 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
         )}
       </div>
 
-      {/* Edit modal */}
-      {editingReminder && (
+      {/* Edit modal via portal */}
+      {editingReminder && createPortal(
         <EditReminderModal
           reminder={editingReminder}
           onClose={() => setEditingReminder(null)}
           onUpdated={() => { setEditingReminder(null); fetchReminders(); }}
           onDeleted={() => { setEditingReminder(null); fetchReminders(); }}
-        />
+        />,
+        document.body
       )}
     </div>
   );

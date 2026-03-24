@@ -289,6 +289,8 @@ export default function Sidebar() {
           userName={userName}
           userInitial={userInitial}
           userPlanLabel={planLabels[userPlan] || userPlan}
+          showReminders={showReminders}
+          setShowReminders={setShowReminders}
         />
       </aside>
 
@@ -312,6 +314,8 @@ export default function Sidebar() {
           userName={userName}
           userInitial={userInitial}
           userPlanLabel={planLabels[userPlan] || userPlan}
+          showReminders={showReminders}
+          setShowReminders={setShowReminders}
         />
       </aside>
     </>
@@ -333,6 +337,8 @@ interface SidebarContentProps {
   userName: string;
   userInitial: string;
   userPlanLabel: string;
+  showReminders: boolean;
+  setShowReminders: (show: boolean) => void;
 }
 
 function SidebarContent({
@@ -349,6 +355,8 @@ function SidebarContent({
   userName,
   userInitial,
   userPlanLabel,
+  showReminders,
+  setShowReminders,
 }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col" style={{ minWidth: expanded ? 260 : 50 }}>

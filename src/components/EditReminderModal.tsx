@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
-import { t } from "@/lib/i18n";
 import { getAccessToken } from "@/lib/api-client";
+import MiraDatePicker from "./ui/MiraDatePicker";
+import MiraTimePicker from "./ui/MiraTimePicker";
 
 const PROXY_URL = "/api/proxy";
 
@@ -45,8 +46,11 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
   useEffect(() => {
     try {
       const d = new Date(reminder.remind_at);
-      setDate(d.toISOString().slice(0, 10));
-      setTime(d.toTimeString().slice(0, 5));
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      setDate(`${y}-${m}-${day}`);
+      setTime(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
     } catch {
       setDate(new Date().toISOString().slice(0, 10));
       setTime("12:00");
@@ -68,6 +72,8 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
       setTimeout(onClose, 200);
     }
   };
+
+  const close = () => { setVisible(false); setTimeout(onClose, 200); };
 
   const handleSave = async () => {
     const token = getAccessToken();
@@ -93,8 +99,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
         }),
       });
       onUpdated();
-      setVisible(false);
-      setTimeout(onClose, 200);
+      close();
     } catch {
       setSaving(false);
     }
@@ -114,13 +119,11 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
         credentials: "include",
       });
       onDeleted();
-      setVisible(false);
-      setTimeout(onClose, 200);
+      close();
     } catch {}
   };
 
   const handlePause = async () => {
-    // Snooze for 24 hours (pause)
     const token = getAccessToken();
     if (!token) return;
 
@@ -136,8 +139,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
         body: JSON.stringify({ duration_minutes: 1440 }),
       });
       onUpdated();
-      setVisible(false);
-      setTimeout(onClose, 200);
+      close();
     } catch {}
   };
 
@@ -150,7 +152,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
     >
       <div
         ref={modalRef}
-        className={`w-full max-w-[480px] rounded-2xl bg-[#1a1a1a] border border-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-200 ${
+        className={`w-full max-w-[480px] rounded-2xl bg-[#1a1a1a] border border-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-visible transition-all duration-200 ${
           visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
       >
@@ -158,7 +160,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <h2 className="text-[17px] font-medium text-white">Редактировать напоминание</h2>
           <button
-            onClick={() => { setVisible(false); setTimeout(onClose, 200); }}
+            onClick={close}
             className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
           >
             <X size={16} />
@@ -168,7 +170,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
         <div className="px-5 pb-5 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-[13px] text-white/50 mb-1.5">Название</label>
+            <label className="block text-[13px] font-medium text-white mb-1.5">Название</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -179,7 +181,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
 
           {/* Instructions */}
           <div>
-            <label className="block text-[13px] text-white/50 mb-1.5">Описание</label>
+            <label className="block text-[13px] font-medium text-white mb-1.5">Описание</label>
             <textarea
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
@@ -189,37 +191,40 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
             />
           </div>
 
-          {/* When — recurrence + date + time */}
+          {/* When — recurrence + date picker + time picker */}
           <div>
-            <label className="block text-[13px] text-white/50 mb-1.5">Когда</label>
-            <div className="flex items-center gap-2">
-              <select
-                value={recurrence}
-                onChange={(e) => setRecurrence(e.target.value)}
-                className="flex-1 rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors appearance-none cursor-pointer [color-scheme:dark]"
-              >
-                {RECURRENCE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-[#1a1a1a] text-white">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors [color-scheme:dark]"
-              />
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors [color-scheme:dark]"
-              />
+            <label className="block text-[13px] font-medium text-white mb-1.5">Когда</label>
+            <div className="flex items-start gap-2">
+              {/* Recurrence dropdown */}
+              <div className="flex-1">
+                <select
+                  value={recurrence}
+                  onChange={(e) => setRecurrence(e.target.value)}
+                  className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors appearance-none cursor-pointer [color-scheme:dark]"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.3)' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 10px center",
+                    paddingRight: "30px",
+                  }}
+                >
+                  {RECURRENCE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} className="bg-[#1a1a1a] text-white">
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date picker */}
+              <MiraDatePicker value={date} onChange={setDate} className="flex-1" />
+
+              {/* Time picker */}
+              <MiraTimePicker value={time} onChange={setTime} className="w-[110px]" />
             </div>
           </div>
 
-          {/* Actions — Pause + Delete left, Cancel + Save right (like GPT) */}
+          {/* Actions — GPT layout: Pause + Delete left, Cancel + Save right */}
           <div className="flex items-center justify-between pt-2">
             <div className="flex items-center gap-2">
               <button
@@ -237,7 +242,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { setVisible(false); setTimeout(onClose, 200); }}
+                onClick={close}
                 className="rounded-lg px-3.5 py-2 text-[14px] text-white/50 hover:text-white/70 transition-colors"
               >
                 Отмена

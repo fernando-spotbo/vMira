@@ -3,20 +3,20 @@
 # ═══════════════════════════════════════════════════════════════
 
 # ── Stage 1: Build ────────────────────────────────────────────
-FROM rust:1.85-slim AS builder
+FROM rust:1.88-slim AS builder
 
 WORKDIR /app
 
 # Install system dependencies for linking (OpenSSL is handled by rustls)
-RUN apt-get update && apt-get install -y pkg-config && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
 # Cache dependencies: copy only manifests, create a dummy main, and build
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
 
-# Copy actual source and rebuild (only the application code is recompiled)
+# Copy actual source and rebuild — touch main.rs to force recompilation
 COPY src/ src/
-RUN cargo build --release
+RUN touch src/main.rs && cargo build --release
 
 # ── Stage 2: Runtime ──────────────────────────────────────────
 FROM debian:bookworm-slim

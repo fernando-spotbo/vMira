@@ -9,6 +9,7 @@ pub mod chat;
 pub mod completions;
 pub mod feedback;
 pub mod health;
+pub mod notifications;
 pub mod sessions;
 pub mod voice;
 
@@ -36,6 +37,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/api-keys", api_keys::api_key_routes())
         .nest("/api/v1/sessions", sessions::session_routes())
         .nest("/api/v1/admin", admin::admin_routes())
+        .nest("/api/v1", notifications::notification_routes())
         .nest(
             "/api/v1/voice",
             voice::voice_routes()

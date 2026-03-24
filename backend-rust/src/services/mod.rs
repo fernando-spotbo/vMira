@@ -6,6 +6,7 @@ pub mod payment;
 pub mod queue;
 pub mod rate_limit;
 pub mod sanitize;
+pub mod scheduler;
 pub mod search;
 pub mod token;
 pub mod token_revocation;

@@ -148,6 +148,10 @@ pub struct MessageRequest {
 
     #[serde(default)]
     pub voice: bool,
+
+    /// IDs of previously uploaded attachments to link to this message
+    #[serde(default)]
+    pub attachment_ids: Vec<uuid::Uuid>,
 }
 
 fn default_model() -> String {

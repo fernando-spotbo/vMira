@@ -331,6 +331,7 @@ async fn chat_completions(
                 &user_plan,
                 false,
                 &state_clone.config,
+                None, None, None,
             );
 
             tokio::pin!(ai_stream);
@@ -550,6 +551,7 @@ async fn chat_completions(
             &user.plan,
             false,
             &state.config,
+            None, None, None,
         );
 
         tokio::pin!(ai_stream);

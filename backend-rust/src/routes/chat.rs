@@ -578,6 +578,20 @@ async fn send_message(
     .execute(&state.db)
     .await?;
 
+    // Link uploaded attachments to this message (only ones belonging to this conversation+user)
+    if !body.attachment_ids.is_empty() {
+        sqlx::query(
+            "UPDATE attachments SET message_id = $1
+             WHERE id = ANY($2) AND conversation_id = $3 AND user_id = $4 AND message_id IS NULL"
+        )
+        .bind(user_msg_id)
+        .bind(&body.attachment_ids)
+        .bind(conv.id)
+        .bind(user.id)
+        .execute(&state.db)
+        .await?;
+    }
+
     // Auto-title on first message
     let msg_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE conversation_id = $1")
         .bind(conv.id)
@@ -855,6 +869,9 @@ async fn send_message(
             &user_plan,
             voice_mode,
             &state_clone.config,
+            Some(user.id),
+            Some(state_clone.db.clone()),
+            None,
         );
 
         tokio::pin!(ai_stream);
@@ -907,6 +924,16 @@ async fn send_message(
                                 "type": "search_results",
                                 "query": query,
                                 "results": results_json,
+                            });
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                        }
+                        Some(ai_proxy::AiEvent::ReminderCreated { id, title, remind_at, rrule }) => {
+                            let event_data = serde_json::json!({
+                                "type": "reminder_created",
+                                "id": id,
+                                "title": title,
+                                "remind_at": remind_at,
+                                "rrule": rrule,
                             });
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
                         }
@@ -1183,6 +1210,9 @@ async fn anonymous_stream(
             "free",
             false,
             &config,
+            None,  // no user_id for guests
+            None,  // no db for guests
+            None,  // no timezone for guests
         );
 
         tokio::pin!(ai_stream);
@@ -1201,6 +1231,9 @@ async fn anonymous_stream(
                 Some(ai_proxy::AiEvent::SearchResults { query, results }) => {
                     let data = serde_json::json!({"type": "search_results", "query": query, "results": results});
                     yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));
+                }
+                Some(ai_proxy::AiEvent::ReminderCreated { .. }) => {
+                    // Guests can't create reminders — ignore
                 }
                 None => break,
             }

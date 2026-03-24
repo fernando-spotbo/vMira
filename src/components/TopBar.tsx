@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useChat } from "@/context/ChatContext";
+import { useAuth } from "@/context/AuthContext";
 import ModelSelector from "./ModelSelector";
+import NotificationBell from "./NotificationBell";
 import { ChevronDown, Star, Pencil, Trash2 } from "lucide-react";
 import { t } from "@/lib/i18n";
 
@@ -72,6 +74,8 @@ export default function TopBar() {
     setDropdownOpen(false);
   };
 
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
   const hasConversation = activeConversation && activeConversation.messages.length > 0;
 
   return (
@@ -150,7 +154,10 @@ export default function TopBar() {
         )}
       </div>
 
-      <div />
+      {/* Right side — notification bell */}
+      <div className="pointer-events-auto">
+        {isLoggedIn && <NotificationBell />}
+      </div>
     </header>
   );
 }

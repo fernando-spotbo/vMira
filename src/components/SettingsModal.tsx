@@ -148,17 +148,124 @@ function AppearanceTab() {
   );
 }
 
+const TIMEZONE_OPTIONS = [
+  { value: "Europe/Moscow", label: "Москва (UTC+3)" },
+  { value: "Europe/Samara", label: "Самара (UTC+4)" },
+  { value: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
+  { value: "Asia/Omsk", label: "Омск (UTC+6)" },
+  { value: "Asia/Novosibirsk", label: "Новосибирск (UTC+7)" },
+  { value: "Asia/Krasnoyarsk", label: "Красноярск (UTC+7)" },
+  { value: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
+  { value: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
+  { value: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
+  { value: "Asia/Magadan", label: "Магадан (UTC+11)" },
+  { value: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
+];
+
 function NotificationsTab() {
-  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [emailNotifs, setEmailNotifs] = useState(false);
   const [soundNotifs, setSoundNotifs] = useState(false);
+  const [timezone, setTimezone] = useState("Europe/Moscow");
+  const [quietStart, setQuietStart] = useState("23:00");
+  const [quietEnd, setQuietEnd] = useState("07:00");
+  const [loaded, setLoaded] = useState(false);
+
+  // Load settings from backend
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = (await import("@/lib/api-client")).getAccessToken();
+        if (!token) return;
+        const res = await fetch("/api/proxy/notification-settings", {
+          headers: { Authorization: `Bearer ${token}`, "X-Requested-With": "XMLHttpRequest" },
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setEmailNotifs(data.email_enabled ?? false);
+        setTimezone(data.timezone ?? "Europe/Moscow");
+        setQuietStart(data.quiet_start ?? "23:00");
+        setQuietEnd(data.quiet_end ?? "07:00");
+        setLoaded(true);
+      } catch {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  const saveSettings = async (updates: Record<string, unknown>) => {
+    try {
+      const token = (await import("@/lib/api-client")).getAccessToken();
+      if (!token) return;
+      await fetch("/api/proxy/notification-settings", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      });
+    } catch {}
+  };
+
+  const handleEmailToggle = () => {
+    const next = !emailNotifs;
+    setEmailNotifs(next);
+    saveSettings({ email_enabled: next });
+  };
+
+  const handleTimezone = (tz: string) => {
+    setTimezone(tz);
+    saveSettings({ timezone: tz });
+  };
+
+  const handleQuietStart = (v: string) => {
+    setQuietStart(v);
+    saveSettings({ quiet_start: v });
+  };
+
+  const handleQuietEnd = (v: string) => {
+    setQuietEnd(v);
+    saveSettings({ quiet_end: v });
+  };
 
   return (
     <div>
-      <SettingRow label={t("settings.emailNotifs")} description={t("settings.emailNotifsDesc")}>
-        <ToggleSwitch enabled={emailNotifs} onToggle={() => setEmailNotifs(!emailNotifs)} />
+      <SettingRow label={t("settings.timezone") || "Часовой пояс"} description={t("settings.timezoneDesc") || "Для корректного времени напоминаний"}>
+        <SelectField value={timezone} onChange={handleTimezone} options={TIMEZONE_OPTIONS} />
       </SettingRow>
-      <SettingRow label={t("settings.sound")} description={t("settings.soundDesc")}>
+      <SettingRow label={t("settings.emailNotifs")} description={t("settings.emailNotifsDesc")}>
+        <ToggleSwitch enabled={emailNotifs} onToggle={handleEmailToggle} />
+      </SettingRow>
+      <SettingRow label={t("settings.sound") || "Звук"} description={t("settings.soundDesc") || "Звук при получении уведомления"}>
         <ToggleSwitch enabled={soundNotifs} onToggle={() => setSoundNotifs(!soundNotifs)} />
+      </SettingRow>
+      <SettingRow label={t("settings.quietHours") || "Тихие часы"} description={t("settings.quietHoursDesc") || "Не отправлять уведомления в это время"}>
+        <div className="flex items-center gap-2">
+          <input
+            type="time"
+            value={quietStart}
+            onChange={(e) => handleQuietStart(e.target.value)}
+            className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-2.5 py-1.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors [color-scheme:dark]"
+          />
+          <span className="text-[13px] text-white/30">—</span>
+          <input
+            type="time"
+            value={quietEnd}
+            onChange={(e) => handleQuietEnd(e.target.value)}
+            className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-2.5 py-1.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors [color-scheme:dark]"
+          />
+        </div>
+      </SettingRow>
+      <SettingRow label={t("settings.telegramConnect") || "Telegram"} description={t("settings.telegramComingSoon") || "Уведомления в Telegram — скоро"}>
+        <button
+          disabled
+          className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-[14px] text-white/30 cursor-not-allowed"
+        >
+          Скоро
+        </button>
       </SettingRow>
     </div>
   );

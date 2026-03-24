@@ -404,12 +404,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         addMessage(convId, userMsg);
       }
 
-      // Upload files in background (if any) — skip for guests
+      // Upload files BEFORE sending message so we can link them — skip for guests
+      const uploadedIds: string[] = [];
       if (isLive && getAccessToken() && filesToUpload.length > 0 && convId) {
-        for (const file of filesToUpload) {
-          uploadFile(convId, file).catch((e) =>
-            console.error("File upload failed:", e)
-          );
+        const results = await Promise.allSettled(
+          filesToUpload.map((file) => uploadFile(convId!, file))
+        );
+        for (const r of results) {
+          if (r.status === "fulfilled" && r.value.ok) {
+            for (const att of r.value.data) {
+              uploadedIds.push(att.id);
+            }
+          } else if (r.status === "rejected") {
+            console.error("File upload failed:", r.reason);
+          }
         }
       }
 
@@ -437,7 +445,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           // Guest: use anonymous endpoint (no auth, no storage, 5/day limit)
           const eventStream = isGuest
             ? chatApi.streamAnonymous(content, controller.signal)
-            : chatApi.streamMessage(convId, content, safeModel, controller.signal);
+            : chatApi.streamMessage(convId, content, safeModel, controller.signal, false, uploadedIds);
 
           for await (const event of eventStream) {
             switch (event.type) {
@@ -534,6 +542,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                                         { type: "text" as const, content: fullContent },
                                       ]
                                     : undefined,
+                                }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
+                break;
+
+              case "reminder_created":
+                // Attach reminder info to the current assistant message
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === convId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === asstId
+                              ? {
+                                  ...m,
+                                  reminder: {
+                                    id: event.id,
+                                    title: event.title,
+                                    remind_at: event.remind_at,
+                                    rrule: event.rrule,
+                                  },
                                 }
                               : m
                           ),

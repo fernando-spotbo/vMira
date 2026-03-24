@@ -56,6 +56,12 @@ async fn main() {
         config: Arc::new(config),
     };
 
+    // Spawn background reminder scheduler
+    let scheduler_state = state.clone();
+    tokio::spawn(async move {
+        services::scheduler::run_reminder_scheduler(scheduler_state).await;
+    });
+
     let app = build_router(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")

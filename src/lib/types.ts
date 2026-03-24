@@ -48,6 +48,13 @@ export interface MessageError {
   retryAfterMinutes?: number;
 }
 
+export interface ReminderInfo {
+  id: string;
+  title: string;
+  remind_at: string;
+  rrule?: string | null;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -57,6 +64,7 @@ export interface Message {
   steps?: MessageStep[];
   attachments?: Attachment[];
   error?: MessageError;
+  reminder?: ReminderInfo;
 }
 
 export interface Conversation {

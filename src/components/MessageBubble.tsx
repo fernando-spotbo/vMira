@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, CreditCard, Clock, Globe } from "lucide-react";
-import { Message, MessageStep, Attachment, MessageError } from "@/lib/types";
+import { Message, MessageStep, Attachment, MessageError, ReminderInfo } from "@/lib/types";
 import CodeBlock from "./CodeBlock";
 import ReasoningBlock from "./ReasoningBlock";
+import ReminderCard from "./ReminderCard";
 import { useStreamingText } from "@/hooks/useStreamingText";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
@@ -716,6 +717,16 @@ export default function MessageBubble({
 
           {message.attachments && message.attachments.length > 0 && (
             <AttachmentGrid attachments={message.attachments} />
+          )}
+
+          {/* Reminder card (shown when AI creates a reminder) */}
+          {message.reminder && (
+            <ReminderCard
+              id={message.reminder.id}
+              title={message.reminder.title}
+              remindAt={message.reminder.remind_at}
+              rrule={message.reminder.rrule}
+            />
           )}
 
           {/* Source citations */}

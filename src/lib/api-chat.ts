@@ -93,6 +93,7 @@ export type StreamEvent =
   | { type: "token"; content: string }
   | { type: "search"; query: string }
   | { type: "search_results"; query: string; results: SearchResultItem[] }
+  | { type: "reminder_created"; id: string; title: string; remind_at: string; rrule?: string | null }
   | { type: "done"; usage?: { input_tokens: number; output_tokens: number; total_tokens: number; cost_microcents: number } }
   | { type: "error"; message: string };
 
@@ -104,6 +105,7 @@ export async function* streamMessage(
   model: string = "mira",
   signal?: AbortSignal,
   voice: boolean = false,
+  attachmentIds: string[] = [],
 ): AsyncGenerator<StreamEvent, void, undefined> {
   const token = getAccessToken();
 
@@ -115,7 +117,12 @@ export async function* streamMessage(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: "include",
-    body: JSON.stringify({ content, model, voice }),
+    body: JSON.stringify({
+      content,
+      model,
+      voice,
+      ...(attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
+    }),
     signal,
   });
 

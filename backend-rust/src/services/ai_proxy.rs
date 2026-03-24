@@ -76,6 +76,13 @@ pub enum AiEvent {
         query: String,
         results: Vec<search::SearchResult>,
     },
+    /// A reminder was created via tool call.
+    ReminderCreated {
+        id: String,
+        title: String,
+        remind_at: String,
+        rrule: Option<String>,
+    },
 }
 
 // ── Message types ───────────────────────────────────────────────────────────
@@ -149,6 +156,34 @@ fn web_search_tool() -> serde_json::Value {
                     }
                 },
                 "required": ["query"]
+            }
+        }
+    })
+}
+
+fn reminder_tool() -> serde_json::Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": "create_reminder",
+            "description": "Create a reminder or scheduled notification for the user. Use when the user says: remind me, напомни, напомни мне, не забудь, don't forget, set a reminder, поставь напоминание, or uses time expressions like 'через 5 минут', 'завтра в 10', 'every Monday', 'каждый понедельник'. Always resolve relative times to absolute ISO 8601 datetimes using the current time provided in the system prompt.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Short summary of what to remind about (max 200 chars, in the user's language)"
+                    },
+                    "remind_at": {
+                        "type": "string",
+                        "description": "ISO 8601 datetime for when to send the reminder (e.g. 2026-03-25T10:00:00+03:00). Resolve relative times using the current datetime from the system prompt."
+                    },
+                    "recurrence": {
+                        "type": "string",
+                        "description": "RFC 5545 RRULE string if recurring (e.g. FREQ=DAILY, FREQ=WEEKLY;BYDAY=MO,WE,FR, FREQ=MONTHLY). Null or omit for one-time reminders."
+                    }
+                },
+                "required": ["title", "remind_at"]
             }
         }
     })
@@ -275,6 +310,9 @@ pub fn stream_ai_response(
     user_plan: &str,
     voice_mode: bool,
     config: &Config,
+    user_id: Option<uuid::Uuid>,
+    db: Option<sqlx::PgPool>,
+    user_timezone: Option<String>,
 ) -> Pin<Box<dyn Stream<Item = AiEvent> + Send>> {
     let url = format!("{}/chat/completions", config.ai_model_url);
     let api_key = config.ai_model_api_key.clone();
@@ -284,10 +322,19 @@ pub fn stream_ai_response(
 
     let (tx, rx) = tokio::sync::mpsc::channel::<AiEvent>(32);
 
+    let tz = user_timezone.unwrap_or_else(|| "Europe/Moscow".to_string());
     let system_prompt = if voice_mode { MIRA_VOICE_PROMPT } else { MIRA_SYSTEM_PROMPT };
+
+    // Inject current datetime for reminder time resolution
+    let now = chrono::Utc::now();
+    let datetime_context = format!(
+        "\n\nCurrent datetime: {}. User timezone: {}.",
+        now.format("%Y-%m-%dT%H:%M:%S+00:00"), tz
+    );
+
     let mut full_messages: Vec<serde_json::Value> = vec![json!({
         "role": "system",
-        "content": system_prompt,
+        "content": format!("{}{}", system_prompt, datetime_context),
     })];
     for m in &messages {
         full_messages.push(json!({
@@ -330,7 +377,7 @@ pub fn stream_ai_response(
         });
 
         if supports_tools {
-            body["tools"] = json!([web_search_tool()]);
+            body["tools"] = json!([web_search_tool(), reminder_tool()]);
         }
 
         let data = match call_model(&client, &url, &api_key, &body).await {
@@ -352,47 +399,120 @@ pub fn stream_ai_response(
         // ── Check for tool calls ────────────────────────────────
         if let Some(tool_calls) = &choice.message.tool_calls {
             for tc in tool_calls {
-                if tc.function.name != "web_search" {
+                let tool_result_content: String;
+
+                if tc.function.name == "web_search" {
+                    let args: SearchArgs = match serde_json::from_str(&tc.function.arguments) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            tracing::warn!(error = %e, "Failed to parse search args");
+                            continue;
+                        }
+                    };
+
+                    // Emit search started event
+                    let _ = tx.send(AiEvent::SearchStarted { query: args.query.clone() }).await;
+
+                    // Execute search
+                    let search_result = search::web_search(&args.query, max_search, &config).await;
+
+                    let results_for_event;
+                    match search_result {
+                        Ok(sr) => {
+                            let mut content = sr.results.iter().enumerate().map(|(i, r)| {
+                                format!("{}. {} — {}\n   {}", i + 1, r.title, r.url, r.content)
+                            }).collect::<Vec<_>>().join("\n\n");
+                            content.push_str("\n\n[ВАЖНО: В ответе ОБЯЗАТЕЛЬНО указывай номера источников в квадратных скобках, например [1], [2], после каждого факта.]");
+                            results_for_event = sr.results.clone();
+                            tool_result_content = content;
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "Web search failed");
+                            results_for_event = vec![];
+                            tool_result_content = format!("Search failed: {e}");
+                        }
+                    };
+
+                    // Emit search results event
+                    let _ = tx.send(AiEvent::SearchResults {
+                        query: args.query.clone(),
+                        results: results_for_event,
+                    }).await;
+                } else if tc.function.name == "create_reminder" {
+                    // Parse reminder args
+                    #[derive(serde::Deserialize)]
+                    struct ReminderArgs {
+                        title: String,
+                        remind_at: String,
+                        recurrence: Option<String>,
+                    }
+
+                    let args: ReminderArgs = match serde_json::from_str(&tc.function.arguments) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            tracing::warn!(error = %e, "Failed to parse reminder args");
+                            tool_result_content = format!("Failed to parse reminder arguments: {e}");
+                            // Still add tool call + result to messages so model can respond
+                            full_messages.push(json!({
+                                "role": "assistant", "content": null,
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_reminder", "arguments": tc.function.arguments}}]
+                            }));
+                            full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
+                            continue;
+                        }
+                    };
+
+                    // Try to create the reminder in the database
+                    if let (Some(uid), Some(ref pool)) = (user_id, &db) {
+                        let remind_at = chrono::DateTime::parse_from_rfc3339(&args.remind_at)
+                            .or_else(|_| chrono::DateTime::parse_from_str(&args.remind_at, "%Y-%m-%dT%H:%M:%S%z"))
+                            .map(|dt| dt.with_timezone(&chrono::Utc));
+
+                        match remind_at {
+                            Ok(dt) => {
+                                let result = sqlx::query_scalar::<_, uuid::Uuid>(
+                                    "INSERT INTO reminders (user_id, title, remind_at, user_timezone, rrule, channels)
+                                     VALUES ($1, $2, $3, $4, $5, '{in_app}')
+                                     RETURNING id"
+                                )
+                                .bind(uid)
+                                .bind(&args.title)
+                                .bind(dt)
+                                .bind(&tz)
+                                .bind(&args.recurrence)
+                                .fetch_one(pool)
+                                .await;
+
+                                match result {
+                                    Ok(id) => {
+                                        tracing::info!(reminder_id = %id, title = %args.title, "Reminder created via AI tool");
+                                        let _ = tx.send(AiEvent::ReminderCreated {
+                                            id: id.to_string(),
+                                            title: args.title.clone(),
+                                            remind_at: args.remind_at.clone(),
+                                            rrule: args.recurrence.clone(),
+                                        }).await;
+                                        tool_result_content = format!("Reminder created successfully. ID: {id}, Title: {}, Scheduled: {}", args.title, args.remind_at);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(error = %e, "Failed to create reminder");
+                                        tool_result_content = format!("Failed to save reminder: {e}");
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                tool_result_content = format!("Invalid datetime format: {}. Use ISO 8601 format.", args.remind_at);
+                            }
+                        }
+                    } else {
+                        tool_result_content = "Reminder creation is not available for guest users.".to_string();
+                    }
+                } else {
+                    tracing::warn!(tool = %tc.function.name, "Unknown tool call");
                     continue;
                 }
 
-                let args: SearchArgs = match serde_json::from_str(&tc.function.arguments) {
-                    Ok(a) => a,
-                    Err(e) => {
-                        tracing::warn!(error = %e, "Failed to parse search args");
-                        continue;
-                    }
-                };
-
-                // Emit search started event
-                let _ = tx.send(AiEvent::SearchStarted { query: args.query.clone() }).await;
-
-                // Execute search
-                let search_result = search::web_search(&args.query, max_search, &config).await;
-
-                let (search_content, results_for_event) = match search_result {
-                    Ok(sr) => {
-                        let mut content = sr.results.iter().enumerate().map(|(i, r)| {
-                            format!("{}. {} — {}\n   {}", i + 1, r.title, r.url, r.content)
-                        }).collect::<Vec<_>>().join("\n\n");
-                        content.push_str("\n\n[ВАЖНО: В ответе ОБЯЗАТЕЛЬНО указывай номера источников в квадратных скобках, например [1], [2], после каждого факта.]");
-                        let results = sr.results.clone();
-                        (content, results)
-                    }
-                    Err(e) => {
-                        tracing::warn!(error = %e, "Web search failed");
-                        (format!("Search failed: {e}"), vec![])
-                    }
-                };
-
-                // Emit search results event
-                let _ = tx.send(AiEvent::SearchResults {
-                    query: args.query.clone(),
-                    results: results_for_event,
-                }).await;
-
-                // ── Second call with tool results ───────────────
-                // Add assistant message with tool_calls
+                // ── Add tool call + result to messages for second call ───
                 full_messages.push(json!({
                     "role": "assistant",
                     "content": null,
@@ -400,17 +520,16 @@ pub fn stream_ai_response(
                         "id": tc.id,
                         "type": "function",
                         "function": {
-                            "name": "web_search",
+                            "name": tc.function.name,
                             "arguments": tc.function.arguments
                         }
                     }]
                 }));
 
-                // Add tool result message
                 full_messages.push(json!({
                     "role": "tool",
                     "tool_call_id": tc.id,
-                    "content": search_content
+                    "content": tool_result_content
                 }));
             }
 

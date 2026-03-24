@@ -350,16 +350,16 @@ pub fn stream_ai_response(
     }
 
     let upstream_model = match model.as_str() {
-        "mira" => "deepseek-chat",
-        "mira-thinking" => "deepseek-reasoner",
-        "mira-pro" => "deepseek-chat",
-        "mira-max" => "deepseek-chat",
+        "mira" => "gpt-5.4-nano",
+        "mira-thinking" => "gpt-5.4-nano",
+        "mira-pro" => "gpt-5.4-nano",
+        "mira-max" => "gpt-5.4-nano",
         other => other,
     };
     let upstream_model = upstream_model.to_string();
 
-    // Tool calling is only supported on deepseek-chat (not deepseek-reasoner)
-    let supports_tools = upstream_model == "deepseek-chat";
+    // GPT 5.4 Nano supports tool calling
+    let supports_tools = true;
 
     tokio::spawn(async move {
         if let Err(e) = validate_host(&url, &allowed_hosts) {
@@ -378,7 +378,7 @@ pub fn stream_ai_response(
             "model": upstream_model,
             "messages": full_messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_completion_tokens": max_tokens,
             "stream": false,
         });
 
@@ -544,7 +544,7 @@ pub fn stream_ai_response(
                 "model": upstream_model,
                 "messages": full_messages,
                 "temperature": temperature,
-                "max_tokens": max_tokens,
+                "max_completion_tokens": max_tokens,
                 "stream": false,
             });
 

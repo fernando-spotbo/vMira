@@ -7,6 +7,7 @@ interface MiraTimePickerProps {
   value: string; // HH:MM (24h)
   onChange: (time: string) => void;
   className?: string;
+  dropUp?: boolean;
 }
 
 // Generate time options in 15-minute intervals
@@ -28,7 +29,7 @@ function formatTimeDisplay(time: string): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-export default function MiraTimePicker({ value, onChange, className }: MiraTimePickerProps) {
+export default function MiraTimePicker({ value, onChange, className, dropUp }: MiraTimePickerProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -66,7 +67,7 @@ export default function MiraTimePicker({ value, onChange, className }: MiraTimeP
 
       {/* Dropdown time list */}
       {open && (
-        <div className="absolute top-full left-0 z-[100] mt-1.5 w-full min-w-[120px] rounded-xl border border-white/[0.1] bg-[#1e1e1e] shadow-[0_12px_40px_rgba(0,0,0,0.7)] overflow-hidden mira-fade-in">
+        <div className={`absolute left-0 z-[100] w-full min-w-[120px] rounded-xl border border-white/[0.1] bg-[#1e1e1e] shadow-[0_12px_40px_rgba(0,0,0,0.7)] overflow-hidden mira-fade-in ${dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}>
           <div ref={listRef} className="max-h-[280px] overflow-y-auto py-1">
             {TIME_OPTIONS.map((time) => {
               const isSelected = time === value;

@@ -35,19 +35,15 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const modalRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
-  }, []);
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
   useEffect(() => {
     try {
       const d = new Date(reminder.remind_at);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      setDate(`${y}-${m}-${day}`);
+      setDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
       setTime(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
     } catch {
       setDate(new Date().toISOString().slice(0, 10));
@@ -55,80 +51,74 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
     }
   }, [reminder.remind_at]);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") { setVisible(false); setTimeout(onClose, 200); }
-  }, [onClose]);
+  const close = useCallback(() => { setVisible(false); setTimeout(onClose, 200); }, [onClose]);
 
   useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
-
-  const handleBackdrop = (e: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      setVisible(false);
-      setTimeout(onClose, 200);
-    }
-  };
-
-  const close = () => { setVisible(false); setTimeout(onClose, 200); };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [close]);
 
   const handleSave = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
     setSaving(true);
+    setError("");
 
-    const remindAt = new Date(`${date}T${time}:00`).toISOString();
-    const result = await updateReminder(reminder.id, {
-      title: name.trim(),
-      body: instructions.trim() || null,
-      remind_at: remindAt,
-      rrule: recurrence || null,
-    });
+    try {
+      const remindAt = new Date(`${date}T${time}:00`).toISOString();
+      const result = await updateReminder(reminder.id, {
+        title: name.trim(),
+        body: instructions.trim() || null,
+        remind_at: remindAt,
+        rrule: recurrence || null,
+      });
 
-    if (result.ok) {
-      onUpdated();
-      close();
-    } else {
+      if (result.ok) {
+        onUpdated();
+        close();
+      } else {
+        setError("Не удалось сохранить");
+        setSaving(false);
+      }
+    } catch (e) {
+      setError("Ошибка сети");
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    const result = await deleteReminder(reminder.id);
-    if (result.ok) {
-      onDeleted();
-      close();
-    }
+    await deleteReminder(reminder.id);
+    onDeleted();
+    close();
   };
 
   const handlePause = async () => {
-    const result = await snoozeReminder(reminder.id, 1440);
-    if (result.ok) {
-      onUpdated();
-      close();
-    }
+    await snoozeReminder(reminder.id, 1440);
+    onUpdated();
+    close();
   };
 
   return (
     <div
-      onClick={handleBackdrop}
       className={`fixed inset-0 z-[300] flex items-center justify-center px-4 transition-all duration-200 ${
         visible ? "bg-black/60 backdrop-blur-sm" : "bg-black/0"
       }`}
+      onMouseDown={(e) => {
+        // Only close if clicking the backdrop itself, not children
+        if (e.target === e.currentTarget) close();
+      }}
     >
       <div
         ref={modalRef}
-        className={`w-full max-w-[480px] rounded-2xl bg-[#1a1a1a] border border-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-visible transition-all duration-200 ${
+        className={`w-full max-w-[480px] rounded-2xl bg-[#1a1a1a] border border-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.6)] transition-all duration-200 ${
           visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <h2 className="text-[17px] font-medium text-white">Редактировать напоминание</h2>
-          <button
-            onClick={close}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-          >
+          <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -157,11 +147,10 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
             />
           </div>
 
-          {/* When — recurrence + date picker + time picker */}
+          {/* When — pickers open UPWARD to stay within view */}
           <div>
             <label className="block text-[13px] font-medium text-white mb-1.5">Когда</label>
             <div className="flex items-start gap-2">
-              {/* Recurrence dropdown */}
               <div className="flex-1">
                 <select
                   value={recurrence}
@@ -175,42 +164,30 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
                   }}
                 >
                   {RECURRENCE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value} className="bg-[#1a1a1a] text-white">
-                      {opt.label}
-                    </option>
+                    <option key={opt.value} value={opt.value} className="bg-[#1a1a1a] text-white">{opt.label}</option>
                   ))}
                 </select>
               </div>
-
-              {/* Date picker */}
-              <MiraDatePicker value={date} onChange={setDate} className="flex-1" />
-
-              {/* Time picker */}
-              <MiraTimePicker value={time} onChange={setTime} className="w-[110px]" />
+              <MiraDatePicker value={date} onChange={setDate} className="flex-1" dropUp />
+              <MiraTimePicker value={time} onChange={setTime} className="w-[110px]" dropUp />
             </div>
           </div>
 
-          {/* Actions — GPT layout: Pause + Delete left, Cancel + Save right */}
+          {/* Error */}
+          {error && <p className="text-[13px] text-red-400">{error}</p>}
+
+          {/* Actions */}
           <div className="flex items-center justify-between pt-2">
             <div className="flex items-center gap-2">
-              <button
-                onClick={handlePause}
-                className="rounded-lg px-3.5 py-2 text-[14px] text-white/60 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
-              >
+              <button onClick={handlePause} className="rounded-lg px-3.5 py-2 text-[14px] text-white/60 hover:text-white/80 hover:bg-white/[0.06] transition-colors">
                 Пауза
               </button>
-              <button
-                onClick={handleDelete}
-                className="rounded-lg border border-red-500/30 px-3.5 py-2 text-[14px] text-red-400 hover:bg-red-500/10 transition-colors"
-              >
+              <button onClick={handleDelete} className="rounded-lg border border-red-500/30 px-3.5 py-2 text-[14px] text-red-400 hover:bg-red-500/10 transition-colors">
                 Удалить
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={close}
-                className="rounded-lg px-3.5 py-2 text-[14px] text-white/50 hover:text-white/70 transition-colors"
-              >
+              <button onClick={close} className="rounded-lg px-3.5 py-2 text-[14px] text-white/50 hover:text-white/70 transition-colors">
                 Отмена
               </button>
               <button
@@ -218,7 +195,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
                 disabled={saving || !name.trim()}
                 className="rounded-lg bg-white px-4 py-2 text-[14px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Сохранить
+                {saving ? "..." : "Сохранить"}
               </button>
             </div>
           </div>

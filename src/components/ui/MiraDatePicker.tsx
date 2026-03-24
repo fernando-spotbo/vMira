@@ -17,6 +17,7 @@ interface MiraDatePickerProps {
   value: string; // YYYY-MM-DD
   onChange: (date: string) => void;
   className?: string;
+  dropUp?: boolean;
 }
 
 function getDaysInMonth(year: number, month: number): number {
@@ -27,7 +28,7 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return new Date(year, month, 1).getDay(); // 0=Sun
 }
 
-export default function MiraDatePicker({ value, onChange, className }: MiraDatePickerProps) {
+export default function MiraDatePicker({ value, onChange, className, dropUp }: MiraDatePickerProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -96,7 +97,7 @@ export default function MiraDatePicker({ value, onChange, className }: MiraDateP
 
       {/* Dropdown calendar */}
       {open && (
-        <div className="absolute top-full left-0 z-[100] mt-1.5 w-[280px] rounded-xl border border-white/[0.1] bg-[#1e1e1e] shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-3 mira-fade-in">
+        <div className={`absolute left-0 z-[100] w-[280px] rounded-xl border border-white/[0.1] bg-[#1e1e1e] shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-3 mira-fade-in ${dropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}>
           {/* Month/year header with navigation */}
           <div className="flex items-center justify-between mb-3">
             <span className="text-[14px] font-semibold text-white">

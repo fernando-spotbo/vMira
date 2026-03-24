@@ -676,7 +676,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const safeModel = ALLOWED_MODELS.includes(modelName) ? modelName : "mira";
 
         try {
-          for await (const event of chatApi.streamMessage(convId, content, safeModel, controller.signal)) {
+          for await (const event of chatApi.streamMessage(convId, content, safeModel, controller.signal, false, [], true)) {
             switch (event.type) {
               case "queue":
                 setQueuePosition(event.position);

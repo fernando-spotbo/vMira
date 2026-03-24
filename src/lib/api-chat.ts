@@ -106,6 +106,7 @@ export async function* streamMessage(
   signal?: AbortSignal,
   voice: boolean = false,
   attachmentIds: string[] = [],
+  resend: boolean = false,
 ): AsyncGenerator<StreamEvent, void, undefined> {
   const token = getAccessToken();
 
@@ -122,6 +123,7 @@ export async function* streamMessage(
       model,
       voice,
       ...(attachmentIds.length > 0 ? { attachment_ids: attachmentIds } : {}),
+      ...(resend ? { resend: true } : {}),
     }),
     signal,
   });

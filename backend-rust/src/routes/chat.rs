@@ -565,6 +565,31 @@ async fn send_message(
     .await?
     .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
+    // If this is a resend/retry, remove the previous version of this message
+    // and any assistant responses that followed it, so the model gets clean history.
+    if body.resend {
+        // Find the last user message with identical content
+        let old_msg = sqlx::query_as::<_, Message>(
+            "SELECT * FROM messages WHERE conversation_id = $1 AND role = 'user' AND content = $2
+             ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(conv.id)
+        .bind(&content)
+        .fetch_optional(&state.db)
+        .await?;
+
+        if let Some(old) = old_msg {
+            // Delete the old user message and all messages after it (assistant responses)
+            sqlx::query(
+                "DELETE FROM messages WHERE conversation_id = $1 AND created_at >= $2"
+            )
+            .bind(conv.id)
+            .bind(old.created_at)
+            .execute(&state.db)
+            .await?;
+        }
+    }
+
     // Save user message
     let user_msg_id = Uuid::new_v4();
     sqlx::query(

@@ -152,6 +152,11 @@ pub struct MessageRequest {
     /// IDs of previously uploaded attachments to link to this message
     #[serde(default)]
     pub attachment_ids: Vec<uuid::Uuid>,
+
+    /// If true, this is a retry/resend — delete the previous identical user message
+    /// and its assistant response before processing.
+    #[serde(default)]
+    pub resend: bool,
 }
 
 fn default_model() -> String {

@@ -11,6 +11,7 @@ import EditReminderModal from "./EditReminderModal";
 interface ReminderCardProps {
   id: string;
   title: string;
+  body?: string | null;
   remindAt: string;
   rrule?: string | null;
   status?: "pending" | "fired" | "cancelled";
@@ -41,12 +42,13 @@ function formatScheduleTime(remindAt: string): string {
   }
 }
 
-export default function ReminderCard({ id, title: initialTitle, remindAt: initialRemindAt, rrule: initialRrule, status = "pending" }: ReminderCardProps) {
+export default function ReminderCard({ id, title: initialTitle, body: initialBody, remindAt: initialRemindAt, rrule: initialRrule, status = "pending" }: ReminderCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [currentTitle, setCurrentTitle] = useState(initialTitle);
   const [currentRemindAt, setCurrentRemindAt] = useState(initialRemindAt);
   const [currentRrule, setCurrentRrule] = useState(initialRrule);
+  const [currentBody, setCurrentBody] = useState<string | null>(initialBody || null);
   const [deleted, setDeleted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { setShowReminders } = useChat();
@@ -138,7 +140,7 @@ export default function ReminderCard({ id, title: initialTitle, remindAt: initia
       {/* Edit modal — rendered via portal to escape overflow-hidden */}
       {editOpen && createPortal(
         <EditReminderModal
-          reminder={{ id, title: currentTitle, remind_at: currentRemindAt, rrule: currentRrule, body: null }}
+          reminder={{ id, title: currentTitle, remind_at: currentRemindAt, rrule: currentRrule, body: currentBody }}
           onClose={() => setEditOpen(false)}
           onUpdated={() => {
             // Refetch the reminder to get updated data
@@ -151,6 +153,7 @@ export default function ReminderCard({ id, title: initialTitle, remindAt: initia
                   setCurrentTitle(updated.title);
                   setCurrentRemindAt(updated.remind_at);
                   setCurrentRrule(updated.rrule);
+                  setCurrentBody(updated.body);
                 }
               }
             })();

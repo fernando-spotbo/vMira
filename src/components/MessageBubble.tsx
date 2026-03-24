@@ -725,6 +725,7 @@ export default function MessageBubble({
             <ReminderCard
               id={message.reminder.id}
               title={message.reminder.title}
+              body={message.reminder.body}
               remindAt={message.reminder.remind_at}
               rrule={message.reminder.rrule}
             />

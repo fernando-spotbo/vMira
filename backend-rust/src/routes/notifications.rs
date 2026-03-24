@@ -351,6 +351,7 @@ async fn update_reminder(
         "type": "reminder_created",
         "id": reminder_id_str,
         "title": &title,
+        "body": &body_text,
         "remind_at": remind_at.to_rfc3339(),
         "rrule": &rrule,
     });

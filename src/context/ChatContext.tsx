@@ -96,6 +96,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const reminder = reminderStep ? {
         id: reminderStep.id || "",
         title: reminderStep.title || "",
+        body: reminderStep.body || null,
         remind_at: reminderStep.remind_at || "",
         rrule: reminderStep.rrule || null,
       } : undefined;

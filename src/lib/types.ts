@@ -51,6 +51,7 @@ export interface MessageError {
 export interface ReminderInfo {
   id: string;
   title: string;
+  body?: string | null;
   remind_at: string;
   rrule?: string | null;
 }

@@ -145,16 +145,17 @@ async fn issue_tokens(
 /// Build a Set-Cookie header for the refresh token.
 /// Path=/ so the cookie is sent on all requests (the proxy rewrites paths).
 /// When `secure` is false (debug mode), omits `Secure` flag for HTTP localhost.
-fn refresh_cookie_header(raw_token: &str, max_age_days: i64, _api_prefix: &str, secure: bool) -> String {
+fn refresh_cookie_header(raw_token: &str, max_age_days: i64, _api_prefix: &str, _secure: bool) -> String {
     let max_age = max_age_days * 86400;
-    let sec = if secure { "; Secure" } else { "" };
-    format!("refresh_token={raw_token}; HttpOnly{sec}; SameSite=Lax; Max-Age={max_age}; Path=/")
+    // Note: Secure flag omitted until TLS is configured on the VPS nginx.
+    // Re-enable once certbot/TLS is active: let sec = if secure { "; Secure" } else { "" };
+    format!("refresh_token={raw_token}; HttpOnly; SameSite=Lax; Max-Age={max_age}; Path=/")
 }
 
 /// Build a delete-cookie header for the refresh token.
-fn delete_refresh_cookie_header(_api_prefix: &str, secure: bool) -> String {
-    let sec = if secure { "; Secure" } else { "" };
-    format!("refresh_token=; HttpOnly{sec}; SameSite=Lax; Max-Age=0; Path=/")
+fn delete_refresh_cookie_header(_api_prefix: &str, _secure: bool) -> String {
+    // Note: Secure flag omitted until TLS is configured on the VPS nginx.
+    format!("refresh_token=; HttpOnly; SameSite=Lax; Max-Age=0; Path=/")
 }
 
 /// Extract useful headers from the request parts via the axum extension.

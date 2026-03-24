@@ -344,6 +344,35 @@ async fn update_reminder(
     .fetch_one(&state.db)
     .await?;
 
+    // Sync the updated reminder data back to the message steps JSONB
+    // so it persists across page reloads (the frontend reads from message steps)
+    let reminder_id_str = id.to_string();
+    let updated_step = serde_json::json!({
+        "type": "reminder_created",
+        "id": reminder_id_str,
+        "title": &title,
+        "remind_at": remind_at.to_rfc3339(),
+        "rrule": &rrule,
+    });
+    // Find messages that have this reminder in their steps and update the step
+    let _ = sqlx::query(
+        "UPDATE messages SET steps = (
+            SELECT jsonb_agg(
+                CASE
+                    WHEN elem->>'type' = 'reminder_created' AND elem->>'id' = $1
+                    THEN $2::jsonb
+                    ELSE elem
+                END
+            )
+            FROM jsonb_array_elements(steps) AS elem
+        )
+        WHERE steps::text LIKE '%' || $1 || '%'"
+    )
+    .bind(&reminder_id_str)
+    .bind(&updated_step)
+    .execute(&state.db)
+    .await;
+
     Ok(Json(reminder.into()))
 }
 

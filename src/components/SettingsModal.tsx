@@ -164,23 +164,38 @@ const TIMEZONE_OPTIONS = [
 
 function NotificationsTab() {
   const [emailNotifs, setEmailNotifs] = useState(false);
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [soundNotifs, setSoundNotifs] = useState(false);
   const [timezone, setTimezone] = useState("Europe/Moscow");
   const [quietStart, setQuietStart] = useState("23:00");
   const [quietEnd, setQuietEnd] = useState("07:00");
   const [loaded, setLoaded] = useState(false);
 
-  // Load settings from backend
+  // Telegram linking state
+  const [tgLinked, setTgLinked] = useState(false);
+  const [tgUsername, setTgUsername] = useState<string | null>(null);
+  const [tgDeepLink, setTgDeepLink] = useState<string | null>(null);
+  const [tgLoading, setTgLoading] = useState(false);
+
+  // Load settings + Telegram status
   useEffect(() => {
     (async () => {
       try {
-        const { getNotificationSettings } = await import("@/lib/api-client");
-        const result = await getNotificationSettings();
-        if (result.ok) {
-          setEmailNotifs(result.data.email_enabled ?? false);
-          setTimezone(result.data.timezone ?? "Europe/Moscow");
-          setQuietStart(result.data.quiet_start ?? "23:00");
-          setQuietEnd(result.data.quiet_end ?? "07:00");
+        const { getNotificationSettings, getTelegramStatus } = await import("@/lib/api-client");
+        const [settingsResult, tgResult] = await Promise.all([
+          getNotificationSettings(),
+          getTelegramStatus(),
+        ]);
+        if (settingsResult.ok) {
+          setEmailNotifs(settingsResult.data.email_enabled ?? false);
+          setTelegramEnabled(settingsResult.data.telegram_enabled ?? false);
+          setTimezone(settingsResult.data.timezone ?? "Europe/Moscow");
+          setQuietStart(settingsResult.data.quiet_start ?? "23:00");
+          setQuietEnd(settingsResult.data.quiet_end ?? "07:00");
+        }
+        if (tgResult.ok) {
+          setTgLinked(tgResult.data.linked);
+          setTgUsername(tgResult.data.username);
         }
         setLoaded(true);
       } catch {
@@ -202,6 +217,12 @@ function NotificationsTab() {
     saveSettings({ email_enabled: next });
   };
 
+  const handleTelegramToggle = () => {
+    const next = !telegramEnabled;
+    setTelegramEnabled(next);
+    saveSettings({ telegram_enabled: next });
+  };
+
   const handleTimezone = (tz: string) => {
     setTimezone(tz);
     saveSettings({ timezone: tz });
@@ -215,6 +236,31 @@ function NotificationsTab() {
   const handleQuietEnd = (v: string) => {
     setQuietEnd(v);
     saveSettings({ quiet_end: v });
+  };
+
+  const handleConnectTelegram = async () => {
+    setTgLoading(true);
+    try {
+      const { generateTelegramLinkToken } = await import("@/lib/api-client");
+      const result = await generateTelegramLinkToken();
+      if (result.ok) {
+        setTgDeepLink(result.data.deep_link);
+      }
+    } catch {}
+    setTgLoading(false);
+  };
+
+  const handleUnlinkTelegram = async () => {
+    try {
+      const { unlinkTelegram } = await import("@/lib/api-client");
+      const result = await unlinkTelegram();
+      if (result.ok) {
+        setTgLinked(false);
+        setTgUsername(null);
+        setTgDeepLink(null);
+        setTelegramEnabled(false);
+      }
+    } catch {}
   };
 
   return (
@@ -245,14 +291,67 @@ function NotificationsTab() {
           />
         </div>
       </SettingRow>
-      <SettingRow label={t("settings.telegramConnect") || "Telegram"} description={t("settings.telegramComingSoon") || "Уведомления в Telegram — скоро"}>
-        <button
-          disabled
-          className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-[14px] text-white/30 cursor-not-allowed"
-        >
-          Скоро
-        </button>
-      </SettingRow>
+
+      {/* Telegram section */}
+      <div className="mt-2 pt-2 border-t border-white/[0.04]">
+        {tgLinked ? (
+          <>
+            <SettingRow
+              label="Telegram"
+              description={`Подключен${tgUsername ? ` как @${tgUsername}` : ""}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-green-400" />
+                <button
+                  onClick={handleUnlinkTelegram}
+                  className="rounded-lg border border-red-500/20 px-3 py-1.5 text-[13px] text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  Отвязать
+                </button>
+              </div>
+            </SettingRow>
+            <SettingRow
+              label="Уведомления в Telegram"
+              description="Напоминания будут приходить в Telegram"
+            >
+              <ToggleSwitch enabled={telegramEnabled} onToggle={handleTelegramToggle} />
+            </SettingRow>
+          </>
+        ) : tgDeepLink ? (
+          <div className="py-4">
+            <p className="text-[14px] text-white/70 mb-3">
+              Откройте ссылку для привязки Telegram:
+            </p>
+            <a
+              href={tgDeepLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#2AABEE]/10 border border-[#2AABEE]/20 px-4 py-2.5 text-[14px] text-[#2AABEE] hover:bg-[#2AABEE]/20 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+              </svg>
+              Открыть в Telegram
+            </a>
+            <p className="text-[12px] text-white/30 mt-2">
+              Ссылка действует 10 минут. После привязки обновите эту страницу.
+            </p>
+          </div>
+        ) : (
+          <SettingRow
+            label="Telegram"
+            description="Получайте напоминания и общайтесь с Мирой в Telegram"
+          >
+            <button
+              onClick={handleConnectTelegram}
+              disabled={tgLoading}
+              className="rounded-lg border border-[#2AABEE]/30 bg-[#2AABEE]/10 px-4 py-2 text-[14px] text-[#2AABEE] hover:bg-[#2AABEE]/20 transition-colors disabled:opacity-50"
+            >
+              {tgLoading ? "..." : "Подключить"}
+            </button>
+          </SettingRow>
+        )}
+      </div>
     </div>
   );
 }

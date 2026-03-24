@@ -37,6 +37,13 @@ use crate::services::rate_limit;
 use crate::services::sanitize;
 use crate::services::usage;
 
+/// Addendum appended to system prompt for Telegram-originated messages.
+pub const TELEGRAM_SYSTEM_ADDENDUM: &str = "\
+Ты Мира — AI-ассистент. Пользователь пишет через Telegram.\n\
+Отвечай кратко (1-3 абзаца). Не используй markdown — только чистый текст.\n\
+Можешь использовать эмодзи умеренно.\n\
+Если пользователь просит напомнить — ответь что напоминание уже настроено в приложении.";
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Router
 // ═══════════════════════════════════════════════════════════════════════════

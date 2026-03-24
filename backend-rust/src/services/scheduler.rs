@@ -7,7 +7,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::db::AppState;
-use crate::models::{NotificationSettings, Reminder};
+use crate::models::{NotificationSettings, Reminder, TelegramLink};
+use crate::services::telegram::{format_reminder_html, reminder_keyboard, TelegramBot};
 
 /// Main scheduler loop — spawned as a tokio task in main.rs.
 pub async fn run_reminder_scheduler(state: AppState) {
@@ -59,6 +60,13 @@ async fn process_due_reminders(state: &AppState) -> Result<(), sqlx::Error> {
         // Create in-app notification
         if let Err(e) = create_notification(&state.db, &reminder).await {
             tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to create notification");
+        }
+
+        // Send Telegram notification if enabled
+        if settings.telegram_enabled {
+            if let Err(e) = send_telegram_notification(state, &reminder).await {
+                tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to send Telegram notification");
+            }
         }
 
         // Handle recurrence — schedule next occurrence
@@ -312,4 +320,42 @@ fn parse_weekday(s: &str) -> Option<Weekday> {
         "SU" => Some(Weekday::Sun),
         _ => None,
     }
+}
+
+/// Send a reminder notification via Telegram.
+async fn send_telegram_notification(
+    state: &AppState,
+    reminder: &Reminder,
+) -> Result<(), String> {
+    let bot_token = &state.config.telegram_bot_token;
+    if bot_token.is_empty() {
+        return Ok(()); // Bot not configured, skip silently
+    }
+
+    // Look up user's Telegram link
+    let link = sqlx::query_as::<_, TelegramLink>(
+        "SELECT * FROM telegram_links WHERE user_id = $1 AND is_active = true"
+    )
+    .bind(reminder.user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| format!("DB error: {e}"))?;
+
+    let Some(link) = link else {
+        return Ok(()); // No active Telegram link
+    };
+
+    let bot = TelegramBot::new(bot_token);
+    let text = format_reminder_html(&reminder.title, reminder.body.as_deref());
+    let keyboard = reminder_keyboard(&reminder.id.to_string());
+
+    bot.send_message(link.chat_id, &text, Some(keyboard)).await?;
+
+    tracing::info!(
+        reminder_id = %reminder.id,
+        chat_id = link.chat_id,
+        "Telegram notification sent"
+    );
+
+    Ok(())
 }

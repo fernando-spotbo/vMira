@@ -66,6 +66,10 @@ pub struct Config {
 
     // ── Voice TTS (local piper) ───────────────────────────
     pub piper_url: String,
+
+    // ── Telegram bot ────────────────────────────────────
+    pub telegram_bot_token: String,
+    pub telegram_webhook_secret: String,
 }
 
 impl Config {
@@ -175,6 +179,9 @@ impl Config {
             whisper_url: env_or("WHISPER_URL", "http://127.0.0.1:8787"),
 
             piper_url: env_or("PIPER_URL", "http://127.0.0.1:5100"),
+
+            telegram_bot_token: env_or("TELEGRAM_BOT_TOKEN", ""),
+            telegram_webhook_secret: env_or("TELEGRAM_WEBHOOK_SECRET", ""),
         }
     }
 }

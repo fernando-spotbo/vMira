@@ -337,3 +337,30 @@ export async function getNotificationSettings() {
 export async function updateNotificationSettings(data: { email_enabled?: boolean; telegram_enabled?: boolean; timezone?: string; quiet_start?: string; quiet_end?: string }) {
   return apiCall("/notification-settings", { method: "PUT", body: JSON.stringify(data) });
 }
+
+// ---- Telegram ----
+
+export interface TelegramLinkToken {
+  token: string;
+  bot_username: string;
+  deep_link: string;
+}
+
+export async function generateTelegramLinkToken() {
+  return apiCall<TelegramLinkToken>("/telegram/link-token", { method: "POST" });
+}
+
+export interface TelegramStatus {
+  linked: boolean;
+  username: string | null;
+  chat_id: number | null;
+  linked_at: string | null;
+}
+
+export async function getTelegramStatus() {
+  return apiCall<TelegramStatus>("/telegram/status");
+}
+
+export async function unlinkTelegram() {
+  return apiCall("/telegram/unlink", { method: "DELETE" });
+}

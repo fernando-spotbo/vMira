@@ -354,8 +354,9 @@ async fn update_reminder(
         "remind_at": remind_at.to_rfc3339(),
         "rrule": &rrule,
     });
-    // Find messages that have this reminder in their steps and update the step
-    let _ = sqlx::query(
+    // Find messages containing this reminder ID in steps and update the step
+    let like_pattern = format!("%{}%", reminder_id_str);
+    let update_result = sqlx::query(
         "UPDATE messages SET steps = (
             SELECT jsonb_agg(
                 CASE
@@ -366,12 +367,17 @@ async fn update_reminder(
             )
             FROM jsonb_array_elements(steps) AS elem
         )
-        WHERE steps::text LIKE '%' || $1 || '%'"
+        WHERE steps IS NOT NULL AND steps::text LIKE $3"
     )
     .bind(&reminder_id_str)
-    .bind(&updated_step)
+    .bind(updated_step)
+    .bind(&like_pattern)
     .execute(&state.db)
     .await;
+
+    if let Err(e) = update_result {
+        tracing::error!(error = %e, reminder_id = %id, "Failed to sync reminder to message steps");
+    }
 
     Ok(Json(reminder.into()))
 }

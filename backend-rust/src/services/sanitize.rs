@@ -73,7 +73,7 @@ static RE_SCRIPT_TAG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap());
 
 static RE_DANGEROUS_TAGS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?is)<(iframe|object|embed|form|style|meta|link|base|svg)[^>]*>.*?</\1>|<(iframe|object|embed|form|style|meta|link|base|svg)[^>]*/?>" ).unwrap());
+    LazyLock::new(|| Regex::new(r"(?is)<(?:iframe|object|embed|form|style|meta|link|base|svg)[^>]*>.*?</(?:iframe|object|embed|form|style|meta|link|base|svg)>|<(?:iframe|object|embed|form|style|meta|link|base|svg)[^>]*/?>").unwrap());
 
 static RE_EVENT_HANDLER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?i)\s+on\w+\s*=\s*(["'][^"']*["']|[^\s>]+)"#).unwrap());

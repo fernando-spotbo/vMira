@@ -183,7 +183,7 @@ export async function* streamMessage(
           // Try to parse as JSON event (new format)
           try {
             const parsed = JSON.parse(data);
-            const validTypes = ["queue", "processing", "token", "search", "search_results", "done", "error"];
+            const validTypes = ["queue", "processing", "token", "search", "search_results", "reminder_created", "done", "error"];
             if (parsed && typeof parsed.type === "string" && validTypes.includes(parsed.type)) {
               const event: StreamEvent = parsed.type === "token"
                 ? { type: "token", content: String(parsed.content || "") }
@@ -193,6 +193,8 @@ export async function* streamMessage(
                 ? { type: "search", query: String(parsed.query || "") }
                 : parsed.type === "search_results"
                 ? { type: "search_results", query: String(parsed.query || ""), results: parsed.results || [] }
+                : parsed.type === "reminder_created"
+                ? { type: "reminder_created", id: String(parsed.id || ""), title: String(parsed.title || ""), remind_at: String(parsed.remind_at || ""), rrule: parsed.rrule || null }
                 : parsed.type === "done"
                 ? { type: "done", usage: parsed.usage }
                 : parsed.type === "error"

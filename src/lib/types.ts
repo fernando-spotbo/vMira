@@ -54,6 +54,7 @@ export interface ReminderInfo {
   body?: string | null;
   remind_at: string;
   rrule?: string | null;
+  channels?: string[];
 }
 
 export interface ScheduledContentInfo {

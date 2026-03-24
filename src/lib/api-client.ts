@@ -318,7 +318,7 @@ export async function getReminders(status?: string, limit = 100) {
   return apiCall<ReminderItem[]>(`/reminders?${params}`);
 }
 
-export async function updateReminder(id: string, data: { title?: string; body?: string | null; remind_at?: string; rrule?: string | null }) {
+export async function updateReminder(id: string, data: { title?: string; body?: string | null; remind_at?: string; rrule?: string | null; channels?: string[] }) {
   return apiCall(`/reminders/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 

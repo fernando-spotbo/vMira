@@ -194,6 +194,11 @@ fn reminder_tool() -> serde_json::Value {
                         "type": "string",
                         "description": "ISO 8601 datetime for when to send the reminder (e.g. 2026-03-25T10:00:00+03:00). Resolve relative times using the current datetime from the system prompt."
                     },
+                    "channels": {
+                        "type": "array",
+                        "items": { "type": "string", "enum": ["in_app", "telegram"] },
+                        "description": "Delivery channels. Default ['in_app']. Add 'telegram' if user says: via telegram, в телеграм, через телеграм, в тг, send to telegram."
+                    },
                     "recurrence": {
                         "type": "string",
                         "description": "RFC 5545 RRULE string if recurring (e.g. FREQ=DAILY, FREQ=WEEKLY;BYDAY=MO,WE,FR, FREQ=MONTHLY). Null or omit for one-time reminders."
@@ -502,6 +507,7 @@ pub fn stream_ai_response(
                     struct ReminderArgs {
                         title: String,
                         remind_at: String,
+                        channels: Option<Vec<String>>,
                         recurrence: Option<String>,
                     }
 
@@ -542,6 +548,27 @@ pub fn stream_ai_response(
                             }
                         }
 
+                        // Determine channels — default to in_app
+                        let mut channels = args.channels.unwrap_or_else(|| vec!["in_app".to_string()]);
+                        if channels.is_empty() { channels.push("in_app".to_string()); }
+                        let mut telegram_not_linked = false;
+
+                        // If telegram requested, check if user has linked their account
+                        if channels.contains(&"telegram".to_string()) {
+                            let tg_linked: bool = sqlx::query_scalar::<_, bool>(
+                                "SELECT EXISTS(SELECT 1 FROM telegram_links WHERE user_id = $1 AND is_active = true)"
+                            )
+                            .bind(uid)
+                            .fetch_one(pool)
+                            .await
+                            .unwrap_or(false);
+
+                            if !tg_linked {
+                                telegram_not_linked = true;
+                                // Keep telegram in channels so user sees the intent, but note it in the response
+                            }
+                        }
+
                         let remind_at = chrono::DateTime::parse_from_rfc3339(&args.remind_at)
                             .or_else(|_| chrono::DateTime::parse_from_str(&args.remind_at, "%Y-%m-%dT%H:%M:%S%z"))
                             .map(|dt| dt.with_timezone(&chrono::Utc));
@@ -550,7 +577,7 @@ pub fn stream_ai_response(
                             Ok(dt) => {
                                 let result = sqlx::query_scalar::<_, uuid::Uuid>(
                                     "INSERT INTO reminders (user_id, title, remind_at, user_timezone, rrule, channels)
-                                     VALUES ($1, $2, $3, $4, $5, '{in_app}')
+                                     VALUES ($1, $2, $3, $4, $5, $6)
                                      RETURNING id"
                                 )
                                 .bind(uid)
@@ -558,19 +585,24 @@ pub fn stream_ai_response(
                                 .bind(dt)
                                 .bind(&tz)
                                 .bind(&args.recurrence)
+                                .bind(&channels)
                                 .fetch_one(pool)
                                 .await;
 
                                 match result {
                                     Ok(id) => {
-                                        tracing::info!(reminder_id = %id, title = %args.title, "Reminder created via AI tool");
+                                        tracing::info!(reminder_id = %id, "Reminder created via AI tool");
                                         let _ = tx.send(AiEvent::ReminderCreated {
                                             id: id.to_string(),
                                             title: args.title.clone(),
                                             remind_at: args.remind_at.clone(),
                                             rrule: args.recurrence.clone(),
                                         }).await;
-                                        tool_result_content = format!("Reminder created successfully. ID: {id}, Title: {}, Scheduled: {}", args.title, args.remind_at);
+                                        let mut msg = format!("Reminder created successfully. ID: {id}, Title: {}, Scheduled: {}, Channels: {}", args.title, args.remind_at, channels.join(", "));
+                                        if telegram_not_linked {
+                                            msg.push_str(". IMPORTANT: User requested Telegram delivery but has NOT linked their Telegram account yet. Tell them to go to Settings → Notifications → Connect Telegram to receive this reminder in Telegram.");
+                                        }
+                                        tool_result_content = msg;
                                     }
                                     Err(e) => {
                                         tracing::error!(error = %e, "Failed to create reminder");

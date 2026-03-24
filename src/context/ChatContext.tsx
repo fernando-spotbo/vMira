@@ -90,41 +90,53 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Helper: map API messages to frontend Message type
   function mapApiMessages(apiMessages: chatApi.ApiMessage[]): Message[] {
-    return apiMessages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      steps: m.steps?.map((step: any) => {
-        if (step.type === "reasoning") {
-          return {
-            type: "reasoning" as const,
-            summary: step.summary || "",
-            thinking: step.thinking,
-            searches: step.searches?.map((sq: any) => ({
-              query: sq.query || "",
-              resultCount: sq.resultCount || sq.results?.length || 0,
-              results: (sq.results || []).map((r: any) => ({
-                title: r.title || "",
-                domain: r.domain || "",
-                url: r.url,
+    return apiMessages.map((m) => {
+      // Extract reminder data from steps if present
+      const reminderStep = m.steps?.find((s: any) => s.type === "reminder_created");
+      const reminder = reminderStep ? {
+        id: reminderStep.id || "",
+        title: reminderStep.title || "",
+        remind_at: reminderStep.remind_at || "",
+        rrule: reminderStep.rrule || null,
+      } : undefined;
+
+      return {
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        steps: m.steps?.filter((s: any) => s.type !== "reminder_created").map((step: any) => {
+          if (step.type === "reasoning") {
+            return {
+              type: "reasoning" as const,
+              summary: step.summary || "",
+              thinking: step.thinking,
+              searches: step.searches?.map((sq: any) => ({
+                query: sq.query || "",
+                resultCount: sq.resultCount || sq.results?.length || 0,
+                results: (sq.results || []).map((r: any) => ({
+                  title: r.title || "",
+                  domain: r.domain || "",
+                  url: r.url,
+                })),
               })),
-            })),
-            searchPhase: "done" as const,
-          };
-        }
-        return { type: "text" as const, content: step.content || "" };
-      }) ?? undefined,
-      attachments: m.attachments?.map((a) => ({
-        id: a.id,
-        filename: a.filename,
-        original_filename: a.original_filename,
-        mime_type: a.mime_type,
-        size_bytes: a.size_bytes,
-        width: a.width ?? undefined,
-        height: a.height ?? undefined,
-        url: a.url,
-      })) ?? undefined,
-    }));
+              searchPhase: "done" as const,
+            };
+          }
+          return { type: "text" as const, content: step.content || "" };
+        }) ?? undefined,
+        attachments: m.attachments?.map((a) => ({
+          id: a.id,
+          filename: a.filename,
+          original_filename: a.original_filename,
+          mime_type: a.mime_type,
+          size_bytes: a.size_bytes,
+          width: a.width ?? undefined,
+          height: a.height ?? undefined,
+          url: a.url,
+        })) ?? undefined,
+        reminder,
+      };
+    });
   }
 
   // Load messages when switching to a conversation (live mode only)

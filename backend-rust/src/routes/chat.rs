@@ -692,6 +692,7 @@ async fn send_message(
         const MAX_RESPONSE_SIZE: usize = 256 * 1024;
         let mut full_content = String::new();
         let mut search_steps: Vec<serde_json::Value> = Vec::new();
+        let mut reminder_data: Option<serde_json::Value> = None;
 
         // ── Step 1: Try to acquire a GPU slot ──────────────────────
         let queue_start = Instant::now();
@@ -953,14 +954,15 @@ async fn send_message(
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
                         }
                         Some(ai_proxy::AiEvent::ReminderCreated { id, title, remind_at, rrule }) => {
-                            let event_data = serde_json::json!({
+                            let rd = serde_json::json!({
                                 "type": "reminder_created",
                                 "id": id,
                                 "title": title,
                                 "remind_at": remind_at,
                                 "rrule": rrule,
                             });
-                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                            reminder_data = Some(rd.clone());
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&rd).unwrap_or_default()));
                         }
                         None => break,
                     }
@@ -1086,21 +1088,26 @@ async fn send_message(
             };
 
             // Build steps JSON if we have search data
-            let steps_json: Option<serde_json::Value> = if !search_steps.is_empty() {
-                Some(serde_json::json!([
-                    {
+            let steps_json: Option<serde_json::Value> = if !search_steps.is_empty() || reminder_data.is_some() {
+                let mut steps = Vec::new();
+                if !search_steps.is_empty() {
+                    steps.push(serde_json::json!({
                         "type": "reasoning",
                         "summary": search_steps.iter()
                             .map(|s| s["query"].as_str().unwrap_or(""))
                             .collect::<Vec<_>>()
                             .join(", "),
                         "searches": search_steps,
-                    },
-                    {
-                        "type": "text",
-                        "content": final_content,
-                    }
-                ]))
+                    }));
+                }
+                if let Some(ref rd) = reminder_data {
+                    steps.push(rd.clone());
+                }
+                steps.push(serde_json::json!({
+                    "type": "text",
+                    "content": final_content,
+                }));
+                Some(serde_json::json!(steps))
             } else {
                 None
             };

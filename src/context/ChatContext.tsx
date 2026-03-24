@@ -45,6 +45,8 @@ interface ChatContextType {
   loadMoreMessages: () => Promise<void>;
   ensureConversation: (id: string, title: string) => void;
   cancelMessage: () => void;
+  showReminders: boolean;
+  setShowReminders: (show: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -57,6 +59,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     typeof window !== "undefined" ? window.innerWidth >= 768 : true
   );
   const [selectedModel, setSelectedModel] = useState("Mira");
+  const [showReminders, setShowReminders] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -767,6 +770,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ensureConversation,
         cancelMessage,
         queuePosition,
+        showReminders,
+        setShowReminders,
       }}
     >
       {children}

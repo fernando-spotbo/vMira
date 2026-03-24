@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Clock, Check, X, Pencil, Trash2, Repeat } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Ellipsis, Clock, Pencil, Trash2, Pause, Play } from "lucide-react";
 import { t } from "@/lib/i18n";
 
 interface ReminderCardProps {
@@ -14,7 +14,7 @@ interface ReminderCardProps {
   onDelete?: (id: string) => void;
 }
 
-function formatSchedule(remindAt: string, rrule?: string | null): string {
+function formatScheduleTime(remindAt: string): string {
   try {
     const date = new Date(remindAt);
     const now = new Date();
@@ -23,33 +23,16 @@ function formatSchedule(remindAt: string, rrule?: string | null): string {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const isTomorrow = date.toDateString() === tomorrow.toDateString();
 
-    const time = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
-
-    if (rrule) {
-      const parts: Record<string, string> = {};
-      rrule.split(";").forEach((p) => {
-        const [k, v] = p.split("=");
-        if (k && v) parts[k] = v;
-      });
-
-      const dayMap: Record<string, string> = {
-        MO: "пн", TU: "вт", WE: "ср", TH: "чт", FR: "пт", SA: "сб", SU: "вс",
-      };
-
-      if (parts.FREQ === "DAILY") return `Каждый день в ${time}`;
-      if (parts.FREQ === "WEEKLY" && parts.BYDAY) {
-        const days = parts.BYDAY.split(",").map((d) => dayMap[d] || d).join(", ");
-        return `${days} в ${time}`;
-      }
-      if (parts.FREQ === "WEEKLY") return `Каждую неделю в ${time}`;
-      if (parts.FREQ === "MONTHLY") return `Каждый месяц в ${time}`;
-      return `Повтор · ${time}`;
-    }
+    const time = date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", hour12: false });
 
     if (isToday) return `Сегодня в ${time}`;
     if (isTomorrow) return `Завтра в ${time}`;
 
-    const dateStr = date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    const dateStr = date.toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "long",
+      year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+    });
     return `${dateStr} в ${time}`;
   } catch {
     return remindAt;
@@ -57,62 +40,59 @@ function formatSchedule(remindAt: string, rrule?: string | null): string {
 }
 
 export default function ReminderCard({ id, title, remindAt, rrule, status = "pending", onEdit, onDelete }: ReminderCardProps) {
-  const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const statusConfig = {
-    pending: { dot: "bg-emerald-400/80", label: t("reminders.created") },
-    fired: { dot: "bg-white/20", label: t("reminders.fired") },
-    cancelled: { dot: "bg-white/10", label: t("reminders.cancelled") },
-  }[status];
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 10);
+    return () => { clearTimeout(timer); document.removeEventListener("mousedown", handler); };
+  }, [menuOpen]);
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="my-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-4 py-3.5 max-w-[420px] transition-colors duration-150 hover:border-white/[0.1]"
-    >
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
-            <Clock size={14} strokeWidth={1.8} className="text-white/50" />
-          </div>
-          <span className="text-[15px] font-medium text-white truncate">{title}</span>
+    <div className="my-3 max-w-[480px]">
+      {/* Task tile — GPT style: bordered card, title + time + menu */}
+      <div className="flex items-start justify-between rounded-xl border border-white/[0.1] px-4 py-3 hover:border-white/[0.15] transition-colors">
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] text-white font-medium leading-snug truncate">{title}</p>
+          <p className="text-[13px] text-white/40 mt-0.5">{formatScheduleTime(remindAt)}</p>
         </div>
 
-        {/* Status badge */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className={`h-1.5 w-1.5 rounded-full ${statusConfig.dot}`} />
-          <span className="text-[12px] text-white/30">{statusConfig.label}</span>
+        {/* Three-dot menu */}
+        <div ref={menuRef} className="relative ml-3 shrink-0">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+          >
+            <Ellipsis size={16} strokeWidth={1.8} />
+          </button>
+
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
+              {onEdit && status === "pending" && (
+                <button
+                  onClick={() => { setMenuOpen(false); onEdit(id); }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors"
+                >
+                  <Pencil size={14} strokeWidth={1.8} />
+                  <span>{t("reminders.edit")}</span>
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={() => { setMenuOpen(false); onDelete(id); }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-red-400 hover:bg-white/[0.06] transition-colors"
+                >
+                  <Trash2 size={14} strokeWidth={1.8} />
+                  <span>{t("reminders.delete")}</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Schedule */}
-      <div className="mt-2 ml-[38px] flex items-center gap-1.5">
-        {rrule && <Repeat size={12} strokeWidth={1.8} className="text-white/30 shrink-0" />}
-        <span className="text-[13px] text-white/40">{formatSchedule(remindAt, rrule)}</span>
-      </div>
-
-      {/* Actions — visible on hover */}
-      <div className={`mt-3 ml-[38px] flex items-center gap-1 transition-all duration-150 ${hovered ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-        {onEdit && status === "pending" && (
-          <button
-            onClick={() => onEdit(id)}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-          >
-            <Pencil size={12} strokeWidth={1.8} />
-            {t("reminders.edit")}
-          </button>
-        )}
-        {onDelete && status === "pending" && (
-          <button
-            onClick={() => onDelete(id)}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-          >
-            <Trash2 size={12} strokeWidth={1.8} />
-            {t("reminders.delete")}
-          </button>
-        )}
       </div>
     </div>
   );

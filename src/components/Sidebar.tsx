@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard } from "lucide-react";
+import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock } from "lucide-react";
 import SearchModal from "./SearchModal";
 import SettingsModal from "./SettingsModal";
 import PricingModal from "./PricingModal";
@@ -200,6 +200,8 @@ export default function Sidebar() {
     sidebarOpen,
     setSidebarOpen,
     createNewChat,
+    showReminders,
+    setShowReminders,
   } = useChat();
   const { user, logout } = useAuth();
 
@@ -373,7 +375,7 @@ function SidebarContent({
               </svg>
             </button>
             <button
-              onClick={createNewChat}
+              onClick={() => { createNewChat(); setShowReminders(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -388,7 +390,7 @@ function SidebarContent({
         {expanded ? (
           <>
             <button
-              onClick={createNewChat}
+              onClick={() => { createNewChat(); setShowReminders(false); }}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
             >
               <PenLine size={16} strokeWidth={1.8} className="shrink-0" />
@@ -401,11 +403,18 @@ function SidebarContent({
               <Search size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("sidebar.search")}</span>
             </button>
+            <button
+              onClick={() => { setShowReminders(true); setActiveConversationId(null); }}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+            >
+              <Clock size={16} strokeWidth={1.8} className="shrink-0" />
+              <span className="truncate">{t("reminders.title")}</span>
+            </button>
           </>
         ) : (
           <>
             <button
-              onClick={createNewChat}
+              onClick={() => { createNewChat(); setShowReminders(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -417,6 +426,13 @@ function SidebarContent({
               title="Search"
             >
               <Search size={18} strokeWidth={1.8} />
+            </button>
+            <button
+              onClick={() => { setShowReminders(true); setActiveConversationId(null); }}
+              className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+              title={t("reminders.title")}
+            >
+              <Clock size={18} strokeWidth={1.8} />
             </button>
           </>
         )}
@@ -434,7 +450,7 @@ function SidebarContent({
                 </div>
                 <div className="space-y-0.5 mb-4">
                   {starredConversations.map((conv) => (
-                    <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => setActiveConversationId(conv.id)} />
+                    <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); }} />
                   ))}
                 </div>
               </>
@@ -444,7 +460,7 @@ function SidebarContent({
             </div>
             <div className="space-y-0.5">
               {recentConversations.map((conv) => (
-                <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => setActiveConversationId(conv.id)} />
+                <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); }} />
               ))}
             </div>
           </nav>

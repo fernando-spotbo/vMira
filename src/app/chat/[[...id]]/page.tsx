@@ -8,6 +8,7 @@ import TopBar from "@/components/TopBar";
 import ChatArea from "@/components/ChatArea";
 import InputBar from "@/components/InputBar";
 import { MiraHeading } from "@/components/MiraHeading";
+import RemindersPage from "@/components/RemindersPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 function ChatLayout() {
@@ -21,6 +22,8 @@ function ChatLayout() {
     sendMessage,
     setActiveConversationId,
     setIsThinking,
+    showReminders,
+    setShowReminders,
   } = useChat();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -82,19 +85,25 @@ function ChatLayout() {
     <div className="flex h-screen w-screen overflow-hidden bg-[#161616]">
       <Sidebar />
       <main className="relative flex flex-1 flex-col min-w-0 min-h-0 h-full overflow-hidden">
-        <TopBar />
-        {showChatView ? (
-          <>
-            <ChatArea />
-            <InputBar />
-          </>
+        {showReminders ? (
+          <RemindersPage onBack={() => setShowReminders(false)} />
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center px-5 pb-14">
-            <MiraHeading />
-            <div className="w-full max-w-[660px]">
-              <InputBar centered />
-            </div>
-          </div>
+          <>
+            <TopBar />
+            {showChatView ? (
+              <>
+                <ChatArea />
+                <InputBar />
+              </>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center px-5 pb-14">
+                <MiraHeading />
+                <div className="w-full max-w-[660px]">
+                  <InputBar centered />
+                </div>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

@@ -680,7 +680,7 @@ async fn generate_link_token(
         }
     }
 
-    let bot_username = "MiraAssistantBot";
+    let bot_username = "vMiraBot";
     let deep_link = format!("https://t.me/{}?start={}", bot_username, token);
 
     Ok(Json(LinkTokenResponse {

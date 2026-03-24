@@ -185,12 +185,8 @@ async fn create_notification(db: &PgPool, reminder: &Reminder) -> Result<(), sql
     .execute(db)
     .await?;
 
-    tracing::info!(
-        reminder_id = %reminder.id,
-        user_id = %reminder.user_id,
-        title = %reminder.title,
-        "Notification created"
-    );
+    // M8: Don't log PII (titles may contain personal info)
+    tracing::info!(reminder_id = %reminder.id, "Notification created");
     Ok(())
 }
 
@@ -214,6 +210,19 @@ async fn schedule_next(
             tracing::debug!(reminder_id = %reminder.id, "Recurrence ended");
             return Ok(());
         }
+    }
+
+    // H5: Enforce 500 reminder limit for recurring reminders too
+    let active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND status = 'pending'"
+    )
+    .bind(reminder.user_id)
+    .fetch_one(db)
+    .await?;
+
+    if active_count >= 500 {
+        tracing::warn!(reminder_id = %reminder.id, "Recurrence limit reached (500 pending)");
+        return Ok(());
     }
 
     sqlx::query(
@@ -255,15 +264,18 @@ fn compute_next(
 
     match *freq {
         "DAILY" => {
+            // H4: Cap interval to prevent DoS (max 365 days)
             let interval: i64 = parts.get("INTERVAL")
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(1);
+                .unwrap_or(1)
+                .max(1).min(365);
             Some(last_at + chrono::Duration::days(interval))
         }
         "WEEKLY" => {
             let interval: i64 = parts.get("INTERVAL")
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(1);
+                .unwrap_or(1)
+                .max(1).min(52);
 
             if let Some(byday) = parts.get("BYDAY") {
                 let target_days: Vec<Weekday> = byday
@@ -275,8 +287,8 @@ fn compute_next(
                     return Some(last_at + chrono::Duration::weeks(interval));
                 }
 
-                // Find next matching weekday after last_at
-                for offset in 1..=7 * interval + 7 {
+                // Find next matching weekday (bounded loop: max 14 iterations)
+                for offset in 1..=14 {
                     let candidate = last_at + chrono::Duration::days(offset);
                     if target_days.contains(&candidate.weekday()) {
                         return Some(candidate);
@@ -290,7 +302,8 @@ fn compute_next(
         "MONTHLY" => {
             let interval: u32 = parts.get("INTERVAL")
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(1);
+                .unwrap_or(1)
+                .max(1).min(12);
 
             let naive = last_at.naive_utc();
             let mut month = naive.month() + interval;

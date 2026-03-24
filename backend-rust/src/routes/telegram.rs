@@ -20,6 +20,7 @@ use crate::db::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::models::TelegramLink;
+use crate::services::sanitize;
 use crate::services::telegram::{TelegramBot, TgUpdate};
 
 // ── Routes ───────────────────────────────────────────────────────────────
@@ -32,6 +33,36 @@ pub fn telegram_routes() -> Router<AppState> {
         .route("/telegram/unlink", delete(unlink))
 }
 
+// ── Rate limiting helper ────────────────────────────────────────────────
+
+/// Per-chat_id rate limit: max `limit` requests per `window_secs`.
+async fn check_telegram_rate_limit(
+    redis: &redis::Client,
+    chat_id: i64,
+    limit: u32,
+    window_secs: u64,
+) -> bool {
+    let key = format!("rl:tg:{}", chat_id);
+    match redis.get_multiplexed_async_connection().await {
+        Ok(mut conn) => {
+            let count: u32 = redis::cmd("INCR")
+                .arg(&key)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(1);
+            if count == 1 {
+                let _: Result<(), _> = redis::cmd("EXPIRE")
+                    .arg(&key)
+                    .arg(window_secs)
+                    .query_async(&mut conn)
+                    .await;
+            }
+            count <= limit
+        }
+        Err(_) => true, // fail open on Redis error
+    }
+}
+
 // ── Webhook handler ─────────────────────────────────────────────────────
 
 async fn webhook_handler(
@@ -39,22 +70,23 @@ async fn webhook_handler(
     headers: HeaderMap,
     Json(update): Json<TgUpdate>,
 ) -> StatusCode {
-    // Verify Telegram's secret_token header
+    // H1: Always verify secret token — reject if unconfigured or mismatched
     let expected = &state.config.telegram_webhook_secret;
-    if !expected.is_empty() {
-        let provided = headers
-            .get("x-telegram-bot-api-secret-token")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
-        if provided != expected {
-            tracing::warn!("Telegram webhook: invalid secret token");
-            return StatusCode::FORBIDDEN;
-        }
+    if expected.is_empty() {
+        tracing::warn!("Telegram webhook secret not configured, rejecting");
+        return StatusCode::FORBIDDEN;
+    }
+    let provided = headers
+        .get("x-telegram-bot-api-secret-token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if provided != expected {
+        tracing::warn!("Telegram webhook: invalid secret token");
+        return StatusCode::FORBIDDEN;
     }
 
     let bot = TelegramBot::new(&state.config.telegram_bot_token);
     if !bot.is_configured() {
-        tracing::warn!("Telegram webhook received but bot token not configured");
         return StatusCode::OK;
     }
 
@@ -68,6 +100,12 @@ async fn webhook_handler(
     if let Some(msg) = update.message {
         let text = msg.text.clone().unwrap_or_default();
         let chat_id = msg.chat.id;
+
+        // M3: Rate limit per chat_id (30 messages per minute)
+        if !check_telegram_rate_limit(&state.redis, chat_id, 30, 60).await {
+            let _ = bot.send_message(chat_id, "⏳ Слишком много сообщений. Подождите минуту.", None).await;
+            return StatusCode::OK;
+        }
 
         // Handle /start command with deep link payload
         if text.starts_with("/start") {
@@ -118,6 +156,7 @@ async fn handle_callback_query(
 ) {
     let data = cb.data.unwrap_or_default();
     let parts: Vec<&str> = data.splitn(3, ':').collect();
+    let sender_id = cb.from.id;
 
     match parts.as_slice() {
         ["snooze", reminder_id, minutes_str] => {
@@ -125,29 +164,34 @@ async fn handle_callback_query(
                 let _ = bot.answer_callback_query(&cb.id, Some("Ошибка")).await;
                 return;
             };
+            // M: Clamp snooze to 1-1440 minutes (1 day max)
+            let minutes = minutes.clamp(1, 1440);
+
             let Ok(rid) = Uuid::parse_str(reminder_id) else {
                 let _ = bot.answer_callback_query(&cb.id, Some("Ошибка")).await;
                 return;
             };
 
-            // Snooze the reminder
+            // C1: Verify ownership — sender's chat_id must match the reminder owner's telegram link
             let result = sqlx::query(
                 "UPDATE reminders SET
                     status = 'pending',
                     remind_at = now() + make_interval(mins => $1::double precision),
                     fired_at = NULL,
                     updated_at = now()
-                 WHERE id = $2"
+                 WHERE id = $2 AND user_id = (
+                    SELECT user_id FROM telegram_links WHERE chat_id = $3 AND is_active = true
+                 )"
             )
             .bind(minutes as f64)
             .bind(rid)
+            .bind(sender_id)
             .execute(&state.db)
             .await;
 
             match result {
-                Ok(_) => {
+                Ok(r) if r.rows_affected() > 0 => {
                     let _ = bot.answer_callback_query(&cb.id, Some(&format!("⏰ Отложено на {} мин", minutes))).await;
-                    // Update the message to show snoozed status
                     if let Some(msg) = &cb.message {
                         let _ = bot.edit_message_text(
                             msg.chat.id,
@@ -157,27 +201,47 @@ async fn handle_callback_query(
                         ).await;
                     }
                 }
+                Ok(_) => {
+                    // 0 rows affected — ownership check failed
+                    let _ = bot.answer_callback_query(&cb.id, Some("Нет доступа")).await;
+                }
                 Err(e) => {
                     tracing::error!(error = %e, "Failed to snooze reminder via Telegram");
-                    let _ = bot.answer_callback_query(&cb.id, Some("Ошибка при откладывании")).await;
+                    let _ = bot.answer_callback_query(&cb.id, Some("Ошибка")).await;
                 }
             }
         }
         ["dismiss", reminder_id] => {
+            // C1: Verify ownership for dismiss too
+            if let Ok(rid) = Uuid::parse_str(reminder_id) {
+                let owned: bool = sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM reminders r
+                        JOIN telegram_links tl ON tl.user_id = r.user_id
+                        WHERE r.id = $1 AND tl.chat_id = $2 AND tl.is_active = true
+                    )"
+                )
+                .bind(rid)
+                .bind(sender_id)
+                .fetch_one(&state.db)
+                .await
+                .unwrap_or(false);
+
+                if !owned {
+                    let _ = bot.answer_callback_query(&cb.id, Some("Нет доступа")).await;
+                    return;
+                }
+            }
+
             let _ = bot.answer_callback_query(&cb.id, Some("✓ Готово")).await;
-            // Remove inline keyboard from message
             if let Some(msg) = &cb.message {
-                let original_text = msg.text.clone().unwrap_or_else(|| "✓ Готово".into());
                 let _ = bot.edit_message_text(
                     msg.chat.id,
                     msg.message_id,
-                    &format!("{}\n\n<i>✓ Выполнено</i>", crate::services::telegram::format_reminder_html(
-                        &original_text, None
-                    )),
-                    None, // no keyboard = removes it
+                    "✓ <b>Выполнено</b>",
+                    None,
                 ).await;
             }
-            let _ = reminder_id; // reminder stays as fired
         }
         _ => {
             let _ = bot.answer_callback_query(&cb.id, None).await;
@@ -194,24 +258,15 @@ async fn handle_deep_link(
     username: Option<String>,
     token: String,
 ) {
-    // Look up the token in Redis
+    // M1: Atomic GET+DEL using GETDEL (Redis 6.2+)
     let token_key = format!("tg:link:{}", token);
     let user_id: Option<String> = match state.redis.get_multiplexed_async_connection().await {
         Ok(mut conn) => {
-            let result: Result<Option<String>, _> = redis::cmd("GET")
+            let result: Result<Option<String>, _> = redis::cmd("GETDEL")
                 .arg(&token_key)
                 .query_async(&mut conn)
                 .await;
-            if let Ok(val) = result {
-                // Delete the token after use (one-time)
-                let _: Result<(), _> = redis::cmd("DEL")
-                    .arg(&token_key)
-                    .query_async(&mut conn)
-                    .await;
-                val
-            } else {
-                None
-            }
+            result.ok().flatten()
         }
         Err(e) => {
             tracing::error!(error = %e, "Redis error during deep link");
@@ -260,7 +315,6 @@ async fn handle_deep_link(
 
     match result {
         Ok(_) => {
-            // Also enable telegram in notification settings
             let _ = sqlx::query(
                 "INSERT INTO notification_settings (user_id, telegram_enabled)
                  VALUES ($1, true)
@@ -280,7 +334,7 @@ async fn handle_deep_link(
                 None,
             ).await;
 
-            tracing::info!(user_id = %user_id, chat_id, "Telegram account linked");
+            tracing::info!(chat_id, "Telegram account linked");
         }
         Err(e) => {
             tracing::error!(error = %e, "Failed to link Telegram account");
@@ -380,10 +434,15 @@ async fn handle_text_message(
         }
     };
 
-    // Show typing indicator
+    // H2: Sanitize input + detect injection
+    let sanitized_text = sanitize::sanitize_input(&text);
+    if sanitize::detect_injection(&sanitized_text) {
+        let _ = bot.send_message(chat_id, "⚠️ Сообщение отклонено.", None).await;
+        return;
+    }
+
     let _ = bot.send_chat_action(chat_id, "typing").await;
 
-    // Send a placeholder message that we'll edit with the streamed response
     let placeholder = match bot.send_message(chat_id, "⏳", None).await {
         Ok(msg) => msg,
         Err(e) => {
@@ -392,8 +451,6 @@ async fn handle_text_message(
         }
     };
 
-    // Build messages for AI (use last few messages from the Telegram conversation context)
-    // For now, send just the user's message as a single-turn conversation
     let messages = vec![
         serde_json::json!({
             "role": "system",
@@ -406,16 +463,17 @@ async fn handle_text_message(
         }),
         serde_json::json!({
             "role": "user",
-            "content": text
+            "content": sanitized_text
         }),
     ];
 
-    // Call AI model (non-streaming for Telegram — simpler and more reliable)
     let ai_response = call_ai_for_telegram(&state, messages).await;
 
     match ai_response {
         Ok(response_text) => {
-            let escaped = telegram_html_escape(&response_text);
+            // H3: Sanitize AI output, then HTML-escape for Telegram
+            let sanitized = sanitize::sanitize_output(&response_text);
+            let escaped = telegram_html_escape(&sanitized);
             let _ = bot.edit_message_text(chat_id, placeholder.message_id, &escaped, None).await;
         }
         Err(e) => {
@@ -440,7 +498,12 @@ async fn handle_voice_message(
     let chat_id = msg.chat.id;
     let voice = msg.voice.unwrap();
 
-    // Look up user
+    // M4: Reject voice messages longer than 2 minutes
+    if voice.duration > 120 {
+        let _ = bot.send_message(chat_id, "⚠️ Голосовое слишком длинное (макс. 2 мин).", None).await;
+        return;
+    }
+
     let link = sqlx::query_as::<_, TelegramLink>(
         "SELECT * FROM telegram_links WHERE chat_id = $1 AND is_active = true"
     )
@@ -458,7 +521,6 @@ async fn handle_voice_message(
 
     let _ = bot.send_chat_action(chat_id, "typing").await;
 
-    // Download the voice file from Telegram
     let file_info = match bot.get_file(&voice.file_id).await {
         Ok(f) => f,
         Err(e) => {
@@ -485,7 +547,12 @@ async fn handle_voice_message(
         }
     };
 
-    // Transcribe with Whisper
+    // M4: Reject files larger than 10MB
+    if audio_data.len() > 10 * 1024 * 1024 {
+        let _ = bot.send_message(chat_id, "⚠️ Файл слишком большой.", None).await;
+        return;
+    }
+
     let transcript = match transcribe_audio(&state, &audio_data).await {
         Ok(t) => t,
         Err(e) => {
@@ -500,10 +567,16 @@ async fn handle_voice_message(
         return;
     }
 
-    // Send the transcribed text, then process as regular text
+    // H2: Sanitize transcribed text
+    let sanitized_transcript = sanitize::sanitize_input(&transcript);
+    if sanitize::detect_injection(&sanitized_transcript) {
+        let _ = bot.send_message(chat_id, "⚠️ Сообщение отклонено.", None).await;
+        return;
+    }
+
     let placeholder = match bot.send_message(
         chat_id,
-        &format!("🎤 <i>{}</i>\n\n⏳", telegram_html_escape(&transcript)),
+        &format!("🎤 <i>{}</i>\n\n⏳", telegram_html_escape(&sanitized_transcript)),
         None,
     ).await {
         Ok(msg) => msg,
@@ -522,7 +595,7 @@ async fn handle_voice_message(
         }),
         serde_json::json!({
             "role": "user",
-            "content": transcript
+            "content": sanitized_transcript
         }),
     ];
 
@@ -530,7 +603,9 @@ async fn handle_voice_message(
 
     match ai_response {
         Ok(response_text) => {
-            let escaped = telegram_html_escape(&response_text);
+            // H3: Sanitize output
+            let sanitized = sanitize::sanitize_output(&response_text);
+            let escaped = telegram_html_escape(&sanitized);
             let _ = bot.edit_message_text(chat_id, placeholder.message_id, &escaped, None).await;
         }
         Err(e) => {
@@ -552,8 +627,6 @@ async fn call_ai_for_telegram(
     messages: Vec<serde_json::Value>,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
-
-    // Map model to actual API model name
     let model = "deepseek-chat";
     let url = &state.config.ai_model_url;
     let api_key = &state.config.ai_model_api_key;
@@ -646,7 +719,6 @@ async fn generate_link_token(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
 ) -> Result<Json<LinkTokenResponse>, AppError> {
-    // Generate a random token
     let token: String = {
         use rand::Rng;
         let mut rng = rand::thread_rng();
@@ -662,7 +734,6 @@ async fn generate_link_token(
             .collect()
     };
 
-    // Store in Redis with 10-minute TTL
     let token_key = format!("tg:link:{}", token);
     match state.redis.get_multiplexed_async_connection().await {
         Ok(mut conn) => {
@@ -670,7 +741,7 @@ async fn generate_link_token(
                 .arg(&token_key)
                 .arg(user.id.to_string())
                 .arg("EX")
-                .arg(600) // 10 minutes
+                .arg(600)
                 .query_async(&mut conn)
                 .await;
         }
@@ -694,7 +765,6 @@ async fn generate_link_token(
 struct TelegramStatusResponse {
     linked: bool,
     username: Option<String>,
-    chat_id: Option<i64>,
     linked_at: Option<String>,
 }
 
@@ -713,13 +783,11 @@ async fn link_status(
         Some(l) => Ok(Json(TelegramStatusResponse {
             linked: true,
             username: l.username,
-            chat_id: Some(l.chat_id),
             linked_at: Some(l.linked_at.to_rfc3339()),
         })),
         None => Ok(Json(TelegramStatusResponse {
             linked: false,
             username: None,
-            chat_id: None,
             linked_at: None,
         })),
     }
@@ -736,7 +804,6 @@ async fn unlink(
     .execute(&state.db)
     .await?;
 
-    // Also disable telegram notifications
     sqlx::query(
         "UPDATE notification_settings SET telegram_enabled = false, updated_at = now()
          WHERE user_id = $1"
@@ -750,7 +817,6 @@ async fn unlink(
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-/// Escape text for Telegram HTML parse mode.
 fn telegram_html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")

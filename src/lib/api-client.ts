@@ -353,7 +353,6 @@ export async function generateTelegramLinkToken() {
 export interface TelegramStatus {
   linked: boolean;
   username: string | null;
-  chat_id: number | null;
   linked_at: string | null;
 }
 

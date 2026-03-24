@@ -87,6 +87,9 @@ impl Config {
         let hmac_secret = env_or("HMAC_SECRET", "CHANGE-ME-IN-PRODUCTION");
         let database_url = env_or("DATABASE_URL", "postgresql://mira:mira@localhost:5432/mira");
 
+        let telegram_bot_token = env_or("TELEGRAM_BOT_TOKEN", "");
+        let telegram_webhook_secret = env_or("TELEGRAM_WEBHOOK_SECRET", "");
+
         // ── Production guard-rails ───────────────────────────
         if !debug {
             if secret_key == "CHANGE-ME-IN-PRODUCTION" {
@@ -97,6 +100,10 @@ impl Config {
             }
             if database_url.contains("mira:mira@") {
                 panic!("DATABASE_URL must not use default credentials (mira:mira@) in production");
+            }
+            // H1: Require webhook secret when bot token is configured
+            if !telegram_bot_token.is_empty() && telegram_webhook_secret.is_empty() {
+                panic!("TELEGRAM_WEBHOOK_SECRET must be set when TELEGRAM_BOT_TOKEN is configured in production");
             }
         }
 
@@ -180,8 +187,8 @@ impl Config {
 
             piper_url: env_or("PIPER_URL", "http://127.0.0.1:5100"),
 
-            telegram_bot_token: env_or("TELEGRAM_BOT_TOKEN", ""),
-            telegram_webhook_secret: env_or("TELEGRAM_WEBHOOK_SECRET", ""),
+            telegram_bot_token,
+            telegram_webhook_secret,
         }
     }
 }

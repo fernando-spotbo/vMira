@@ -2,34 +2,43 @@
  * Telegram webhook relay — forwards updates from Telegram (HTTPS required)
  * to the Rust backend on the VPS (HTTP).
  *
- * Telegram → https://vmira.ai/api/telegram/webhook → http://178.20.208.89/api/v1/telegram/webhook
+ * Telegram → https://vmira.ai/api/telegram/webhook → VPS backend
  *
- * This relay exists because Telegram requires HTTPS for webhooks and the VPS
- * doesn't have SSL configured yet.
+ * Security: validates secret token at relay level, enforces body size limit.
  */
 
 import { NextRequest } from "next/server";
 
-const BACKEND_WEBHOOK_URL = process.env.BACKEND_URL
-  ? `${process.env.BACKEND_URL}/api/v1/telegram/webhook`
-  : "http://178.20.208.89/api/v1/telegram/webhook";
+const MAX_BODY_SIZE = 262_144; // 256 KB — Telegram payloads are typically < 100 KB
+
+function getBackendWebhookUrl(): string {
+  const base = process.env.BACKEND_URL;
+  if (!base) throw new Error("BACKEND_URL environment variable is required");
+  return `${base}/api/v1/telegram/webhook`;
+}
 
 export async function POST(req: NextRequest): Promise<Response> {
+  // Validate secret token at relay level (fail fast)
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const providedSecret = req.headers.get("x-telegram-bot-api-secret-token");
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    return new Response(null, { status: 403 });
+  }
+
   try {
     const body = await req.text();
 
-    // Forward the secret token header from Telegram
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    const secretToken = req.headers.get("x-telegram-bot-api-secret-token");
-    if (secretToken) {
-      headers["x-telegram-bot-api-secret-token"] = secretToken;
+    // Enforce body size limit
+    if (body.length > MAX_BODY_SIZE) {
+      return new Response(null, { status: 413 });
     }
 
-    const resp = await fetch(BACKEND_WEBHOOK_URL, {
+    const resp = await fetch(getBackendWebhookUrl(), {
       method: "POST",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+        "x-telegram-bot-api-secret-token": providedSecret,
+      },
       body,
     });
 

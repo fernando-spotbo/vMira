@@ -235,25 +235,16 @@ async fn create_reminder(
 ) -> Result<(StatusCode, Json<ReminderResponse>), AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
-    // Enforce max 500 active reminders per user
-    let active_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND status = 'pending'"
-    )
-    .bind(user.id)
-    .fetch_one(&state.db)
-    .await?;
-
-    if active_count >= 500 {
-        return Err(AppError::BadRequest("Maximum 500 active reminders reached".to_string()));
-    }
-
     let remind_at = DateTime::parse_from_rfc3339(&body.remind_at)
         .or_else(|_| DateTime::parse_from_str(&body.remind_at, "%Y-%m-%dT%H:%M:%S"))
         .map(|dt| dt.with_timezone(&Utc))
         .map_err(|_| AppError::BadRequest("Invalid remind_at datetime format".to_string()))?;
 
-    // Get user timezone from settings or request
+    // Validate timezone
     let tz = if let Some(tz) = &body.timezone {
+        if !VALID_TIMEZONES.contains(&tz.as_str()) {
+            return Err(AppError::BadRequest(format!("Unsupported timezone: {tz}")));
+        }
         tz.clone()
     } else {
         sqlx::query_scalar::<_, String>(
@@ -265,11 +256,29 @@ async fn create_reminder(
         .unwrap_or_else(|| "Europe/Moscow".to_string())
     };
 
+    // M5: Validate channels against whitelist
     let channels = body.channels.unwrap_or_else(|| vec!["in_app".to_string()]);
+    for ch in &channels {
+        if !VALID_CHANNELS.contains(&ch.as_str()) {
+            return Err(AppError::BadRequest(format!("Invalid channel: {ch}")));
+        }
+    }
+    if channels.is_empty() || channels.len() > 5 {
+        return Err(AppError::BadRequest("1-5 channels required".to_string()));
+    }
 
+    // Validate RRULE if provided
+    if let Some(ref rrule) = body.rrule {
+        if rrule.len() > 200 {
+            return Err(AppError::BadRequest("RRULE too long".to_string()));
+        }
+    }
+
+    // M2: Atomic insert with count check (avoids TOCTOU race)
     let reminder = sqlx::query_as::<_, Reminder>(
         "INSERT INTO reminders (user_id, title, body, remind_at, user_timezone, rrule, channels)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         SELECT $1, $2, $3, $4, $5, $6, $7
+         WHERE (SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND status = 'pending') < 500
          RETURNING *"
     )
     .bind(user.id)
@@ -279,8 +288,9 @@ async fn create_reminder(
     .bind(&tz)
     .bind(&body.rrule)
     .bind(&channels)
-    .fetch_one(&state.db)
-    .await?;
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Maximum 500 active reminders reached".to_string()))?;
 
     Ok((StatusCode::CREATED, Json(reminder.into())))
 }
@@ -487,6 +497,8 @@ struct UpdateSettingsRequest {
     quiet_end: Option<String>,
 }
 
+const VALID_CHANNELS: &[&str] = &["in_app", "telegram", "email"];
+
 const VALID_TIMEZONES: &[&str] = &[
     "Europe/Moscow", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Omsk",
     "Asia/Novosibirsk", "Asia/Krasnoyarsk", "Asia/Irkutsk", "Asia/Yakutsk",
@@ -513,9 +525,11 @@ async fn update_settings(
         .as_ref()
         .and_then(|s| NaiveTime::parse_from_str(s, "%H:%M").ok());
 
+    // M6: Use COALESCE properly — bind NULLs when fields are not provided
+    // so existing values are preserved, not reset to defaults.
     let settings = sqlx::query_as::<_, NotificationSettings>(
         "INSERT INTO notification_settings (user_id, email_enabled, telegram_enabled, timezone, quiet_start, quiet_end)
-         VALUES ($1, $2, $3, $4, $5, $6)
+         VALUES ($1, COALESCE($2, false), COALESCE($3, false), COALESCE($4, 'Europe/Moscow'), $5, $6)
          ON CONFLICT (user_id) DO UPDATE SET
             email_enabled = COALESCE($2, notification_settings.email_enabled),
             telegram_enabled = COALESCE($3, notification_settings.telegram_enabled),
@@ -526,9 +540,9 @@ async fn update_settings(
          RETURNING *"
     )
     .bind(user.id)
-    .bind(body.email_enabled.unwrap_or(false))
-    .bind(body.telegram_enabled.unwrap_or(false))
-    .bind(body.timezone.as_deref().unwrap_or("Europe/Moscow"))
+    .bind(body.email_enabled)     // Option<bool> — NULL if not provided
+    .bind(body.telegram_enabled)  // Option<bool> — NULL if not provided
+    .bind(body.timezone.as_deref()) // Option<&str> — NULL if not provided
     .bind(quiet_start)
     .bind(quiet_end)
     .fetch_one(&state.db)

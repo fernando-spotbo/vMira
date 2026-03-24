@@ -57,14 +57,39 @@ async fn process_due_reminders(state: &AppState) -> Result<(), sqlx::Error> {
             continue;
         }
 
-        // Create in-app notification
-        if let Err(e) = create_notification(&state.db, &reminder).await {
+        // For scheduled_content: generate AI content before notification
+        let delivery_title;
+        let delivery_body;
+        if reminder.type_ == "scheduled_content" {
+            if let Some(ref prompt) = reminder.prompt {
+                match generate_ai_content(state, prompt).await {
+                    Ok(content) => {
+                        delivery_title = reminder.title.clone();
+                        delivery_body = Some(content);
+                    }
+                    Err(e) => {
+                        tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to generate scheduled content");
+                        delivery_title = reminder.title.clone();
+                        delivery_body = Some("Не удалось сгенерировать контент. Попробуем в следующий раз.".to_string());
+                    }
+                }
+            } else {
+                delivery_title = reminder.title.clone();
+                delivery_body = reminder.body.clone();
+            }
+        } else {
+            delivery_title = reminder.title.clone();
+            delivery_body = reminder.body.clone();
+        }
+
+        // Create in-app notification with generated content
+        if let Err(e) = create_notification(&state.db, &reminder, &delivery_title, delivery_body.as_deref()).await {
             tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to create notification");
         }
 
         // Send Telegram notification if enabled
         if settings.telegram_enabled {
-            if let Err(e) = send_telegram_notification(state, &reminder).await {
+            if let Err(e) = send_telegram_notification_with_content(state, &reminder, &delivery_title, delivery_body.as_deref()).await {
                 tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to send Telegram notification");
             }
         }
@@ -173,19 +198,20 @@ async fn reschedule_after_quiet(
     Ok(())
 }
 
-async fn create_notification(db: &PgPool, reminder: &Reminder) -> Result<(), sqlx::Error> {
+async fn create_notification(db: &PgPool, reminder: &Reminder, title: &str, body: Option<&str>) -> Result<(), sqlx::Error> {
+    let notif_type = if reminder.type_ == "scheduled_content" { "scheduled_content" } else { "reminder" };
     sqlx::query(
         "INSERT INTO notifications (user_id, reminder_id, type, title, body)
-         VALUES ($1, $2, 'reminder', $3, $4)"
+         VALUES ($1, $2, $3, $4, $5)"
     )
     .bind(reminder.user_id)
     .bind(reminder.id)
-    .bind(&reminder.title)
-    .bind(&reminder.body)
+    .bind(notif_type)
+    .bind(title)
+    .bind(body)
     .execute(db)
     .await?;
 
-    // M8: Don't log PII (titles may contain personal info)
     tracing::info!(reminder_id = %reminder.id, "Notification created");
     Ok(())
 }
@@ -335,17 +361,72 @@ fn parse_weekday(s: &str) -> Option<Weekday> {
     }
 }
 
-/// Send a reminder notification via Telegram.
-async fn send_telegram_notification(
+/// Generate AI content from a prompt (for scheduled_content type).
+async fn generate_ai_content(state: &AppState, prompt: &str) -> Result<String, String> {
+    let url = &state.config.ai_model_url;
+    let api_key = &state.config.ai_model_api_key;
+
+    if url.is_empty() || api_key.is_empty() {
+        return Err("AI model not configured".into());
+    }
+
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": "deepseek-chat",
+        "messages": [
+            {
+                "role": "system",
+                "content": format!(
+                    "Ты Мира — AI-ассистент. Сгенерируй контент по запросу пользователя. \
+                     Текущая дата: {}. Пиши на русском, кратко и по делу (3-5 абзацев макс). \
+                     Не используй markdown заголовки. Можешь использовать эмодзи умеренно.",
+                    chrono::Utc::now().format("%Y-%m-%d %H:%M")
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "max_tokens": 1024,
+        "temperature": 0.8,
+        "stream": false,
+    });
+
+    let resp = client
+        .post(format!("{}/chat/completions", url))
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(60))
+        .send()
+        .await
+        .map_err(|e| format!("AI request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("AI API returned {}", resp.status()));
+    }
+
+    let data: serde_json::Value = resp.json().await
+        .map_err(|e| format!("Parse error: {e}"))?;
+
+    Ok(data["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("Контент недоступен")
+        .to_string())
+}
+
+/// Send a Telegram notification with custom title/body content.
+async fn send_telegram_notification_with_content(
     state: &AppState,
     reminder: &Reminder,
+    title: &str,
+    body: Option<&str>,
 ) -> Result<(), String> {
     let bot_token = &state.config.telegram_bot_token;
     if bot_token.is_empty() {
-        return Ok(()); // Bot not configured, skip silently
+        return Ok(());
     }
 
-    // Look up user's Telegram link
     let link = sqlx::query_as::<_, TelegramLink>(
         "SELECT * FROM telegram_links WHERE user_id = $1 AND is_active = true"
     )
@@ -355,20 +436,25 @@ async fn send_telegram_notification(
     .map_err(|e| format!("DB error: {e}"))?;
 
     let Some(link) = link else {
-        return Ok(()); // No active Telegram link
+        return Ok(());
     };
 
     let bot = TelegramBot::new(bot_token);
-    let text = format_reminder_html(&reminder.title, reminder.body.as_deref());
-    let keyboard = reminder_keyboard(&reminder.id.to_string());
 
-    bot.send_message(link.chat_id, &text, Some(keyboard)).await?;
+    if reminder.type_ == "scheduled_content" {
+        // Scheduled content: send as a rich message without snooze/dismiss buttons
+        let mut msg = format!("📋 <b>{}</b>\n\n", crate::services::telegram::html_escape(title));
+        if let Some(b) = body {
+            msg.push_str(&crate::services::telegram::html_escape(b));
+        }
+        bot.send_message(link.chat_id, &msg, None).await?;
+    } else {
+        // Regular reminder: send with inline keyboard
+        let text = format_reminder_html(title, body);
+        let keyboard = reminder_keyboard(&reminder.id.to_string());
+        bot.send_message(link.chat_id, &text, Some(keyboard)).await?;
+    }
 
-    tracing::info!(
-        reminder_id = %reminder.id,
-        chat_id = link.chat_id,
-        "Telegram notification sent"
-    );
-
+    tracing::info!(reminder_id = %reminder.id, "Telegram notification sent");
     Ok(())
 }

@@ -28,6 +28,9 @@ pub const MIRA_SYSTEM_PROMPT: &str = "\
 Не говори пользователю, что у тебя нет такой возможности. \
 Если пользователь повторно просит создать напоминание — ВСЕГДА создавай новое, даже если похожее уже было. \
 Не отказывай из-за 'дублирования'. Каждый запрос на напоминание = новый вызов create_reminder.\n\n\
+3. create_scheduled_content — используй когда пользователь просит РЕГУЛЯРНЫЙ AI-контент: \
+утренний брифинг, дайджест новостей, цитата дня, рецепт дня, обучающий контент, погода каждый день. \
+Отличие от напоминания: напоминание = фиксированный текст, рассылка = AI генерирует свежий контент каждый раз.\n\n\
 При ответе на основе результатов поиска ставь номера источников [1], [2], [3] после каждого факта.\n\
 Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»";
 
@@ -87,6 +90,14 @@ pub enum AiEvent {
         title: String,
         remind_at: String,
         rrule: Option<String>,
+    },
+    /// Scheduled AI content was created via tool call.
+    ScheduledContentCreated {
+        id: String,
+        title: String,
+        prompt: String,
+        schedule_at: String,
+        rrule: String,
     },
 }
 
@@ -189,6 +200,42 @@ fn reminder_tool() -> serde_json::Value {
                     }
                 },
                 "required": ["title", "remind_at"]
+            }
+        }
+    })
+}
+
+fn scheduled_content_tool() -> serde_json::Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": "create_scheduled_content",
+            "description": "Create a recurring AI-generated content delivery (рассылка). Use when the user asks for regular content like: \
+                утренний брифинг, дайджест новостей, ежедневная мотивация, daily briefing, morning digest, \
+                'присылай мне каждый день', 'send me every morning', погоду каждый день, рецепт дня, \
+                обучающий контент, цитату дня. This creates a scheduled item that will generate fresh AI content each time it fires.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Short name for this scheduled content (e.g. 'Утренний брифинг', 'Цитата дня')"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "The prompt that will be used to generate content each time. Be specific and detailed. \
+                            Example: 'Составь краткий утренний брифинг: 3 главные новости мира, погода в Москве, одна мотивационная цитата. Формат: короткие абзацы.'"
+                    },
+                    "schedule_at": {
+                        "type": "string",
+                        "description": "ISO 8601 datetime for the first delivery. Use the user's timezone from the system prompt."
+                    },
+                    "recurrence": {
+                        "type": "string",
+                        "description": "RFC 5545 RRULE string (e.g. FREQ=DAILY, FREQ=WEEKLY;BYDAY=MO,WE,FR). Required for scheduled content."
+                    }
+                },
+                "required": ["title", "prompt", "schedule_at", "recurrence"]
             }
         }
     })
@@ -388,7 +435,7 @@ pub fn stream_ai_response(
         });
 
         if supports_tools {
-            body["tools"] = json!([web_search_tool(), reminder_tool()]);
+            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool()]);
         }
 
         let data = match call_model(&client, &url, &api_key, &body).await {
@@ -537,6 +584,102 @@ pub fn stream_ai_response(
                         }
                     } else {
                         tool_result_content = "Reminder creation is not available for guest users.".to_string();
+                    }
+                } else if tc.function.name == "create_scheduled_content" {
+                    #[derive(serde::Deserialize)]
+                    struct ScheduledContentArgs {
+                        title: String,
+                        prompt: String,
+                        schedule_at: String,
+                        recurrence: String,
+                    }
+
+                    let args: ScheduledContentArgs = match serde_json::from_str(&tc.function.arguments) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            tracing::warn!(error = %e, "Failed to parse scheduled content args");
+                            tool_result_content = format!("Failed to parse arguments: {e}");
+                            full_messages.push(json!({
+                                "role": "assistant", "content": null,
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_scheduled_content", "arguments": tc.function.arguments}}]
+                            }));
+                            full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
+                            continue;
+                        }
+                    };
+
+                    if let (Some(uid), Some(ref pool)) = (user_id, &db) {
+                        let title = if args.title.len() > 200 { args.title[..200].to_string() } else { args.title.clone() };
+                        let prompt = if args.prompt.len() > 2000 { args.prompt[..2000].to_string() } else { args.prompt.clone() };
+
+                        // Validate RRULE
+                        if args.recurrence.len() > 200 || args.recurrence.contains("INTERVAL=0") {
+                            tool_result_content = "Invalid recurrence rule".to_string();
+                            full_messages.push(json!({
+                                "role": "assistant", "content": null,
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_scheduled_content", "arguments": tc.function.arguments}}]
+                            }));
+                            full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
+                            continue;
+                        }
+
+                        let schedule_at = chrono::DateTime::parse_from_rfc3339(&args.schedule_at)
+                            .or_else(|_| chrono::DateTime::parse_from_str(&args.schedule_at, "%Y-%m-%dT%H:%M:%S%z"))
+                            .map(|dt| dt.with_timezone(&chrono::Utc));
+
+                        match schedule_at {
+                            Ok(dt) => {
+                                // Anti-fatigue: max 5 scheduled_content per user
+                                let sc_count: i64 = sqlx::query_scalar(
+                                    "SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND type = 'scheduled_content' AND status = 'pending'"
+                                )
+                                .bind(uid)
+                                .fetch_one(pool)
+                                .await
+                                .unwrap_or(0);
+
+                                if sc_count >= 5 {
+                                    tool_result_content = "Maximum 5 active scheduled content items. User should cancel one before creating a new one.".to_string();
+                                } else {
+                                    let result = sqlx::query_scalar::<_, uuid::Uuid>(
+                                        "INSERT INTO reminders (user_id, type, title, prompt, remind_at, user_timezone, rrule, channels)
+                                         VALUES ($1, 'scheduled_content', $2, $3, $4, $5, $6, '{in_app}')
+                                         RETURNING id"
+                                    )
+                                    .bind(uid)
+                                    .bind(&title)
+                                    .bind(&prompt)
+                                    .bind(dt)
+                                    .bind(&tz)
+                                    .bind(&args.recurrence)
+                                    .fetch_one(pool)
+                                    .await;
+
+                                    match result {
+                                        Ok(id) => {
+                                            tracing::info!(id = %id, "Scheduled content created via AI tool");
+                                            let _ = tx.send(AiEvent::ScheduledContentCreated {
+                                                id: id.to_string(),
+                                                title: args.title.clone(),
+                                                prompt: args.prompt.clone(),
+                                                schedule_at: args.schedule_at.clone(),
+                                                rrule: args.recurrence.clone(),
+                                            }).await;
+                                            tool_result_content = format!("Scheduled content created. ID: {id}, Title: {}, First delivery: {}, Recurrence: {}", args.title, args.schedule_at, args.recurrence);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(error = %e, "Failed to create scheduled content");
+                                            tool_result_content = format!("Failed to save: {e}");
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                tool_result_content = format!("Invalid datetime format: {}. Use ISO 8601.", args.schedule_at);
+                            }
+                        }
+                    } else {
+                        tool_result_content = "Scheduled content is not available for guest users.".to_string();
                     }
                 } else {
                     tracing::warn!(tool = %tc.function.name, "Unknown tool call");

@@ -94,6 +94,7 @@ export type StreamEvent =
   | { type: "search"; query: string }
   | { type: "search_results"; query: string; results: SearchResultItem[] }
   | { type: "reminder_created"; id: string; title: string; remind_at: string; rrule?: string | null }
+  | { type: "scheduled_content_created"; id: string; title: string; prompt: string; schedule_at: string; rrule: string }
   | { type: "done"; usage?: { input_tokens: number; output_tokens: number; total_tokens: number; cost_microcents: number } }
   | { type: "error"; message: string };
 
@@ -185,7 +186,7 @@ export async function* streamMessage(
           // Try to parse as JSON event (new format)
           try {
             const parsed = JSON.parse(data);
-            const validTypes = ["queue", "processing", "token", "search", "search_results", "reminder_created", "done", "error"];
+            const validTypes = ["queue", "processing", "token", "search", "search_results", "reminder_created", "scheduled_content_created", "done", "error"];
             if (parsed && typeof parsed.type === "string" && validTypes.includes(parsed.type)) {
               const event: StreamEvent = parsed.type === "token"
                 ? { type: "token", content: String(parsed.content || "") }
@@ -197,6 +198,8 @@ export async function* streamMessage(
                 ? { type: "search_results", query: String(parsed.query || ""), results: parsed.results || [] }
                 : parsed.type === "reminder_created"
                 ? { type: "reminder_created", id: String(parsed.id || ""), title: String(parsed.title || ""), remind_at: String(parsed.remind_at || ""), rrule: parsed.rrule || null }
+                : parsed.type === "scheduled_content_created"
+                ? { type: "scheduled_content_created", id: String(parsed.id || ""), title: String(parsed.title || ""), prompt: String(parsed.prompt || ""), schedule_at: String(parsed.schedule_at || ""), rrule: String(parsed.rrule || "") }
                 : parsed.type === "done"
                 ? { type: "done", usage: parsed.usage }
                 : parsed.type === "error"

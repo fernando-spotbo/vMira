@@ -101,11 +101,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         rrule: reminderStep.rrule || null,
       } : undefined;
 
+      // Extract scheduled content data from steps
+      const scStep = m.steps?.find((s: any) => s.type === "scheduled_content_created");
+      const scheduledContent = scStep ? {
+        id: scStep.id || "",
+        title: scStep.title || "",
+        prompt: scStep.prompt || "",
+        schedule_at: scStep.schedule_at || "",
+        rrule: scStep.rrule || "",
+      } : undefined;
+
       return {
         id: m.id,
         role: m.role,
         content: m.content,
-        steps: m.steps?.filter((s: any) => s.type !== "reminder_created").map((step: any) => {
+        steps: m.steps?.filter((s: any) => s.type !== "reminder_created" && s.type !== "scheduled_content_created").map((step: any) => {
           if (step.type === "reasoning") {
             return {
               type: "reasoning" as const,
@@ -136,6 +146,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           url: a.url,
         })) ?? undefined,
         reminder,
+        scheduledContent,
       };
     });
   }
@@ -582,6 +593,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                                     id: event.id,
                                     title: event.title,
                                     remind_at: event.remind_at,
+                                    rrule: event.rrule,
+                                  },
+                                }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
+                break;
+
+              case "scheduled_content_created":
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === convId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === asstId
+                              ? {
+                                  ...m,
+                                  scheduledContent: {
+                                    id: event.id,
+                                    title: event.title,
+                                    prompt: event.prompt,
+                                    schedule_at: event.schedule_at,
                                     rrule: event.rrule,
                                   },
                                 }

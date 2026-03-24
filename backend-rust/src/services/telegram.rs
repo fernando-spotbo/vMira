@@ -272,7 +272,7 @@ pub fn format_reminder_html(title: &str, body: Option<&str>) -> String {
 }
 
 /// Escape HTML special characters for Telegram.
-fn html_escape(s: &str) -> String {
+pub fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

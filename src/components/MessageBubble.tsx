@@ -9,6 +9,7 @@ import { Message, MessageStep, Attachment, MessageError, ReminderInfo } from "@/
 import CodeBlock from "./CodeBlock";
 import ReasoningBlock from "./ReasoningBlock";
 import ReminderCard from "./ReminderCard";
+import ScheduledContentCard from "./ScheduledContentCard";
 import { useStreamingText } from "@/hooks/useStreamingText";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
@@ -728,6 +729,17 @@ export default function MessageBubble({
               body={message.reminder.body}
               remindAt={message.reminder.remind_at}
               rrule={message.reminder.rrule}
+            />
+          )}
+
+          {/* Scheduled content card */}
+          {message.scheduledContent && (
+            <ScheduledContentCard
+              id={message.scheduledContent.id}
+              title={message.scheduledContent.title}
+              prompt={message.scheduledContent.prompt}
+              scheduleAt={message.scheduledContent.schedule_at}
+              rrule={message.scheduledContent.rrule}
             />
           )}
 

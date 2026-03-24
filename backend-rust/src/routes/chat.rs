@@ -700,6 +700,7 @@ async fn send_message(
         let mut full_content = String::new();
         let mut search_steps: Vec<serde_json::Value> = Vec::new();
         let mut reminder_data: Option<serde_json::Value> = None;
+        let mut scheduled_content_data: Option<serde_json::Value> = None;
 
         // ── Step 1: Try to acquire a GPU slot ──────────────────────
         let queue_start = Instant::now();
@@ -971,6 +972,18 @@ async fn send_message(
                             reminder_data = Some(rd.clone());
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&rd).unwrap_or_default()));
                         }
+                        Some(ai_proxy::AiEvent::ScheduledContentCreated { id, title, prompt, schedule_at, rrule }) => {
+                            let sc = serde_json::json!({
+                                "type": "scheduled_content_created",
+                                "id": id,
+                                "title": title,
+                                "prompt": prompt,
+                                "schedule_at": schedule_at,
+                                "rrule": rrule,
+                            });
+                            scheduled_content_data = Some(sc.clone());
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&sc).unwrap_or_default()));
+                        }
                         None => break,
                     }
                 }
@@ -1095,7 +1108,7 @@ async fn send_message(
             };
 
             // Build steps JSON if we have search data
-            let steps_json: Option<serde_json::Value> = if !search_steps.is_empty() || reminder_data.is_some() {
+            let steps_json: Option<serde_json::Value> = if !search_steps.is_empty() || reminder_data.is_some() || scheduled_content_data.is_some() {
                 let mut steps = Vec::new();
                 if !search_steps.is_empty() {
                     steps.push(serde_json::json!({
@@ -1109,6 +1122,9 @@ async fn send_message(
                 }
                 if let Some(ref rd) = reminder_data {
                     steps.push(rd.clone());
+                }
+                if let Some(ref sc) = scheduled_content_data {
+                    steps.push(sc.clone());
                 }
                 steps.push(serde_json::json!({
                     "type": "text",
@@ -1273,6 +1289,9 @@ async fn anonymous_stream(
                 }
                 Some(ai_proxy::AiEvent::ReminderCreated { .. }) => {
                     // Guests can't create reminders — ignore
+                }
+                Some(ai_proxy::AiEvent::ScheduledContentCreated { .. }) => {
+                    // Guests can't create scheduled content — ignore
                 }
                 None => break,
             }

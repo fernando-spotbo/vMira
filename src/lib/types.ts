@@ -56,6 +56,14 @@ export interface ReminderInfo {
   rrule?: string | null;
 }
 
+export interface ScheduledContentInfo {
+  id: string;
+  title: string;
+  prompt: string;
+  schedule_at: string;
+  rrule: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -66,6 +74,7 @@ export interface Message {
   attachments?: Attachment[];
   error?: MessageError;
   reminder?: ReminderInfo;
+  scheduledContent?: ScheduledContentInfo;
 }
 
 export interface Conversation {

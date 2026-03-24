@@ -4,21 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Clock, CheckCircle2 } from "lucide-react";
 import { t } from "@/lib/i18n";
-import { getAccessToken } from "@/lib/api-client";
+import { getAccessToken, getReminders, ReminderItem } from "@/lib/api-client";
 import EditReminderModal from "./EditReminderModal";
-
-const PROXY_URL = "/api/proxy";
-
-interface Reminder {
-  id: string;
-  title: string;
-  body: string | null;
-  remind_at: string;
-  rrule: string | null;
-  status: string;
-  channels: string[];
-  created_at: string;
-}
 
 function formatTime(remindAt: string): string {
   try {
@@ -59,29 +46,17 @@ interface RemindersPageProps {
 }
 
 export default function RemindersPage({ onBack }: RemindersPageProps) {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [editingReminder, setEditingReminder] = useState<ReminderItem | null>(null);
 
   const fetchReminders = useCallback(async () => {
-    const token = getAccessToken();
-    if (!token) { setLoading(false); return; }
-
-    try {
-      const res = await fetch(`${PROXY_URL}/reminders?limit=100`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        credentials: "include",
-      });
-      if (!res.ok) { setLoading(false); return; }
-      const data = await res.json();
-      setReminders(data);
-    } catch {
-    } finally {
-      setLoading(false);
+    if (!getAccessToken()) { setLoading(false); return; }
+    const result = await getReminders(undefined, 100);
+    if (result.ok) {
+      setReminders(result.data);
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => { fetchReminders(); }, [fetchReminders]);

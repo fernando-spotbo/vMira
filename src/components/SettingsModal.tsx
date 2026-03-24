@@ -174,18 +174,14 @@ function NotificationsTab() {
   useEffect(() => {
     (async () => {
       try {
-        const token = (await import("@/lib/api-client")).getAccessToken();
-        if (!token) return;
-        const res = await fetch("/api/proxy/notification-settings", {
-          headers: { Authorization: `Bearer ${token}`, "X-Requested-With": "XMLHttpRequest" },
-          credentials: "include",
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        setEmailNotifs(data.email_enabled ?? false);
-        setTimezone(data.timezone ?? "Europe/Moscow");
-        setQuietStart(data.quiet_start ?? "23:00");
-        setQuietEnd(data.quiet_end ?? "07:00");
+        const { getNotificationSettings } = await import("@/lib/api-client");
+        const result = await getNotificationSettings();
+        if (result.ok) {
+          setEmailNotifs(result.data.email_enabled ?? false);
+          setTimezone(result.data.timezone ?? "Europe/Moscow");
+          setQuietStart(result.data.quiet_start ?? "23:00");
+          setQuietEnd(result.data.quiet_end ?? "07:00");
+        }
         setLoaded(true);
       } catch {
         setLoaded(true);
@@ -195,18 +191,8 @@ function NotificationsTab() {
 
   const saveSettings = async (updates: Record<string, unknown>) => {
     try {
-      const token = (await import("@/lib/api-client")).getAccessToken();
-      if (!token) return;
-      await fetch("/api/proxy/notification-settings", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        credentials: "include",
-        body: JSON.stringify(updates),
-      });
+      const { updateNotificationSettings } = await import("@/lib/api-client");
+      await updateNotificationSettings(updates as any);
     } catch {}
   };
 

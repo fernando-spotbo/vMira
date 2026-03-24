@@ -2,11 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
-import { getAccessToken } from "@/lib/api-client";
+import { updateReminder, deleteReminder, snoozeReminder } from "@/lib/api-client";
 import MiraDatePicker from "./ui/MiraDatePicker";
 import MiraTimePicker from "./ui/MiraTimePicker";
-
-const PROXY_URL = "/api/proxy";
 
 const RECURRENCE_OPTIONS = [
   { value: "", label: "Не повторять" },
@@ -76,71 +74,39 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
   const close = () => { setVisible(false); setTimeout(onClose, 200); };
 
   const handleSave = async () => {
-    const token = getAccessToken();
-    if (!token || !name.trim()) return;
+    if (!name.trim()) return;
     setSaving(true);
 
     const remindAt = new Date(`${date}T${time}:00`).toISOString();
+    const result = await updateReminder(reminder.id, {
+      title: name.trim(),
+      body: instructions.trim() || null,
+      remind_at: remindAt,
+      rrule: recurrence || null,
+    });
 
-    try {
-      await fetch(`${PROXY_URL}/reminders/${reminder.id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          title: name.trim(),
-          body: instructions.trim() || null,
-          remind_at: remindAt,
-          rrule: recurrence || null,
-        }),
-      });
+    if (result.ok) {
       onUpdated();
       close();
-    } catch {
+    } else {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    const token = getAccessToken();
-    if (!token) return;
-
-    try {
-      await fetch(`${PROXY_URL}/reminders/${reminder.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        credentials: "include",
-      });
+    const result = await deleteReminder(reminder.id);
+    if (result.ok) {
       onDeleted();
       close();
-    } catch {}
+    }
   };
 
   const handlePause = async () => {
-    const token = getAccessToken();
-    if (!token) return;
-
-    try {
-      await fetch(`${PROXY_URL}/reminders/${reminder.id}/snooze`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        credentials: "include",
-        body: JSON.stringify({ duration_minutes: 1440 }),
-      });
+    const result = await snoozeReminder(reminder.id, 1440);
+    if (result.ok) {
       onUpdated();
       close();
-    } catch {}
+    }
   };
 
   return (

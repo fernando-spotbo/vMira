@@ -268,3 +268,72 @@ export async function uploadFile(
 
   return { data, ok: res.ok, status: res.status };
 }
+
+// ---- Notifications & Reminders ----
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  read: boolean;
+  reminder_id: string | null;
+  created_at: string;
+}
+
+export interface NotificationsList {
+  notifications: NotificationItem[];
+  unread_count: number;
+}
+
+export async function getNotifications(limit = 20) {
+  return apiCall<NotificationsList>(`/notifications?limit=${limit}`);
+}
+
+export async function markNotificationRead(id: string) {
+  return apiCall(`/notifications/${id}/read`, { method: "POST" });
+}
+
+export async function markAllNotificationsRead() {
+  return apiCall("/notifications/read-all", { method: "POST" });
+}
+
+export interface ReminderItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  remind_at: string;
+  user_timezone: string;
+  rrule: string | null;
+  status: string;
+  channels: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getReminders(status?: string, limit = 100) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (status) params.set("status", status);
+  return apiCall<ReminderItem[]>(`/reminders?${params}`);
+}
+
+export async function updateReminder(id: string, data: { title?: string; body?: string | null; remind_at?: string; rrule?: string | null }) {
+  return apiCall(`/reminders/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export async function deleteReminder(id: string) {
+  return apiCall(`/reminders/${id}`, { method: "DELETE" });
+}
+
+export async function snoozeReminder(id: string, durationMinutes: number) {
+  return apiCall(`/reminders/${id}/snooze`, { method: "POST", body: JSON.stringify({ duration_minutes: durationMinutes }) });
+}
+
+export async function getNotificationSettings() {
+  return apiCall<{ email_enabled: boolean; telegram_enabled: boolean; timezone: string; quiet_start: string | null; quiet_end: string | null }>("/notification-settings");
+}
+
+export async function updateNotificationSettings(data: { email_enabled?: boolean; telegram_enabled?: boolean; timezone?: string; quiet_start?: string; quiet_end?: string }) {
+  return apiCall("/notification-settings", { method: "PUT", body: JSON.stringify(data) });
+}

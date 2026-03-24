@@ -5,10 +5,8 @@ import { createPortal } from "react-dom";
 import { Ellipsis, Pencil, Trash2, Pause, Calendar } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
-import { getAccessToken } from "@/lib/api-client";
+import { deleteReminder, snoozeReminder } from "@/lib/api-client";
 import EditReminderModal from "./EditReminderModal";
-
-const PROXY_URL = "/api/proxy";
 
 interface ReminderCardProps {
   id: string;
@@ -60,29 +58,12 @@ export default function ReminderCard({ id, title, remindAt, rrule, status = "pen
 
   const handleDelete = async () => {
     setMenuOpen(false);
-    const token = getAccessToken();
-    if (!token) return;
-    try {
-      await fetch(`${PROXY_URL}/reminders/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}`, "X-Requested-With": "XMLHttpRequest" },
-        credentials: "include",
-      });
-    } catch {}
+    await deleteReminder(id);
   };
 
   const handlePause = async () => {
     setMenuOpen(false);
-    const token = getAccessToken();
-    if (!token) return;
-    try {
-      await fetch(`${PROXY_URL}/reminders/${id}/snooze`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
-        credentials: "include",
-        body: JSON.stringify({ duration_minutes: 1440 }),
-      });
-    } catch {}
+    await snoozeReminder(id, 1440);
   };
 
   return (

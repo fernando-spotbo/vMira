@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, CreditCard, Clock, Globe } from "lucide-react";
@@ -681,8 +682,8 @@ export default function MessageBubble({
                 onUpgrade={() => setShowPricing(true)}
                 onLogin={() => setShowAuthModal(true)}
               />
-              {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
-              {showAuthModal && <AuthModal mode="register" onClose={() => setShowAuthModal(false)} />}
+              {showPricing && createPortal(<PricingModal onClose={() => setShowPricing(false)} />, document.body)}
+              {showAuthModal && createPortal(<AuthModal mode="register" onClose={() => setShowAuthModal(false)} />, document.body)}
             </>
           ) : hasSteps ? (
             <div className="markdown-body text-[16px] leading-7 text-white">

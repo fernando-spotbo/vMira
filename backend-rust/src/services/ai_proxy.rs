@@ -220,21 +220,27 @@ fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
     let parsed = Url::parse(url).map_err(|e| format!("Некорректный URL модели: {e}"))?;
 
     let scheme = parsed.scheme();
-    if cfg!(debug_assertions) {
-        if scheme != "https" && scheme != "http" {
-            return Err(format!("Запрещённая схема URL: {scheme}"));
-        }
-    } else if scheme != "https" {
-        return Err(format!("Разрешена только HTTPS-схема, получена: {scheme}"));
+    let host = parsed.host_str().unwrap_or("");
+    let is_local = host == "localhost" || host == "127.0.0.1" || host.starts_with("10.") || host.starts_with("172.") || host.starts_with("192.168.");
+
+    if scheme != "https" && scheme != "http" {
+        return Err(format!("Запрещённая схема URL: {scheme}"));
+    }
+    // Allow http for local/internal addresses; require https for external
+    if scheme != "https" && !is_local {
+        return Err(format!("Разрешена только HTTPS-схема для внешних адресов, получена: {scheme}"));
     }
 
     if let Some(port) = parsed.port() {
-        if port != 443 && port != 80 {
+        // Allow non-standard ports for local addresses
+        if !is_local && port != 443 && port != 80 {
             return Err(format!("Нестандартный порт запрещён: {port}"));
         }
     }
 
-    let host = parsed.host_str().ok_or_else(|| "URL модели не содержит хост".to_string())?;
+    if host.is_empty() {
+        return Err("URL модели не содержит хост".to_string());
+    }
 
     if allowed_hosts.is_empty() {
         return Ok(());

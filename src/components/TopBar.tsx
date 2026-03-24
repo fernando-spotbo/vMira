@@ -79,7 +79,7 @@ export default function TopBar() {
   const hasConversation = activeConversation && activeConversation.messages.length > 0;
 
   return (
-    <header className="absolute top-0 left-0 right-0 flex h-12 items-center justify-between px-3 md:px-4 z-10 pointer-events-none">
+    <header className="absolute top-0 left-0 right-0 flex h-12 items-center justify-between px-3 md:px-4 z-10 pointer-events-none mt-[env(safe-area-inset-top)]">
       <div className="flex items-center gap-1 pointer-events-auto">
         {/* Mobile sidebar toggle — always visible on mobile */}
         <button

@@ -260,6 +260,7 @@ export default function Sidebar() {
       <aside
         className={`
           fixed left-0 top-0 z-50 flex h-full w-[280px] max-w-[85vw] flex-col bg-[#131313]
+          pt-[env(safe-area-inset-top)]
           transition-transform duration-300 ease-in-out md:hidden
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
@@ -328,7 +329,7 @@ interface SidebarContentProps {
   starredConversations: ReturnType<typeof useChat>["conversations"];
   recentConversations: ReturnType<typeof useChat>["conversations"];
   activeConversationId: string | null;
-  setActiveConversationId: (id: string) => void;
+  setActiveConversationId: (id: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   createNewChat: () => void;
   setSearchOpen: (open: boolean) => void;

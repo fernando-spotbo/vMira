@@ -82,7 +82,7 @@ function ChatLayout() {
   }, [activeConversationId, activeConversation, searchParams, sendMessage]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#161616]">
+    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#161616]">
       <Sidebar />
       <main className="relative flex flex-1 flex-col min-w-0 min-h-0 h-full overflow-hidden">
         {showReminders ? (

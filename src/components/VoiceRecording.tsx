@@ -25,7 +25,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
   const startRef = useRef(Date.now());
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrRef = useRef<Uint8Array | null>(null);
+  const dataArrRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const animFrameRef = useRef<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);

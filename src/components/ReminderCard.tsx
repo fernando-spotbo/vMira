@@ -41,9 +41,13 @@ function formatScheduleTime(remindAt: string): string {
   }
 }
 
-export default function ReminderCard({ id, title, remindAt, rrule, status = "pending" }: ReminderCardProps) {
+export default function ReminderCard({ id, title: initialTitle, remindAt: initialRemindAt, rrule: initialRrule, status = "pending" }: ReminderCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [currentTitle, setCurrentTitle] = useState(initialTitle);
+  const [currentRemindAt, setCurrentRemindAt] = useState(initialRemindAt);
+  const [currentRrule, setCurrentRrule] = useState(initialRrule);
+  const [deleted, setDeleted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { setShowReminders } = useChat();
 
@@ -59,7 +63,10 @@ export default function ReminderCard({ id, title, remindAt, rrule, status = "pen
   const handleDelete = async () => {
     setMenuOpen(false);
     await deleteReminder(id);
+    setDeleted(true);
   };
+
+  if (deleted) return null;
 
   const handlePause = async () => {
     setMenuOpen(false);
@@ -76,8 +83,8 @@ export default function ReminderCard({ id, title, remindAt, rrule, status = "pen
             onClick={() => setEditOpen(true)}
             className="min-w-0 flex-1 text-left"
           >
-            <p className="text-[15px] text-white font-medium leading-snug truncate">{title}</p>
-            <p className="text-[13px] text-white/40 mt-0.5">{formatScheduleTime(remindAt)}</p>
+            <p className="text-[15px] text-white font-medium leading-snug truncate">{currentTitle}</p>
+            <p className="text-[13px] text-white/40 mt-0.5">{formatScheduleTime(currentRemindAt)}</p>
           </button>
 
           {/* Three-dot menu */}
@@ -131,10 +138,25 @@ export default function ReminderCard({ id, title, remindAt, rrule, status = "pen
       {/* Edit modal — rendered via portal to escape overflow-hidden */}
       {editOpen && createPortal(
         <EditReminderModal
-          reminder={{ id, title, remind_at: remindAt, rrule, body: null }}
+          reminder={{ id, title: currentTitle, remind_at: currentRemindAt, rrule: currentRrule, body: null }}
           onClose={() => setEditOpen(false)}
-          onUpdated={() => setEditOpen(false)}
-          onDeleted={() => setEditOpen(false)}
+          onUpdated={() => {
+            // Refetch the reminder to get updated data
+            (async () => {
+              const { getReminders } = await import("@/lib/api-client");
+              const result = await getReminders();
+              if (result.ok) {
+                const updated = result.data.find((r) => r.id === id);
+                if (updated) {
+                  setCurrentTitle(updated.title);
+                  setCurrentRemindAt(updated.remind_at);
+                  setCurrentRrule(updated.rrule);
+                }
+              }
+            })();
+            setEditOpen(false);
+          }}
+          onDeleted={() => { setEditOpen(false); setDeleted(true); }}
         />,
         document.body
       )}

@@ -102,7 +102,7 @@ pub async fn get_weather(city: &str) -> Result<WeatherResponse, String> {
 
     // Geocode
     let geo_url = format!(
-        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=ru",
+        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1",
         urlencoding::encode(city)
     );
     let geo: GeoResult = client.get(&geo_url)

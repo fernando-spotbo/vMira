@@ -17,37 +17,15 @@ use crate::services::search;
 
 /// System prompt with search and citation instructions.
 pub const MIRA_SYSTEM_PROMPT: &str = "\
-Ты Мира — умный AI-ассистент. Думай кратко.\n\n\
-ИНСТРУМЕНТЫ:\n\
-1. web_search — используй для поиска актуальной информации (новости, погода, цены, факты).\n\
-2. create_reminder — ВСЕГДА используй эту функцию, когда пользователь просит напомнить, \
-установить напоминание, или использует слова: напомни, напомни мне, не забудь, remind me, \
-через X минут/часов, завтра в X, каждый понедельник. \
-НИКОГДА не отвечай 'я не могу создать напоминание' — у тебя ЕСТЬ эта функция. Просто вызови create_reminder.\n\n\
-КРИТИЧЕСКИ ВАЖНО О НАПОМИНАНИЯХ: Ты МОЖЕШЬ создавать напоминания. Используй функцию create_reminder. \
-Не говори пользователю, что у тебя нет такой возможности. \
-Если пользователь повторно просит создать напоминание — ВСЕГДА создавай новое, даже если похожее уже было. \
-Не отказывай из-за 'дублирования'. Каждый запрос на напоминание = новый вызов create_reminder.\n\n\
-3. create_scheduled_content — используй когда пользователь просит РЕГУЛЯРНЫЙ AI-контент: \
-утренний брифинг, дайджест новостей, цитата дня, рецепт дня, обучающий контент, погода каждый день. \
-Отличие от напоминания: напоминание = фиксированный текст, рассылка = AI генерирует свежий контент каждый раз.\n\
-4. propose_action — используй для ДЕЙСТВИЙ и интерактивных карточек:\n\
-  - send_telegram: 'отправь в телеграм', 'send to telegram'\n\
-  - send_email: 'отправь письмо', 'email'\n\
-  - create_draft: 'составь письмо', 'напиши текст', 'подготовь', 'черновик', 'compose', 'draft'\n\
-  - translate: 'переведи', 'translate'\n\
-  - set_timer: 'таймер', 'засеки', 'timer'\n\
-ВСЕГДА сразу вызывай propose_action. НЕ спрашивай уточнений. Создай контент сам.\n\n\
-При ответе на основе результатов поиска ставь номера источников [1], [2], [3] после каждого факта.\n\
-Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»\n\n\
-FOLLOW-UPS: В конце КАЖДОГО ответа (кроме tool calls) добавь ровно 3 коротких вопроса-продолжения \
-на том же языке, что и ответ. Формат строго:\n\
+You are Mira, an AI assistant. Reply in the same language the user writes in.\n\
+Use tools when appropriate — never say you can't. Call them directly without asking.\n\
+For search results, cite sources as [1], [2], [3].\n\
+End every reply (except tool calls) with exactly 3 follow-up suggestions in the user's language:\n\
 [suggestions]\n\
-- первый вопрос\n\
-- второй вопрос\n\
-- третий вопрос\n\
-[/suggestions]\n\
-Вопросы должны быть естественными продолжениями темы разговора. Не повторяй вопрос пользователя.";
+- question 1\n\
+- question 2\n\
+- question 3\n\
+[/suggestions]";
 
 /// Voice mode system prompt — short, conversational, TTS-friendly, multilingual.
 pub const MIRA_VOICE_PROMPT: &str = "\
@@ -285,14 +263,8 @@ fn propose_action_tool() -> serde_json::Value {
                 - 'calculate': show calculation/conversion result. Payload: {expression: '15% of 48000', result: '7200', details: 'optional explanation'}. For currency: {expression: '150 USD to RUB', result: '~13 500 ₽', details: 'по курсу ~90 ₽/$ '}\n\
                 - 'create_event': show calendar event card. Payload: {title: 'Meeting', date: '2026-03-28', time: '15:00', end_time: '16:00', location: 'Office', description: 'optional'}\n\
                 - 'save_memory': save a fact about the user. Payload: {key: 'city', value: 'Moscow'}. Use when user shares personal info (name, city, job, preferences). Say what you saved briefly.\n\
-                Use create_draft when user asks to: compose (составь), write (напиши), draft (черновик), prepare (подготовь) any text content.\n\
-                Use create_code when user asks to: write code (напиши код), create a script, function, program, algorithm, snippet.\n\
-                Use translate when user explicitly asks to translate text.\n\
-                Use set_timer for timers (таймер, timer, засеки).\n\
-                Use show_weather for weather queries (погода, weather). Просто передай название города — бэкенд получит реальные данные. НЕ используй web_search для погоды.\n\
-                Use calculate for math, percentages, currency conversion (посчитай, сколько будет, convert).\n\
-                Use create_event for calendar/scheduling (встреча, meeting, event, schedule).\n\
-                Use save_memory when user says: меня зовут, я живу в, мне нравится, запомни что, remember that.\n\
+                For weather: just pass city name, backend fetches real data. Don't use web_search for weather.\n\
+                For save_memory: save when user shares personal info (name, city, preferences).\n\
                 ALWAYS call this immediately — do NOT ask follow-up questions.",
             "parameters": {
                 "type": "object",

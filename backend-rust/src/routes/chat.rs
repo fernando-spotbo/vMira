@@ -895,6 +895,16 @@ async fn send_message(
 
         let processing_start = Instant::now();
 
+        // Fetch user's timezone from notification settings
+        let user_tz: Option<String> = sqlx::query_scalar(
+            "SELECT timezone FROM notification_settings WHERE user_id = $1"
+        )
+        .bind(user.id)
+        .fetch_optional(&state_clone.db)
+        .await
+        .ok()
+        .flatten();
+
         let ai_stream = ai_proxy::stream_ai_response(
             history,
             model_name.clone(),
@@ -905,7 +915,7 @@ async fn send_message(
             &state_clone.config,
             Some(user.id),
             Some(state_clone.db.clone()),
-            None,
+            user_tz,
         );
 
         tokio::pin!(ai_stream);

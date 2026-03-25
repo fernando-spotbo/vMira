@@ -615,9 +615,9 @@ pub fn stream_ai_response(
                                             remind_at: args.remind_at.clone(),
                                             rrule: args.recurrence.clone(),
                                         }).await;
-                                        let mut msg = format!("Reminder created successfully. ID: {id}, Title: {}, Scheduled: {}, Channels: {}", args.title, args.remind_at, channels.join(", "));
+                                        let mut msg = format!("Reminder created. Respond briefly: confirm the reminder title and time in a natural, human-friendly way (e.g. 'через 2 минуты' or 'завтра в 10:00'). Do NOT show the ID or ISO datetime to the user.");
                                         if telegram_not_linked {
-                                            msg.push_str(". IMPORTANT: User requested Telegram delivery but has NOT linked their Telegram account yet. Tell them to go to Settings → Notifications → Connect Telegram to receive this reminder in Telegram.");
+                                            msg.push_str(" IMPORTANT: User wanted Telegram delivery but hasn't linked Telegram. Tell them briefly: go to Settings → Notifications → Connect Telegram.");
                                         }
                                         tool_result_content = msg;
                                     }
@@ -714,7 +714,7 @@ pub fn stream_ai_response(
                                                 schedule_at: args.schedule_at.clone(),
                                                 rrule: args.recurrence.clone(),
                                             }).await;
-                                            tool_result_content = format!("Scheduled content created. ID: {id}, Title: {}, First delivery: {}, Recurrence: {}", args.title, args.schedule_at, args.recurrence);
+                                            tool_result_content = "Scheduled content created. Confirm briefly in a friendly way. Do NOT show ID or ISO dates to the user.".to_string();
                                         }
                                         Err(e) => {
                                             tracing::error!(error = %e, "Failed to create scheduled content");

@@ -54,3 +54,4 @@ bash.exe.stackdump
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+backend-rust/.next/

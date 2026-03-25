@@ -80,6 +80,25 @@ export default function InputBar({ centered = false }: InputBarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Auto-focus: any keypress directs to the textarea (unless another input/modal is active)
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      // Skip if modifier keys (except shift for typing)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Skip non-printable keys
+      if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete") return;
+      // Skip if already focused on an input/textarea/contenteditable
+      const active = document.activeElement;
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
+      // Skip if a modal/dialog is open (check for z-index overlays)
+      if (document.querySelector("[class*='fixed inset-0 z-[']")) return;
+      // Focus the textarea
+      textareaRef.current?.focus();
+    };
+    document.addEventListener("keydown", handleGlobalKey);
+    return () => document.removeEventListener("keydown", handleGlobalKey);
+  }, []);
+
   // File validation and adding
   const validateAndAddFiles = useCallback((files: FileList | File[]) => {
     const valid: File[] = [];

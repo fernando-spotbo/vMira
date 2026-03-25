@@ -276,154 +276,115 @@ function NotificationsTab() {
 
 function CalendarTab() {
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
-  const [feedActive, setFeedActive] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
-  const [googleConnected, setGoogleConnected] = useState(false);
+  const [connected, setConnected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     import("@/lib/api-client").then(({ getCalendarFeedStatus, getGoogleCalendarStatus }) => {
-      getCalendarFeedStatus().then(r => { if (r.ok) setFeedActive(r.data.active); });
-      getGoogleCalendarStatus().then(r => { if (r.ok) setGoogleConnected(r.data.connected); });
+      getCalendarFeedStatus().then(r => { if (r.ok && r.data.active) setConnected(prev => ({ ...prev, apple: true, outlook: true, yandex: true })); });
+      getGoogleCalendarStatus().then(r => { if (r.ok && r.data.connected) setConnected(prev => ({ ...prev, google: true })); });
     });
   }, []);
 
-  // Get or create feed URL, then open in the target calendar app
-  const openInCalendar = async (app: "google" | "apple" | "outlook" | "yandex") => {
+  const ensureFeedUrl = async (): Promise<string | null> => {
+    if (feedUrl) return feedUrl;
+    const { generateCalendarFeedToken } = await import("@/lib/api-client");
+    const r = await generateCalendarFeedToken();
+    if (r.ok) { setFeedUrl(r.data.url); return r.data.url; }
+    return null;
+  };
+
+  const handleConnect = async (app: string) => {
     setLoading(app);
-    let url = feedUrl;
-    if (!url) {
-      const { generateCalendarFeedToken } = await import("@/lib/api-client");
-      const r = await generateCalendarFeedToken();
-      if (r.ok) {
-        url = r.data.url;
-        setFeedUrl(url);
-        setFeedActive(true);
-      }
+
+    if (app === "google") {
+      // Google gets full OAuth (two-way sync)
+      const { getGoogleCalendarAuthUrl } = await import("@/lib/api-client");
+      const r = await getGoogleCalendarAuthUrl();
+      if (r.ok && r.data.url) {
+        const popup = window.open(r.data.url, "google_calendar", "width=500,height=600");
+        const handler = (e: MessageEvent) => {
+          if (e.data?.type === "google_calendar_connected") {
+            setConnected(prev => ({ ...prev, google: true }));
+            setLoading(null);
+            window.removeEventListener("message", handler);
+            popup?.close();
+          }
+        };
+        window.addEventListener("message", handler);
+        setTimeout(() => { setLoading(null); window.removeEventListener("message", handler); }, 120000);
+      } else { setLoading(null); }
+      return;
     }
+
+    // Other apps use ICS feed subscription
+    const url = await ensureFeedUrl();
     if (!url) { setLoading(null); return; }
 
-    // webcal:// protocol for native calendar apps
     const webcalUrl = url.replace(/^https?:\/\//, "webcal://");
     const encodedUrl = encodeURIComponent(url);
 
-    switch (app) {
-      case "google":
-        // Google Calendar "Add by URL" page
-        window.open(`https://calendar.google.com/calendar/r/settings/addbyurl?cid=${encodedUrl}`, "_blank");
-        break;
-      case "apple":
-        // webcal:// opens Apple Calendar directly on macOS/iOS
-        window.location.href = webcalUrl;
-        break;
-      case "outlook":
-        // Outlook web "subscribe" flow
-        window.open(`https://outlook.live.com/calendar/0/addfromweb?url=${encodedUrl}&name=Mira`, "_blank");
-        break;
-      case "yandex":
-        // Yandex Calendar subscribe
-        window.open(`https://calendar.yandex.ru/?ics=${encodedUrl}`, "_blank");
-        break;
-    }
+    if (app === "apple") window.location.href = webcalUrl;
+    else if (app === "outlook") window.open(`https://outlook.live.com/calendar/0/addfromweb?url=${encodedUrl}&name=Mira`, "_blank");
+    else if (app === "yandex") window.open(`https://calendar.yandex.ru/?ics=${encodedUrl}`, "_blank");
+
+    setConnected(prev => ({ ...prev, [app]: true }));
     setLoading(null);
   };
 
-  const handleRevokeFeed = async () => {
-    const { revokeCalendarFeedToken } = await import("@/lib/api-client");
-    await revokeCalendarFeedToken();
-    setFeedUrl(null);
-    setFeedActive(false);
-  };
-
-  const handleGoogleOAuth = async () => {
-    setLoading("google_oauth");
-    const { getGoogleCalendarAuthUrl } = await import("@/lib/api-client");
-    const r = await getGoogleCalendarAuthUrl();
-    if (r.ok && r.data.url) {
-      const popup = window.open(r.data.url, "google_calendar", "width=500,height=600");
-      const handler = (e: MessageEvent) => {
-        if (e.data?.type === "google_calendar_connected") {
-          setGoogleConnected(true);
-          setLoading(null);
-          window.removeEventListener("message", handler);
-          popup?.close();
-        }
-      };
-      window.addEventListener("message", handler);
-      setTimeout(() => { setLoading(null); window.removeEventListener("message", handler); }, 120000);
-    } else {
-      setLoading(null);
+  const handleDisconnect = async (app: string) => {
+    if (app === "google") {
+      const { disconnectGoogleCalendar } = await import("@/lib/api-client");
+      await disconnectGoogleCalendar();
     }
-  };
-
-  const handleGoogleDisconnect = async () => {
-    const { disconnectGoogleCalendar } = await import("@/lib/api-client");
-    await disconnectGoogleCalendar();
-    setGoogleConnected(false);
+    setConnected(prev => ({ ...prev, [app]: false }));
   };
 
   const calApps = [
-    { id: "google" as const, name: "Google Calendar", icon: "📅" },
-    { id: "apple" as const, name: "Apple Calendar", icon: "🍎" },
-    { id: "outlook" as const, name: "Outlook", icon: "📬" },
-    { id: "yandex" as const, name: t("settings.yandexCalendar"), icon: "📆" },
+    { id: "google", name: "Google Calendar", badge: t("settings.googleSyncDesc") },
+    { id: "apple", name: "Apple Calendar" },
+    { id: "outlook", name: "Outlook" },
+    { id: "yandex", name: t("settings.yandexCalendar") },
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Sync reminders to calendar — one-click per app */}
-      <div>
-        <h4 className="text-[15px] font-medium text-white mb-1">{t("settings.calendarFeed")}</h4>
-        <p className="text-[13px] text-white/40 mb-3">{t("settings.calendarFeedDesc")}</p>
+    <div>
+      <p className="text-[13px] text-white/40 mb-4">{t("settings.calendarFeedDesc")}</p>
+      <div className="space-y-1">
+        {calApps.map(app => {
+          const isConnected = connected[app.id];
+          const isLoading = loading === app.id;
 
-        <div className="grid grid-cols-2 gap-2">
-          {calApps.map(app => (
-            <button
-              key={app.id}
-              onClick={() => openInCalendar(app.id)}
-              disabled={loading === app.id}
-              className="flex items-center gap-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-3 text-[14px] text-white hover:bg-white/[0.08] hover:border-white/[0.1] transition-all disabled:opacity-40"
-            >
-              <span className="text-[18px] select-none">{app.icon}</span>
-              <span>{loading === app.id ? "..." : app.name}</span>
-            </button>
-          ))}
-        </div>
-
-        {feedActive && (
-          <button onClick={handleRevokeFeed} className="mt-2 text-[12px] text-white/20 hover:text-white/40 transition-colors">
-            {t("settings.revokeFeedUrl")}
-          </button>
-        )}
-      </div>
-
-      <div className="border-t border-white/[0.06]" />
-
-      {/* Google Calendar OAuth — two-way sync */}
-      <div>
-        <h4 className="text-[15px] font-medium text-white mb-1">{t("settings.googleCalendar")}</h4>
-        <p className="text-[13px] text-white/40 mb-2">{t("settings.googleSyncDesc")}</p>
-        {googleConnected ? (
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-[13px] text-green-400/70">
-              <Check size={14} /> {t("settings.googleConnected")}
-            </span>
-            <button
-              onClick={handleGoogleDisconnect}
-              className="text-[13px] text-white/30 hover:text-red-400/70 transition-colors"
-            >
-              {t("settings.googleDisconnect")}
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleGoogleOAuth}
-            disabled={loading === "google_oauth"}
-            className="flex items-center gap-2 rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-2.5 text-[14px] text-white hover:bg-white/[0.08] hover:border-white/[0.1] transition-all disabled:opacity-40"
-          >
-            <ExternalLink size={14} strokeWidth={1.8} />
-            {loading === "google_oauth" ? "..." : t("settings.googleConnect")}
-          </button>
-        )}
+          return (
+            <div key={app.id} className="flex items-center justify-between py-3 border-b border-white/[0.04] last:border-0">
+              <div className="flex-1 min-w-0">
+                <span className="text-[15px] text-white">{app.name}</span>
+                {app.badge && <span className="ml-2 text-[11px] text-white/20">{app.badge}</span>}
+              </div>
+              {isConnected ? (
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1 text-[13px] text-green-400/60">
+                    <Check size={13} /> {t("settings.googleConnected")}
+                  </span>
+                  <button
+                    onClick={() => handleDisconnect(app.id)}
+                    className="text-[13px] text-white/20 hover:text-red-400/60 transition-colors"
+                  >
+                    {t("settings.googleDisconnect")}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleConnect(app.id)}
+                  disabled={isLoading}
+                  className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-3.5 py-1.5 text-[13px] text-white/70 hover:text-white hover:bg-white/[0.1] transition-colors disabled:opacity-40"
+                >
+                  {isLoading ? "..." : t("settings.googleConnect")}
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

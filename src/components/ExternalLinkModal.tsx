@@ -27,7 +27,7 @@ export default function ExternalLinkModal({ url, domain, onConfirm, onClose }: E
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh]">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full max-w-[400px] mx-4 rounded-2xl bg-[#1e1e1e] border border-white/[0.06] shadow-[0_16px_64px_rgba(0,0,0,0.6)] overflow-hidden mira-fade-in">
         {/* Icon + message */}

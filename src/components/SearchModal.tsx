@@ -42,7 +42,7 @@ export default function SearchModal({ onClose }: SearchModalProps) {
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="relative w-full max-w-[540px] mx-4 flex flex-col max-h-[60vh] rounded-2xl bg-[#1e1e1e] border border-white/[0.06] shadow-[0_16px_64px_rgba(0,0,0,0.6)] overflow-hidden">

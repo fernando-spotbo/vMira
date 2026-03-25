@@ -279,7 +279,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
   const hasText = transcript.trim().length > 0;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 mira-fade-in">
+    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm mira-fade-in">
       <div className="w-full max-w-2xl mb-6 mx-4">
         <div className="rounded-3xl bg-[#1a1a1a] border border-white/[0.08] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
           {/* Error state */}

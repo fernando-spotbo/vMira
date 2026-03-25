@@ -50,6 +50,9 @@ pub struct NotificationSettings {
     pub quiet_start: Option<NaiveTime>,
     pub quiet_end: Option<NaiveTime>,
     pub updated_at: DateTime<Utc>,
+    pub briefing_enabled: bool,
+    pub briefing_time: NaiveTime,
+    pub briefing_last_sent: Option<chrono::NaiveDate>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

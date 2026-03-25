@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock } from "lucide-react";
+import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock, Sunrise } from "lucide-react";
 import SearchModal from "./SearchModal";
 import SettingsModal from "./SettingsModal";
 import PricingModal from "./PricingModal";
@@ -202,6 +202,8 @@ export default function Sidebar() {
     createNewChat,
     showReminders,
     setShowReminders,
+    showBriefing,
+    setShowBriefing,
   } = useChat();
   const { user, logout } = useAuth();
 
@@ -292,6 +294,8 @@ export default function Sidebar() {
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
+          showBriefing={showBriefing}
+          setShowBriefing={setShowBriefing}
         />
       </aside>
 
@@ -317,6 +321,8 @@ export default function Sidebar() {
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
+          showBriefing={showBriefing}
+          setShowBriefing={setShowBriefing}
         />
       </aside>
     </>
@@ -340,6 +346,8 @@ interface SidebarContentProps {
   userPlanLabel: string;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
+  showBriefing: boolean;
+  setShowBriefing: (show: boolean) => void;
 }
 
 function SidebarContent({
@@ -358,6 +366,8 @@ function SidebarContent({
   userPlanLabel,
   showReminders,
   setShowReminders,
+  showBriefing,
+  setShowBriefing,
 }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col" style={{ minWidth: expanded ? 260 : 50 }}>
@@ -384,7 +394,7 @@ function SidebarContent({
               </svg>
             </button>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); setShowBriefing(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -399,7 +409,7 @@ function SidebarContent({
         {expanded ? (
           <>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); setShowBriefing(false); }}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
             >
               <PenLine size={16} strokeWidth={1.8} className="shrink-0" />
@@ -413,17 +423,24 @@ function SidebarContent({
               <span className="truncate">{t("sidebar.search")}</span>
             </button>
             <button
-              onClick={() => { setShowReminders(true); setActiveConversationId(null); }}
+              onClick={() => { setShowReminders(true); setShowBriefing(false); setActiveConversationId(null); }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
             >
               <Clock size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("reminders.title")}</span>
             </button>
+            <button
+              onClick={() => { setShowBriefing(true); setShowReminders(false); setActiveConversationId(null); }}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${showBriefing ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+            >
+              <Sunrise size={16} strokeWidth={1.8} className="shrink-0" />
+              <span className="truncate">{t("briefing.title")}</span>
+            </button>
           </>
         ) : (
           <>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); setShowBriefing(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -437,11 +454,18 @@ function SidebarContent({
               <Search size={18} strokeWidth={1.8} />
             </button>
             <button
-              onClick={() => { setShowReminders(true); setActiveConversationId(null); }}
+              onClick={() => { setShowReminders(true); setShowBriefing(false); setActiveConversationId(null); }}
               className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
               title={t("reminders.title")}
             >
               <Clock size={18} strokeWidth={1.8} />
+            </button>
+            <button
+              onClick={() => { setShowBriefing(true); setShowReminders(false); setActiveConversationId(null); }}
+              className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showBriefing ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+              title={t("briefing.title")}
+            >
+              <Sunrise size={18} strokeWidth={1.8} />
             </button>
           </>
         )}
@@ -459,7 +483,7 @@ function SidebarContent({
                 </div>
                 <div className="space-y-0.5 mb-4">
                   {starredConversations.map((conv) => (
-                    <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); }} />
+                    <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); setShowBriefing(false); }} />
                   ))}
                 </div>
               </>
@@ -469,7 +493,7 @@ function SidebarContent({
             </div>
             <div className="space-y-0.5">
               {recentConversations.map((conv) => (
-                <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); }} />
+                <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); setShowBriefing(false); }} />
               ))}
             </div>
           </nav>

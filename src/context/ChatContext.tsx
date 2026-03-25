@@ -47,6 +47,8 @@ interface ChatContextType {
   cancelMessage: () => void;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
+  showBriefing: boolean;
+  setShowBriefing: (show: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -60,6 +62,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
   const [selectedModel, setSelectedModel] = useState("Mira");
   const [showReminders, setShowReminders] = useState(false);
+  const [showBriefing, setShowBriefing] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -858,6 +861,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         queuePosition,
         showReminders,
         setShowReminders,
+        showBriefing,
+        setShowBriefing,
       }}
     >
       {children}

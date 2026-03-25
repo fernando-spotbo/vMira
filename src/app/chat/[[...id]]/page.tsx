@@ -9,6 +9,7 @@ import ChatArea from "@/components/ChatArea";
 import InputBar from "@/components/InputBar";
 import { MiraHeading } from "@/components/MiraHeading";
 import RemindersPage from "@/components/RemindersPage";
+import BriefingPage from "@/components/BriefingPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 function ChatLayout() {
@@ -24,6 +25,8 @@ function ChatLayout() {
     setIsThinking,
     showReminders,
     setShowReminders,
+    showBriefing,
+    setShowBriefing,
   } = useChat();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -87,6 +90,8 @@ function ChatLayout() {
       <main className="relative flex flex-1 flex-col min-w-0 min-h-0 h-full overflow-hidden">
         {showReminders ? (
           <RemindersPage onBack={() => setShowReminders(false)} />
+        ) : showBriefing ? (
+          <BriefingPage onBack={() => setShowBriefing(false)} />
         ) : (
           <>
             <TopBar />

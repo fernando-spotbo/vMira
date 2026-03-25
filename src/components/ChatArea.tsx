@@ -42,13 +42,21 @@ export default function ChatArea() {
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
-    if (el) doScroll(el.scrollHeight);
+    const spacer = spacerRef.current;
+    if (!el) return;
+    if (spacer) {
+      // Scroll to bottom of content (top of spacer), not into spacer void
+      const target = spacer.offsetTop - el.clientHeight + 40;
+      doScroll(Math.max(0, target));
+    } else {
+      doScroll(el.scrollHeight);
+    }
   }, [doScroll]);
 
   // Set spacer size via DOM — no React state, no re-render, no jump
   const setSpacer = useCallback((large: boolean) => {
     if (!spacerRef.current) return;
-    spacerRef.current.style.minHeight = large ? "80vh" : "24px";
+    spacerRef.current.style.minHeight = large ? "60vh" : "24px";
   }, []);
 
   const pinUserMsg = useCallback(() => {
@@ -97,19 +105,23 @@ export default function ChatArea() {
     if (isThinking) setTimeout(pinUserMsg, 30);
   }, [isThinking, pinUserMsg]);
 
-  // ── 4. Follow bottom during streaming ──
+  // ── 4. Follow bottom of content during streaming (not spacer) ──
 
   useEffect(() => {
     if (!isStreaming) return;
     if (!autoFollow.current) return;
 
     const el = scrollRef.current;
-    if (!el) return;
+    const spacer = spacerRef.current;
+    if (!el || !spacer) return;
 
     const observer = new MutationObserver(() => {
       if (!autoFollow.current) return;
+      // Scroll to where the spacer starts (= bottom of actual content), not scrollHeight
+      const spacerTop = spacer.offsetTop;
+      const target = spacerTop - el.clientHeight + 40; // show last line + 40px breathing room
       selfScrolling.current = true;
-      el.scrollTop = el.scrollHeight;
+      el.scrollTop = Math.max(0, target);
       requestAnimationFrame(() => { selfScrolling.current = false; });
     });
 

@@ -87,10 +87,17 @@ async fn process_due_reminders(state: &AppState) -> Result<(), sqlx::Error> {
             tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to create notification");
         }
 
-        // Send Telegram notification if enabled
-        if settings.telegram_enabled {
+        // Send Telegram notification if enabled and channel includes telegram
+        if settings.telegram_enabled && reminder.channels.contains(&"telegram".to_string()) {
             if let Err(e) = send_telegram_notification_with_content(state, &reminder, &delivery_title, delivery_body.as_deref()).await {
                 tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to send Telegram notification");
+            }
+        }
+
+        // Send email notification if channel includes email
+        if settings.email_enabled && reminder.channels.contains(&"email".to_string()) {
+            if let Err(e) = send_email_notification(state, &reminder, &delivery_title, delivery_body.as_deref()).await {
+                tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to send email notification");
             }
         }
 
@@ -456,5 +463,78 @@ async fn send_telegram_notification_with_content(
     }
 
     tracing::info!(reminder_id = %reminder.id, "Telegram notification sent");
+    Ok(())
+}
+
+/// Send a reminder notification via email.
+async fn send_email_notification(
+    state: &AppState,
+    reminder: &Reminder,
+    title: &str,
+    body: Option<&str>,
+) -> Result<(), String> {
+    let smtp_host = &state.config.smtp_host;
+    if smtp_host.is_empty() {
+        return Ok(()); // SMTP not configured, skip
+    }
+
+    // Get user's email
+    let email: Option<String> = sqlx::query_scalar(
+        "SELECT email FROM users WHERE id = $1"
+    )
+    .bind(reminder.user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| format!("DB error: {e}"))?;
+
+    let Some(email) = email.filter(|e| !e.is_empty()) else {
+        return Ok(()); // No email on account
+    };
+
+    let body_text = body.unwrap_or("");
+    let html_body = format!(
+        "<div style=\"font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;\">\
+         <h2 style=\"color: #fff; font-size: 18px;\">{}</h2>\
+         <p style=\"color: #ccc; font-size: 15px; line-height: 1.6; white-space: pre-wrap;\">{}</p>\
+         <hr style=\"border: none; border-top: 1px solid #333; margin: 24px 0;\">\
+         <p style=\"color: #666; font-size: 12px;\">Мира — AI-ассистент · <a href=\"https://vmira.ai\" style=\"color: #888;\">vmira.ai</a></p>\
+         </div>",
+        title, body_text
+    );
+
+    use lettre::{
+        message::{header::ContentType, Mailbox},
+        transport::smtp::authentication::Credentials,
+        AsyncSmtpTransport, AsyncTransport, Message as EmailMessage, Tokio1Executor,
+    };
+
+    let from: Mailbox = state.config.smtp_from.parse()
+        .map_err(|e| format!("Invalid SMTP_FROM: {e}"))?;
+    let to: Mailbox = email.parse()
+        .map_err(|e| format!("Invalid user email: {e}"))?;
+
+    let email_msg = EmailMessage::builder()
+        .from(from)
+        .to(to)
+        .subject(format!("🔔 {}", title))
+        .header(ContentType::TEXT_HTML)
+        .body(html_body)
+        .map_err(|e| format!("Email build error: {e}"))?;
+
+    let creds = Credentials::new(
+        state.config.smtp_user.clone(),
+        state.config.smtp_password.clone(),
+    );
+
+    let mailer = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)
+        .map_err(|e| format!("SMTP relay error: {e}"))?
+        .port(state.config.smtp_port)
+        .credentials(creds)
+        .build();
+
+    mailer.send(email_msg).await
+        .map_err(|e| format!("SMTP send error: {e}"))?;
+
+    tracing::info!(reminder_id = %reminder.id, "Email notification sent");
     Ok(())
 }

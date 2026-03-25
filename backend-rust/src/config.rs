@@ -70,6 +70,13 @@ pub struct Config {
     // ── Telegram bot ────────────────────────────────────
     pub telegram_bot_token: String,
     pub telegram_webhook_secret: String,
+
+    // ── Email (SMTP) ────────────────────────────────────
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub smtp_user: String,
+    pub smtp_password: String,
+    pub smtp_from: String,
 }
 
 impl Config {
@@ -189,6 +196,12 @@ impl Config {
 
             telegram_bot_token,
             telegram_webhook_secret,
+
+            smtp_host: env_or("SMTP_HOST", ""),
+            smtp_port: env_or("SMTP_PORT", "587").parse().unwrap_or(587),
+            smtp_user: env_or("SMTP_USER", ""),
+            smtp_password: env_or("SMTP_PASSWORD", ""),
+            smtp_from: env_or("SMTP_FROM", "noreply@vmira.ai"),
         }
     }
 }

@@ -365,41 +365,83 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
         )}
 
         {/* ═══ WEATHER ═══ */}
-        {actionType === "show_weather" && (
-          <div className="px-4 pb-4">
-            {/* Current conditions */}
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                {weatherCity && <p className="text-[14px] text-white/40 mb-1">{weatherCity}</p>}
-                <p className="text-[36px] text-white font-light leading-none tracking-tight">{weatherSummary.match(/[+-]?\d+°C?/)?.[0] || weatherSummary}</p>
-                <p className="text-[15px] text-white/50 mt-1.5">{weatherSummary.replace(/[+-]?\d+°C?,?\s*/, "")}</p>
-              </div>
-              <span className="text-[48px] leading-none">{weatherForecast[0]?.icon || "🌤️"}</span>
-            </div>
+        {actionType === "show_weather" && (() => {
+          const tempMatch = weatherSummary.match(/([+-]?\d+)°/);
+          const currentTemp = tempMatch ? tempMatch[1] + "°" : weatherSummary;
+          const conditions = weatherSummary.replace(/[+-]?\d+°C?,?\s*/, "").trim();
+          const mainIcon = weatherForecast[0]?.icon || "🌤️";
+          const todayHiLo = weatherForecast[0]?.temp || "";
 
-            {/* Details row */}
-            {(weatherFeelsLike || weatherWind || weatherHumidity) && (
-              <div className="flex gap-4 mb-4 text-[13px] text-white/35">
-                {weatherFeelsLike && <span>Ощущается {weatherFeelsLike}</span>}
-                {weatherWind && <span>Ветер {weatherWind}</span>}
-                {weatherHumidity && <span>Влажность {weatherHumidity}</span>}
-              </div>
-            )}
-
-            {/* Forecast row */}
-            {weatherForecast.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto">
-                {weatherForecast.map((day, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1.5 min-w-[72px] rounded-xl bg-white/[0.03] px-3 py-3">
-                    <span className="text-[13px] text-white/40">{day.day}</span>
-                    <span className="text-[22px] leading-none">{day.icon}</span>
-                    <span className="text-[14px] text-white">{day.temp}</span>
+          return (
+            <div className="px-5 pb-5 pt-1">
+              {/* ── Hero: temp + icon ── */}
+              <div className="flex items-start justify-between">
+                <div>
+                  {weatherCity && (
+                    <p className="text-[14px] text-white/40 mb-0.5">{weatherCity}</p>
+                  )}
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[48px] font-extralight text-white leading-none tracking-tighter">{currentTemp}</span>
                   </div>
-                ))}
+                  <p className="text-[15px] text-white/50 mt-1">{conditions}</p>
+                  {todayHiLo && (
+                    <p className="text-[13px] text-white/30 mt-0.5">{todayHiLo}</p>
+                  )}
+                </div>
+                <span className="text-[56px] leading-none mt-1 select-none">{mainIcon}</span>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* ── Detail pills ── */}
+              {(weatherFeelsLike || weatherWind || weatherHumidity) && (
+                <div className="flex gap-2 mt-4 overflow-x-auto">
+                  {weatherFeelsLike && (
+                    <div className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-1.5 shrink-0">
+                      <span className="text-[12px] text-white/30">Ощущается</span>
+                      <span className="text-[13px] text-white/70 font-medium">{weatherFeelsLike}</span>
+                    </div>
+                  )}
+                  {weatherWind && (
+                    <div className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-1.5 shrink-0">
+                      <span className="text-[12px] text-white/30">Ветер</span>
+                      <span className="text-[13px] text-white/70 font-medium">{weatherWind}</span>
+                    </div>
+                  )}
+                  {weatherHumidity && (
+                    <div className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-1.5 shrink-0">
+                      <span className="text-[12px] text-white/30">Влажность</span>
+                      <span className="text-[13px] text-white/70 font-medium">{weatherHumidity}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── 5-day forecast ── */}
+              {weatherForecast.length > 1 && (
+                <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                  <div className="flex gap-1 overflow-x-auto -mx-1 px-1">
+                    {weatherForecast.map((day, i) => (
+                      <div
+                        key={i}
+                        className={`flex flex-col items-center flex-1 min-w-[68px] rounded-xl py-3 px-2 transition-colors ${
+                          i === 0 ? "bg-white/[0.06]" : "bg-white/[0.02] hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <span className={`text-[13px] mb-2 ${i === 0 ? "text-white/70 font-medium" : "text-white/35"}`}>
+                          {day.day}
+                        </span>
+                        <span className="text-[24px] leading-none mb-2 select-none">{day.icon}</span>
+                        <span className="text-[14px] text-white font-medium">{day.temp.split("/")[0]}</span>
+                        {day.temp.includes("/") && (
+                          <span className="text-[12px] text-white/30 mt-0.5">{day.temp.split("/")[1]}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ═══ CALCULATE ═══ */}
         {actionType === "calculate" && (

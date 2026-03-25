@@ -240,7 +240,7 @@ export default function ChatArea() {
               <MessageBubble
                 message={message}
                 isNew={isNewMsg}
-                isStreaming={isLastAssistant && message.id.startsWith("asst-")}
+                isStreaming={isLastAssistant && message.id.startsWith("asst-") && (isStreaming || isThinking)}
               />
             </div>
           );

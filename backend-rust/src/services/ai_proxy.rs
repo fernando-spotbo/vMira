@@ -1088,11 +1088,13 @@ pub fn stream_ai_response(
                                         action_type: args.action_type.clone(),
                                         payload: full_payload.clone(),
                                     }).await;
-                                    tool_result_content = format!(
-                                        "Action proposed and shown to user for confirmation. Type: {}. Description: {}. \
-                                         Tell the user you've prepared the action and they can confirm or cancel it using the card below.",
-                                        args.action_type, args.description
-                                    );
+                                    // Client-side actions auto-execute — don't tell model to ask for confirmation
+                                    let needs_confirm = args.action_type == "send_telegram" || args.action_type == "send_email";
+                                    tool_result_content = if needs_confirm {
+                                        format!("Action card shown. The user can confirm or cancel. Type: {}.", args.action_type)
+                                    } else {
+                                        format!("Done. The {} card is now visible to the user. Respond briefly.", args.action_type)
+                                    };
                                 }
                                 Err(e) => {
                                     tracing::error!(error = %e, "Failed to create action");

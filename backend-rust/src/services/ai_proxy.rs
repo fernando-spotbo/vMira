@@ -291,6 +291,21 @@ fn propose_action_tool() -> serde_json::Value {
     })
 }
 
+fn read_memory_tool() -> serde_json::Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": "read_memory",
+            "description": "Read saved facts about the user. Use when the user asks: what do you know about me, my name, where do I live, мои данные, что ты обо мне знаешь. Also use proactively when personalizing responses.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    })
+}
+
 fn read_calendar_tool() -> serde_json::Value {
     json!({
         "type": "function",
@@ -503,58 +518,37 @@ pub fn stream_ai_response(
             return;
         }
 
-        // Fetch user memories and inject into system prompt
+        // Inject lightweight context counts (not raw data) — model uses tools for details
         if let (Some(uid), Some(ref pool)) = (user_id, &db) {
-            let memories: Vec<(String, String)> = sqlx::query_as(
-                "SELECT key, value FROM user_memory WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 20"
-            )
-            .bind(uid)
-            .fetch_all(pool)
-            .await
-            .unwrap_or_default();
+            let mem_count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM user_memory WHERE user_id = $1"
+            ).bind(uid).fetch_one(pool).await.unwrap_or((0,));
 
-            if !memories.is_empty() {
-                let facts: Vec<String> = memories.iter().map(|(k, v)| format!("- {}: {}", k, v)).collect();
-                let mem_str = format!("\n\nЧто ты знаешь о пользователе:\n{}", facts.join("\n"));
+            let reminder_count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND status = 'pending'"
+            ).bind(uid).fetch_one(pool).await.unwrap_or((0,));
+
+            let today_count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND status = 'pending' AND remind_at >= $2 AND remind_at < $3"
+            ).bind(uid).bind(chrono::Utc::now()).bind(chrono::Utc::now() + chrono::Duration::days(1))
+            .fetch_one(pool).await.unwrap_or((0,));
+
+            let event_count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM calendar_events WHERE user_id = $1 AND start_at >= $2 AND start_at < $3"
+            ).bind(uid).bind(chrono::Utc::now()).bind(chrono::Utc::now() + chrono::Duration::days(3))
+            .fetch_one(pool).await.unwrap_or((0,));
+
+            // Only inject a brief summary line — tools fetch actual data on demand
+            let mut context_parts = Vec::new();
+            if mem_count.0 > 0 { context_parts.push(format!("{} saved memories", mem_count.0)); }
+            if reminder_count.0 > 0 { context_parts.push(format!("{} pending reminders ({} today)", reminder_count.0, today_count.0)); }
+            if event_count.0 > 0 { context_parts.push(format!("{} calendar events (next 3 days)", event_count.0)); }
+
+            if !context_parts.is_empty() {
+                let ctx = format!("\n\nUser context: {}. Use read_memory/read_calendar tools for details.", context_parts.join(", "));
                 if let Some(sys) = full_messages.first_mut() {
                     if let Some(content) = sys.get_mut("content") {
-                        *content = json!(format!("{}{}", content.as_str().unwrap_or(""), mem_str));
-                    }
-                }
-            }
-
-            // Inject upcoming events (next 3 days) into system prompt
-            let upcoming_start = chrono::Utc::now();
-            let upcoming_end = upcoming_start + chrono::Duration::days(3);
-            let upcoming_reminders: Vec<(String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
-                "SELECT title, remind_at FROM reminders
-                 WHERE user_id = $1 AND status = 'pending' AND remind_at >= $2 AND remind_at <= $3
-                 ORDER BY remind_at LIMIT 10"
-            )
-            .bind(uid).bind(upcoming_start).bind(upcoming_end)
-            .fetch_all(pool).await.unwrap_or_default();
-
-            let upcoming_events: Vec<(String, chrono::DateTime<chrono::Utc>, Option<String>)> = sqlx::query_as(
-                "SELECT title, start_at, location FROM calendar_events
-                 WHERE user_id = $1 AND start_at >= $2 AND start_at <= $3
-                 ORDER BY start_at LIMIT 10"
-            )
-            .bind(uid).bind(upcoming_start).bind(upcoming_end)
-            .fetch_all(pool).await.unwrap_or_default();
-
-            if !upcoming_reminders.is_empty() || !upcoming_events.is_empty() {
-                let mut items = Vec::new();
-                for (title, at) in &upcoming_reminders {
-                    items.push(format!("- [{}] {}", at.format("%m-%d %H:%M"), title));
-                }
-                for (title, at, loc) in &upcoming_events {
-                    let loc_str = loc.as_deref().map(|l| format!(" @ {}", l)).unwrap_or_default();
-                    items.push(format!("- [{}] {}{}", at.format("%m-%d %H:%M"), title, loc_str));
-                }
-                let cal_str = format!("\n\nUpcoming (next 3 days):\n{}", items.join("\n"));
-                if let Some(sys) = full_messages.first_mut() {
-                    if let Some(content) = sys.get_mut("content") {
-                        *content = json!(format!("{}{}", content.as_str().unwrap_or(""), cal_str));
+                        *content = json!(format!("{}{}", content.as_str().unwrap_or(""), ctx));
                     }
                 }
             }
@@ -575,7 +569,7 @@ pub fn stream_ai_response(
         });
 
         if supports_tools {
-            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool()]);
+            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool(), read_memory_tool()]);
         }
 
         let data = match call_model(&client, &url, &api_key, &body).await {
@@ -878,10 +872,17 @@ pub fn stream_ai_response(
                         if !valid_types.contains(&args.action_type.as_str()) {
                             tool_result_content = format!("Unsupported action type: {}", args.action_type);
                         } else if args.action_type == "save_memory" {
-                            // Save memory directly to DB — no action card
+                            // Save memory directly to DB — no action card (max 100 per user)
                             let key = args.payload.get("key").and_then(|v| v.as_str()).unwrap_or("fact");
                             let value = args.payload.get("value").and_then(|v| v.as_str()).unwrap_or("");
                             if !value.is_empty() {
+                                let count: (i64,) = sqlx::query_as(
+                                    "SELECT COUNT(*) FROM user_memory WHERE user_id = $1"
+                                ).bind(uid).fetch_one(pool).await.unwrap_or((0,));
+
+                                if count.0 >= 100 {
+                                    tool_result_content = "Memory limit reached (100). Tell user to delete old memories to save new ones.".to_string();
+                                } else {
                                 let _ = sqlx::query(
                                     "INSERT INTO user_memory (user_id, key, value)
                                      VALUES ($1, $2, $3)
@@ -893,6 +894,7 @@ pub fn stream_ai_response(
                                 .execute(pool)
                                 .await;
                                 tool_result_content = format!("Memory saved: {} = {}. Confirm briefly to the user.", key, value);
+                                }
                             } else {
                                 tool_result_content = "Empty value, nothing saved.".to_string();
                             }
@@ -1096,6 +1098,25 @@ pub fn stream_ai_response(
                         }
                     } else {
                         tool_result_content = "Invalid arguments for read_calendar.".to_string();
+                    }
+                } else if tc.function.name == "read_memory" {
+                    if let (Some(uid), Some(ref pool)) = (user_id, &db) {
+                        let memories: Vec<(String, String)> = sqlx::query_as(
+                            "SELECT key, value FROM user_memory WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50"
+                        )
+                        .bind(uid)
+                        .fetch_all(pool)
+                        .await
+                        .unwrap_or_default();
+
+                        if memories.is_empty() {
+                            tool_result_content = "No saved memories for this user.".to_string();
+                        } else {
+                            let items: Vec<String> = memories.iter().map(|(k, v)| format!("- {}: {}", k, v)).collect();
+                            tool_result_content = format!("User memories ({}):\n{}", memories.len(), items.join("\n"));
+                        }
+                    } else {
+                        tool_result_content = "Memory is not available for guest users.".to_string();
                     }
                 } else {
                     tracing::warn!(tool = %tc.function.name, "Unknown tool call");

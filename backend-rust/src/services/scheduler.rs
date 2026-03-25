@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use chrono::{Datelike, NaiveTime, Utc, Weekday};
+use chrono::{Datelike, Utc, Weekday};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -46,16 +46,8 @@ async fn process_due_reminders(state: &AppState) -> Result<(), sqlx::Error> {
     tracing::info!(count = due.len(), "Processing due reminders");
 
     for reminder in due {
-        // Load user's notification settings for quiet hours check
+        // Load user's notification settings for channel checks
         let settings = get_settings(&state.db, reminder.user_id).await;
-
-        if is_quiet_hours(&settings) {
-            // Reschedule to after quiet hours
-            if let Err(e) = reschedule_after_quiet(&state.db, &reminder, &settings).await {
-                tracing::error!(reminder_id = %reminder.id, error = %e, "Failed to reschedule after quiet hours");
-            }
-            continue;
-        }
 
         // For scheduled_content: generate AI content before notification
         let delivery_title;
@@ -126,83 +118,10 @@ async fn get_settings(db: &PgPool, user_id: Uuid) -> NotificationSettings {
         email_enabled: false,
         telegram_enabled: false,
         timezone: "Europe/Moscow".to_string(),
-        quiet_start: Some(NaiveTime::from_hms_opt(23, 0, 0).unwrap()),
-        quiet_end: Some(NaiveTime::from_hms_opt(7, 0, 0).unwrap()),
+        quiet_start: None,
+        quiet_end: None,
         updated_at: Utc::now(),
     })
-}
-
-fn is_quiet_hours(settings: &NotificationSettings) -> bool {
-    let (Some(start), Some(end)) = (settings.quiet_start, settings.quiet_end) else {
-        return false;
-    };
-
-    // Parse timezone, fallback to UTC
-    let now_utc = Utc::now();
-    let offset_hours = match settings.timezone.as_str() {
-        "Europe/Moscow" => 3,
-        "Europe/Samara" => 4,
-        "Asia/Yekaterinburg" => 5,
-        "Asia/Omsk" => 6,
-        "Asia/Novosibirsk" | "Asia/Krasnoyarsk" => 7,
-        "Asia/Irkutsk" => 8,
-        "Asia/Yakutsk" => 9,
-        "Asia/Vladivostok" => 10,
-        "Asia/Magadan" => 11,
-        "Asia/Kamchatka" => 12,
-        _ => 3, // default Moscow
-    };
-
-    let now_local = now_utc + chrono::Duration::hours(offset_hours);
-    let time_local = now_local.time();
-
-    if start <= end {
-        // No midnight wrap (e.g., 09:00 - 17:00)
-        time_local >= start && time_local < end
-    } else {
-        // Midnight wrap (e.g., 23:00 - 07:00)
-        time_local >= start || time_local < end
-    }
-}
-
-async fn reschedule_after_quiet(
-    db: &PgPool,
-    reminder: &Reminder,
-    settings: &NotificationSettings,
-) -> Result<(), sqlx::Error> {
-    let end = settings.quiet_end.unwrap_or(NaiveTime::from_hms_opt(7, 0, 0).unwrap());
-
-    // Reschedule to today's quiet_end or tomorrow's if quiet_end already passed
-    let offset_hours = match settings.timezone.as_str() {
-        "Europe/Moscow" => 3,
-        "Europe/Samara" => 4,
-        "Asia/Yekaterinburg" => 5,
-        _ => 3,
-    };
-
-    let now = Utc::now();
-    let today = (now + chrono::Duration::hours(offset_hours)).date_naive();
-    let target_local = today.and_time(end);
-    let target_utc = target_local - chrono::Duration::hours(offset_hours);
-
-    let target = if target_utc.and_utc() <= now {
-        // quiet_end already passed today, schedule for tomorrow
-        (target_utc + chrono::Duration::days(1)).and_utc()
-    } else {
-        target_utc.and_utc()
-    };
-
-    sqlx::query(
-        "UPDATE reminders SET status = 'pending', fired_at = NULL, remind_at = $1
-         WHERE id = $2"
-    )
-    .bind(target)
-    .bind(reminder.id)
-    .execute(db)
-    .await?;
-
-    tracing::info!(reminder_id = %reminder.id, rescheduled_to = %target, "Rescheduled reminder after quiet hours");
-    Ok(())
 }
 
 async fn create_notification(db: &PgPool, reminder: &Reminder, title: &str, body: Option<&str>) -> Result<(), sqlx::Error> {

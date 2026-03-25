@@ -168,8 +168,6 @@ function NotificationsTab() {
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [soundNotifs, setSoundNotifs] = useState(false);
   const [timezone, setTimezone] = useState("Europe/Moscow");
-  const [quietStart, setQuietStart] = useState("23:00");
-  const [quietEnd, setQuietEnd] = useState("07:00");
   const [loaded, setLoaded] = useState(false);
 
   // Telegram linking state
@@ -198,8 +196,6 @@ function NotificationsTab() {
           setEmailNotifs(settingsResult.data.email_enabled ?? false);
           setTelegramEnabled(settingsResult.data.telegram_enabled ?? false);
           setTimezone(settingsResult.data.timezone ?? "Europe/Moscow");
-          setQuietStart(settingsResult.data.quiet_start ?? "23:00");
-          setQuietEnd(settingsResult.data.quiet_end ?? "07:00");
         }
         await refreshTgStatus();
         setLoaded(true);
@@ -233,16 +229,6 @@ function NotificationsTab() {
     saveSettings({ timezone: tz });
   };
 
-  const handleQuietStart = (v: string) => {
-    setQuietStart(v);
-    saveSettings({ quiet_start: v });
-  };
-
-  const handleQuietEnd = (v: string) => {
-    setQuietEnd(v);
-    saveSettings({ quiet_end: v });
-  };
-
   const handleTgModalClose = () => {
     setTgModalOpen(false);
     refreshTgStatus();
@@ -259,24 +245,6 @@ function NotificationsTab() {
       <SettingRow label={t("settings.sound") || "Звук"} description={t("settings.soundDesc") || "Звук при получении уведомления"}>
         <ToggleSwitch enabled={soundNotifs} onToggle={() => setSoundNotifs(!soundNotifs)} />
       </SettingRow>
-      <SettingRow label={t("settings.quietHours") || "Тихие часы"} description={t("settings.quietHoursDesc") || "Не отправлять уведомления в это время"}>
-        <div className="flex items-center gap-2">
-          <input
-            type="time"
-            value={quietStart}
-            onChange={(e) => handleQuietStart(e.target.value)}
-            className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-2.5 py-1.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors [color-scheme:dark]"
-          />
-          <span className="text-[13px] text-white/30">—</span>
-          <input
-            type="time"
-            value={quietEnd}
-            onChange={(e) => handleQuietEnd(e.target.value)}
-            className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-2.5 py-1.5 text-[14px] text-white focus:outline-none focus:border-white/[0.15] transition-colors [color-scheme:dark]"
-          />
-        </div>
-      </SettingRow>
-
       {/* Telegram — single-click opens modal */}
       <SettingRow
         label={t("settings.telegramConnect")}

@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
 import { deleteReminder, snoozeReminder, updateReminder, getTelegramStatus } from "@/lib/api-client";
 import EditReminderModal from "./EditReminderModal";
+import TelegramLinkModal from "./TelegramLinkModal";
 
 interface ReminderCardProps {
   id: string;
@@ -54,19 +55,9 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
   const [currentBody, setCurrentBody] = useState<string | null>(initialBody || null);
   const [currentChannels, setCurrentChannels] = useState<string[]>(initialChannels || ["in_app"]);
   const [deleted, setDeleted] = useState(false);
-  const [tgLinked, setTgLinked] = useState<boolean | null>(null); // null = not checked yet
-  const [linkPrompt, setLinkPrompt] = useState(false);
+  const [tgLinkModal, setTgLinkModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { setShowReminders } = useChat();
-
-  // Check Telegram link status on mount if telegram is in channels
-  useEffect(() => {
-    if (currentChannels.includes("telegram") || currentChannels.includes("email")) {
-      getTelegramStatus().then(r => {
-        if (r.ok) setTgLinked(r.data.linked);
-      }).catch(() => {});
-    }
-  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -95,15 +86,13 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
 
   const toggleChannel = async (channel: "telegram" | "email") => {
     // For telegram, check if linked first
-    if (channel === "telegram" && !currentChannels.includes("telegram")) {
+    if (channel === "telegram" && !hasTelegram) {
       const status = await getTelegramStatus();
-      if (status.ok && !status.data.linked) {
-        setTgLinked(false);
-        setLinkPrompt(true);
+      if (!status.ok || !status.data.linked) {
         setMenuOpen(false);
+        setTgLinkModal(true);
         return;
       }
-      setTgLinked(true);
     }
 
     const has = currentChannels.includes(channel);
@@ -116,6 +105,15 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
     await updateReminder(id, { channels: newChannels });
   };
 
+  // After Telegram is linked via modal, add it as channel
+  const handleTgLinked = async () => {
+    if (!hasTelegram) {
+      const newChannels = [...currentChannels, "telegram"];
+      setCurrentChannels(newChannels);
+      await updateReminder(id, { channels: newChannels });
+    }
+  };
+
   return (
     <>
       <div className="my-3 max-w-[480px]">
@@ -124,15 +122,10 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
             <p className="text-[15px] text-white font-medium leading-snug truncate">{currentTitle}</p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-[13px] text-white/40">{formatScheduleTime(currentRemindAt)}</p>
-              <div className="flex items-center gap-1">
-                <Bell size={11} strokeWidth={1.8} className="text-white/25" />
-                {hasTelegram && (
-                  <span className="flex items-center gap-0.5">
-                    <TelegramIcon size={11} className={tgLinked === false ? "text-yellow-500/60" : "text-[#2AABEE]/60"} />
-                    {tgLinked === false && <AlertTriangle size={9} className="text-yellow-500/60" />}
-                  </span>
-                )}
-                {hasEmail && <Mail size={11} strokeWidth={1.8} className="text-white/25" />}
+              <div className="flex items-center gap-1.5 text-white/25">
+                <Bell size={11} strokeWidth={1.8} />
+                {hasTelegram && <TelegramIcon size={11} className="text-white/25" />}
+                {hasEmail && <Mail size={11} strokeWidth={1.8} />}
               </div>
             </div>
           </button>
@@ -160,29 +153,32 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
                     <span>Пауза</span>
                   </button>
                 )}
+
+                {/* Delivery channels */}
                 <div className="my-1 border-t border-white/[0.06]" />
-                <p className="px-3.5 py-1 text-[11px] text-white/25 uppercase tracking-wider">Доставка</p>
-                <button className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/40 cursor-default">
+                <p className="px-3.5 py-1 text-[11px] text-white/20 uppercase tracking-wider">Доставка</p>
+                <div className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/30">
                   <Bell size={14} strokeWidth={1.8} />
                   <span className="flex-1 text-left">В приложении</span>
-                  <span className="text-[11px] text-white/30">✓</span>
-                </button>
+                  <span className="text-[11px]">✓</span>
+                </div>
                 <button
                   onClick={() => toggleChannel("telegram")}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors"
                 >
-                  <TelegramIcon size={14} className={hasTelegram ? "text-[#2AABEE]" : ""} />
+                  <TelegramIcon size={14} className={hasTelegram ? "text-white/70" : "text-white/30"} />
                   <span className="flex-1 text-left">Telegram</span>
-                  {hasTelegram && <span className="text-[11px] text-[#2AABEE]">✓</span>}
+                  {hasTelegram && <span className="text-[11px] text-white/30">✓</span>}
                 </button>
                 <button
                   onClick={() => toggleChannel("email")}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors"
                 >
-                  <Mail size={14} strokeWidth={1.8} className={hasEmail ? "text-white" : ""} />
+                  <Mail size={14} strokeWidth={1.8} className={hasEmail ? "text-white/70" : "text-white/30"} />
                   <span className="flex-1 text-left">Email</span>
                   {hasEmail && <span className="text-[11px] text-white/30">✓</span>}
                 </button>
+
                 <div className="my-1 border-t border-white/[0.06]" />
                 <button onClick={handleDelete} className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-red-400 hover:bg-white/[0.06] transition-colors">
                   <Trash2 size={14} strokeWidth={1.8} />
@@ -197,24 +193,15 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
             )}
           </div>
         </div>
-
-        {/* Telegram not linked prompt */}
-        {linkPrompt && (
-          <div className="mt-2 flex items-center gap-2 rounded-lg bg-yellow-500/[0.06] border border-yellow-500/[0.12] px-3 py-2">
-            <AlertTriangle size={14} className="text-yellow-500/70 shrink-0" />
-            <p className="text-[13px] text-yellow-500/70 flex-1">
-              Telegram не подключен.{" "}
-              <button
-                onClick={() => { setLinkPrompt(false); /* open settings */ }}
-                className="underline hover:text-yellow-400 transition-colors"
-              >
-                Подключить в настройках
-              </button>
-            </p>
-            <button onClick={() => setLinkPrompt(false)} className="text-yellow-500/40 hover:text-yellow-500/70 text-[16px] leading-none">&times;</button>
-          </div>
-        )}
       </div>
+
+      {/* Telegram link modal — opens when trying to enable Telegram without linking */}
+      {tgLinkModal && (
+        <TelegramLinkModal
+          onClose={() => setTgLinkModal(false)}
+          onLinked={handleTgLinked}
+        />
+      )}
 
       {editOpen && createPortal(
         <EditReminderModal

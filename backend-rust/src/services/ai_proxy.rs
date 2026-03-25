@@ -565,7 +565,9 @@ pub fn stream_ai_response(
 
                             if !tg_linked {
                                 telegram_not_linked = true;
-                                // Keep telegram in channels so user sees the intent, but note it in the response
+                                // Remove telegram from channels — don't store undeliverable channel
+                                channels.retain(|c| c != "telegram");
+                                if channels.is_empty() { channels.push("in_app".to_string()); }
                             }
                         }
 

@@ -15,7 +15,6 @@ export default function ChatArea() {
   const prevUserMsgId = useRef<string | null>(null);
   const autoFollow = useRef(true);
   const selfScrolling = useRef(false);
-  const wasStreaming = useRef(false);
   const loadingMore = useRef(false);
 
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -118,26 +117,8 @@ export default function ChatArea() {
     return () => observer.disconnect();
   }, [isStreaming]);
 
-  // ── 5. Streaming ends → collapse spacer without jump ──
-
-  useEffect(() => {
-    if (generating) {
-      wasStreaming.current = true;
-      return;
-    }
-    if (!wasStreaming.current) return;
-    wasStreaming.current = false;
-
-    // Collapse spacer and re-anchor in same synchronous block
-    // Browser won't paint between these two operations
-    const el = scrollRef.current;
-    setSpacer(false);
-    if (el) {
-      selfScrolling.current = true;
-      el.scrollTop = el.scrollHeight;
-      requestAnimationFrame(() => { selfScrolling.current = false; });
-    }
-  }, [generating, setSpacer]);
+  // ── 5. Streaming ends → do nothing. User is reading. No jumps. ──
+  // Spacer collapses only on conversation switch or new user message.
 
   // ── 6. Scroll handler ──
 

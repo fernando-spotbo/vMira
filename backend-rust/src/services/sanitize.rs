@@ -31,9 +31,10 @@ static INJECTION_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
         r"(?i)ты\s+теперь\s+в\s+режиме",
         r"(?i)отмени\s+(все\s+)?(системные\s+)?ограничения",
         r"(?i)переопредели\s+(свои\s+)?(системные\s+)?инструкции",
-        // Generic prompt separators
+        // Generic prompt separators / model internals
         r"(?i)<\|im_start\|>",
         r"(?i)###\s*(system|instruction|prompt)\s*:",
+        r"<[＜]?[｜\|]DSML[｜\|]",
     ];
     raw.iter().map(|p| Regex::new(p).unwrap()).collect()
 });
@@ -84,13 +85,24 @@ static RE_JAVASCRIPT_URI: LazyLock<Regex> =
 static RE_DATA_URI: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?i)(src|href)\s*=\s*["']?\s*data:"#).unwrap());
 
-/// Strip dangerous HTML from AI-generated output: script, iframe, object, embed,
-/// form, style, meta, link, base, svg tags; event handlers; javascript: and data: URIs.
+/// Strip DeepSeek DSML internal syntax that leaks into responses.
+/// Matches both fullwidth `＜｜DSML｜...＞` and ASCII `<｜DSML｜...>` variants,
+/// as well as bare `<｜DSML｜` tags and entire DSML blocks.
+static RE_DSML_BLOCK: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<[＜]?[｜\|]DSML[｜\|][>＞]?[^<]*(?:<[＜]?/[＜]?[｜\|]DSML[｜\|][>＞]?[^<]*)*(?:<[＜]?/[＜]?[｜\|]DSML[｜\|][>＞]?)?").unwrap());
+
+static RE_DSML_TAG: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<[＜]?[｜\|]DSML[｜\|][^>＞]*[>＞]?").unwrap());
+
+/// Strip dangerous HTML and model-internal syntax from AI-generated output.
 pub fn sanitize_output(content: &str) -> String {
     let s = RE_SCRIPT_TAG.replace_all(content, "");
     let s = RE_DANGEROUS_TAGS.replace_all(&s, "");
     let s = RE_EVENT_HANDLER.replace_all(&s, "");
     let s = RE_JAVASCRIPT_URI.replace_all(&s, "");
     let s = RE_DATA_URI.replace_all(&s, "");
+    // Strip DeepSeek DSML internal syntax
+    let s = RE_DSML_BLOCK.replace_all(&s, "");
+    let s = RE_DSML_TAG.replace_all(&s, "");
     s.into_owned()
 }

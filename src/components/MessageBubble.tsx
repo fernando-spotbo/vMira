@@ -32,6 +32,11 @@ function parseSuggestions(text: string): { content: string; suggestions: string[
   const content = text.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/, "").trim();
   return { content, suggestions };
 }
+
+/** Strip DeepSeek DSML internal syntax that may leak through streaming */
+function stripDSML(text: string): string {
+  return text.replace(/<[＜]?[｜|]DSML[｜|][^>＞]*[>＞]?/g, "").replace(/\s{3,}/g, " ").trim();
+}
 import ExternalLinkModal from "./ExternalLinkModal";
 
 interface MessageBubbleProps {
@@ -425,7 +430,7 @@ export default function MessageBubble({
     isStreaming && !isUser
   );
 
-  const rawContent = isStreaming && !isUser ? displayedText : (isUser ? displayContent : message.content);
+  const rawContent = isStreaming && !isUser ? stripDSML(displayedText) : (isUser ? displayContent : stripDSML(message.content));
   const { content: cleanContent, suggestions } = !isUser && !isStreaming ? parseSuggestions(rawContent) : { content: rawContent, suggestions: [] as string[] };
   const contentToRender = !isUser ? preprocessCitations(cleanContent) : cleanContent;
 

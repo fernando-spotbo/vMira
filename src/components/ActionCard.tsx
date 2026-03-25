@@ -363,16 +363,24 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 
         {/* ═══ WEATHER ═══ */}
         {actionType === "show_weather" && (
-          <div className="px-4 pb-3.5">
-            {weatherCity && <p className="text-[13px] text-white/30 mb-2">{weatherCity}</p>}
-            <p className="text-[22px] text-white font-light mb-3">{weatherSummary}</p>
-            {weatherForecast.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto pb-1">
+          <div className="px-4 pb-4">
+            {/* Current conditions */}
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                {weatherCity && <p className="text-[14px] text-white/40 mb-1">{weatherCity}</p>}
+                <p className="text-[36px] text-white font-light leading-none tracking-tight">{weatherSummary.match(/[+-]?\d+°C?/)?.[0] || weatherSummary}</p>
+                <p className="text-[15px] text-white/50 mt-1.5">{weatherSummary.replace(/[+-]?\d+°C?,?\s*/, "")}</p>
+              </div>
+              <span className="text-[48px] leading-none">{weatherForecast[0]?.icon || "🌤️"}</span>
+            </div>
+            {/* Forecast row */}
+            {weatherForecast.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto">
                 {weatherForecast.map((day, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1 min-w-[64px] rounded-lg bg-white/[0.03] px-3 py-2.5">
-                    <span className="text-[12px] text-white/40">{day.day}</span>
-                    <span className="text-[18px]">{day.icon}</span>
-                    <span className="text-[14px] text-white font-medium">{day.temp}</span>
+                  <div key={i} className="flex flex-col items-center gap-1.5 min-w-[72px] rounded-xl bg-white/[0.03] px-3 py-3">
+                    <span className="text-[13px] text-white/40">{day.day}</span>
+                    <span className="text-[22px] leading-none">{day.icon}</span>
+                    <span className="text-[15px] text-white font-medium">{day.temp}</span>
                   </div>
                 ))}
               </div>

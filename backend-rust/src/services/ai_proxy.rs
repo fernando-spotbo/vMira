@@ -289,7 +289,7 @@ fn propose_action_tool() -> serde_json::Value {
                 Use create_code when user asks to: write code (напиши код), create a script, function, program, algorithm, snippet.\n\
                 Use translate when user explicitly asks to translate text.\n\
                 Use set_timer for timers (таймер, timer, засеки).\n\
-                Use show_weather for weather queries (погода, weather, forecast). НЕ используй web_search для погоды — ВСЕГДА show_weather.\n\
+                Use show_weather for weather queries. Для погоды: СНАЧАЛА вызови web_search чтобы получить актуальные данные, ПОТОМ вызови show_weather с реальными данными из поиска.\n\
                 Use calculate for math, percentages, currency conversion (посчитай, сколько будет, convert).\n\
                 Use create_event for calendar/scheduling (встреча, meeting, event, schedule).\n\
                 Use save_memory when user says: меня зовут, я живу в, мне нравится, запомни что, remember that.\n\

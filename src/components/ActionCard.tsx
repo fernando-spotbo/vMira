@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages,
   Timer, Send, Code2, ChevronDown, ExternalLink, CloudSun, Calculator,
-  CalendarPlus, Download,
+  CalendarPlus, Download, TrendingUp, TrendingDown,
 } from "lucide-react";
 import hljs from "highlight.js";
 import { t } from "@/lib/i18n";
@@ -49,6 +49,7 @@ function TypeIcon({ type }: { type: string }) {
     case "set_timer": return <Timer size={16} strokeWidth={1.8} className={c} />;
     case "create_code": return <Code2 size={16} strokeWidth={1.8} className={c} />;
     case "show_weather": return <CloudSun size={16} strokeWidth={1.8} className={c} />;
+    case "show_stock": return <TrendingUp size={16} strokeWidth={1.8} className={c} />;
     case "calculate": return <Calculator size={16} strokeWidth={1.8} className={c} />;
     case "create_event": return <CalendarPlus size={16} strokeWidth={1.8} className={c} />;
     default: return <FileText size={16} strokeWidth={1.8} className={c} />;
@@ -64,6 +65,7 @@ function typeLabel(type: string): string {
     case "set_timer": return t("action.timer");
     case "create_code": return t("action.code");
     case "show_weather": return t("action.weather");
+    case "show_stock": return t("action.stock");
     case "calculate": return t("action.calc");
     case "create_event": return t("action.event");
     default: return type;
@@ -380,6 +382,65 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           uvIndex={weatherUv} precipProb={weatherPrecipProb}
           sunrise={weatherSunrise} sunset={weatherSunset}
         />}
+
+        {/* ═══ STOCK ═══ */}
+        {actionType === "show_stock" && (() => {
+          const p = payload;
+          const price = Number(p.price) || 0;
+          const change = Number(p.change) || 0;
+          const changePct = Number(p.change_percent) || 0;
+          const open = Number(p.open) || 0;
+          const prevClose = Number(p.previous_close) || 0;
+          const high = Number(p.high) || 0;
+          const low = Number(p.low) || 0;
+          const isUp = change >= 0;
+          const currency = String(p.currency || "USD");
+          const symbol = String(p.symbol || "");
+          const name = String(p.name || symbol);
+          const updated = String(p.updated || "");
+
+          return (
+            <div className="px-5 pb-5 pt-1">
+              {/* Symbol + Name */}
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <p className="text-[13px] text-white/30">{name !== symbol ? name : ""}</p>
+                  <span className="text-[13px] text-white/20 font-mono">{symbol}</span>
+                </div>
+                <span className="text-[11px] text-white/15">{updated}</span>
+              </div>
+
+              {/* Price + Change */}
+              <div className="flex items-baseline gap-3 mt-2">
+                <span className="text-[36px] font-extralight text-white leading-none tracking-tighter">
+                  {price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[13px] text-white/30">{currency}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                {isUp ? <TrendingUp size={14} strokeWidth={1.8} className="text-green-400/70" /> : <TrendingDown size={14} strokeWidth={1.8} className="text-red-400/70" />}
+                <span className={`text-[14px] font-medium ${isUp ? "text-green-400/70" : "text-red-400/70"}`}>
+                  {isUp ? "+" : ""}{change.toFixed(2)} ({isUp ? "+" : ""}{changePct.toFixed(2)}%)
+                </span>
+              </div>
+
+              {/* Details row */}
+              <div className="flex gap-4 mt-3 pt-3 border-t border-white/[0.06]">
+                {[
+                  { label: "Open", value: open },
+                  { label: "Prev Close", value: prevClose },
+                  { label: "High", value: high },
+                  { label: "Low", value: low },
+                ].map((item, i) => (
+                  <div key={i} className="flex-1">
+                    <p className="text-[11px] text-white/20">{item.label}</p>
+                    <p className="text-[14px] text-white/60 font-mono">{item.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ═══ CALCULATE ═══ */}
         {actionType === "calculate" && (

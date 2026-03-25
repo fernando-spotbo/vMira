@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -418,7 +418,7 @@ export default function MessageBubble({
   const [externalLink, setExternalLink] = useState<string | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === "user";
-  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, resendMessage, sendMessage } = useChat();
+  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, resendMessage } = useChat();
 
   const versions = message.versions ?? [message.content];
   const versionIndex = message.versionIndex ?? versions.length - 1;
@@ -431,14 +431,8 @@ export default function MessageBubble({
   );
 
   const rawContent = isStreaming && !isUser ? stripDSML(displayedText) : (isUser ? displayContent : stripDSML(message.content));
-  // Always strip [suggestions] block from displayed content
-  const { content: cleanContent, suggestions: inlineSuggestions } = !isUser ? parseSuggestions(rawContent) : { content: rawContent, suggestions: [] as string[] };
-  // Extract suggestions from final message content (stable, not affected by streaming state)
-  const suggestions = useMemo(() => {
-    if (isUser) return [];
-    const { suggestions: s } = parseSuggestions(stripDSML(message.content));
-    return s;
-  }, [isUser, message.content]);
+  // Strip [suggestions] block from displayed content (model may still output it)
+  const { content: cleanContent } = !isUser ? parseSuggestions(rawContent) : { content: rawContent };
   const contentToRender = !isUser ? preprocessCitations(cleanContent) : cleanContent;
 
   useEffect(() => {
@@ -843,21 +837,6 @@ export default function MessageBubble({
               <div className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <MessageReactions messageId={message.id} />
               </div>
-            </div>
-          )}
-
-          {/* Follow-up suggestion chips */}
-          {suggestions.length > 0 && !isStreaming && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {suggestions.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendMessage(s)}
-                  className="rounded-xl border border-white/[0.08] px-3.5 py-2 text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] hover:border-white/[0.12] transition-colors text-left"
-                >
-                  {s}
-                </button>
-              ))}
             </div>
           )}
 

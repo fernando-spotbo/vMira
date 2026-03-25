@@ -268,6 +268,7 @@ const translations: Record<string, Record<Locale, string>> = {
   "action.code": { ru: "Код", en: "Code" },
   "action.showMore": { ru: "Показать полностью", en: "Show more" },
   "action.weather": { ru: "Погода", en: "Weather" },
+  "action.stock": { ru: "Котировка", en: "Quote" },
   "action.calc": { ru: "Расчёт", en: "Calculation" },
   "action.event": { ru: "Событие", en: "Event" },
   "action.download": { ru: "Скачать", en: "Download" },

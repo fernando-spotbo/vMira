@@ -21,13 +21,7 @@ You are Mira, an AI assistant. Always reply in the user's language.\n\
 You have tools: web_search, create_reminder, create_scheduled_content, propose_action.\n\
 Use them when needed. Never say you can't — just call the tool.\n\
 Never output raw XML, function calls, or internal syntax in your replies.\n\
-Cite search sources as [1], [2], [3].\n\
-End replies with 3 follow-ups in the user's language:\n\
-[suggestions]\n\
-- q1\n\
-- q2\n\
-- q3\n\
-[/suggestions]";
+Cite search sources as [1], [2], [3].";
 
 /// Voice mode system prompt — short, conversational, TTS-friendly, multilingual.
 pub const MIRA_VOICE_PROMPT: &str = "\
@@ -262,6 +256,7 @@ fn propose_action_tool() -> serde_json::Value {
                 - 'set_timer': set a countdown timer. Payload: {seconds: 300, label: 'Timer label'}\n\
                 - 'create_code': generate code. Payload: {language: 'python', title: 'Description', code: 'full code here'}\n\
                 - 'show_weather': show real-time weather card. Payload: {city: 'city name'}. The backend fetches real data from Open-Meteo. Just pass the city name.\n\
+                - 'show_stock': show stock/index price card. Payload: {symbol: 'AAPL'}. Supports US stocks (AAPL, TSLA, SPY, MSFT) and Russian stocks (SBER, GAZP, LKOH, IMOEX). Backend fetches real data.\n\
                 - 'calculate': show calculation/conversion result. Payload: {expression: '15% of 48000', result: '7200', details: 'optional explanation'}. For currency: {expression: '150 USD to RUB', result: '~13 500 ₽', details: 'по курсу ~90 ₽/$ '}\n\
                 - 'create_event': show calendar event card. Payload: {title: 'Meeting', date: '2026-03-28', time: '15:00', end_time: '16:00', location: 'Office', description: 'optional'}\n\
                 - 'save_memory': save a fact about the user. Payload: {key: 'city', value: 'Moscow'}. Use when user shares personal info (name, city, job, preferences). Say what you saved briefly.\n\
@@ -273,7 +268,7 @@ fn propose_action_tool() -> serde_json::Value {
                 "properties": {
                     "action_type": {
                         "type": "string",
-                        "enum": ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code", "show_weather", "calculate", "create_event", "save_memory"],
+                        "enum": ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code", "show_weather", "show_stock", "calculate", "create_event", "save_memory"],
                         "description": "Type of action"
                     },
                     "description": {
@@ -868,7 +863,7 @@ pub fn stream_ai_response(
 
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
                         // Validate action type
-                        let valid_types = ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code", "show_weather", "calculate", "create_event", "save_memory"];
+                        let valid_types = ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code", "show_weather", "show_stock", "calculate", "create_event", "save_memory"];
                         if !valid_types.contains(&args.action_type.as_str()) {
                             tool_result_content = format!("Unsupported action type: {}", args.action_type);
                         } else if args.action_type == "save_memory" {
@@ -962,6 +957,63 @@ pub fn stream_ai_response(
                                 Err(e) => {
                                     tracing::error!(error = %e, "Weather fetch failed");
                                     tool_result_content = format!("Weather fetch failed: {e}. Tell user the weather service is temporarily unavailable.");
+                                }
+                            }
+                        } else if args.action_type == "show_stock" {
+                            let symbol = args.payload.get("symbol")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("SPY");
+
+                            match crate::services::stock::get_stock_quote(symbol).await {
+                                Ok(quote) => {
+                                    let stock_payload = json!({
+                                        "symbol": quote.symbol,
+                                        "name": quote.name,
+                                        "price": quote.price,
+                                        "open": quote.open,
+                                        "previous_close": quote.previous_close,
+                                        "change": quote.change,
+                                        "change_percent": quote.change_percent,
+                                        "high": quote.high,
+                                        "low": quote.low,
+                                        "currency": quote.currency,
+                                        "source": quote.source,
+                                        "updated": quote.updated,
+                                        "description": args.description,
+                                    });
+
+                                    let result = sqlx::query_scalar::<_, uuid::Uuid>(
+                                        "INSERT INTO actions (user_id, type, payload, status)
+                                         VALUES ($1, 'show_stock', $2, 'executed')
+                                         RETURNING id"
+                                    )
+                                    .bind(uid)
+                                    .bind(&stock_payload)
+                                    .fetch_one(pool)
+                                    .await;
+
+                                    match result {
+                                        Ok(id) => {
+                                            let _ = tx.send(AiEvent::ActionProposed {
+                                                id: id.to_string(),
+                                                action_type: "show_stock".to_string(),
+                                                payload: stock_payload,
+                                            }).await;
+                                            let direction = if quote.change >= 0.0 { "up" } else { "down" };
+                                            tool_result_content = format!(
+                                                "Stock card shown. {} is {} {:.2} ({}{:.2}%). Respond briefly.",
+                                                quote.symbol, direction, quote.change.abs(),
+                                                if quote.change >= 0.0 { "+" } else { "" }, quote.change_percent
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tool_result_content = format!("Failed to create stock card: {e}");
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!(error = %e, "Stock fetch failed");
+                                    tool_result_content = format!("Stock fetch failed: {e}. Tell user the stock data is temporarily unavailable.");
                                 }
                             }
                         } else {

@@ -208,7 +208,7 @@ export default function ChatArea() {
       onScroll={onScroll}
       className="flex-1 min-h-0 overflow-y-auto"
     >
-      <div className="mx-auto max-w-3xl px-4 pt-12 pb-4">
+      <div className="mx-auto max-w-[52rem] px-4 pt-12 pb-4">
         {/* Loading older messages indicator */}
         {activeConversation?.loadingMore && (
           <div className="flex justify-center py-4">

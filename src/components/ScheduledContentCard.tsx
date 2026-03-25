@@ -47,7 +47,7 @@ export default function ScheduledContentCard({ id, title, prompt, scheduleAt, rr
   if (deleted) return null;
 
   return (
-    <div className="my-3 max-w-[480px]">
+    <div className="my-3">
       <div className="rounded-xl border border-white/[0.1] px-4 py-3 hover:border-white/[0.15] transition-colors">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">

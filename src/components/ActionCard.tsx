@@ -170,14 +170,14 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
   const copyText = actionType === "translate" ? targetText : actionType === "create_code" ? codeContent : actionType === "send_email" ? `${subject}\n\n${message}` : message;
 
   return (
-    <div className="my-3 max-w-[520px]">
+    <div className="my-3">
       <div className="rounded-xl border border-white/[0.1] hover:border-white/[0.15] transition-colors">
 
         {/* ═══ Header bar ═══ */}
         <div className="flex items-center gap-2.5 px-4 h-10">
           <TypeIcon type={actionType} />
           {actionType === "create_code" ? (
-            <span className="text-[14px] text-white/70 font-medium flex-1">{codeLang.charAt(0).toUpperCase() + codeLang.slice(1)}</span>
+            <span className="text-[15px] text-white font-medium flex-1">{codeLang.charAt(0).toUpperCase() + codeLang.slice(1)}</span>
           ) : (
             <span className="text-[14px] text-white/35 flex-1">{typeLabel(actionType)}</span>
           )}
@@ -215,13 +215,13 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
                 {to && (
                   <div className="flex items-baseline gap-2">
                     <span className="text-[13px] text-white/20 w-14 shrink-0">{t("action.emailTo")}</span>
-                    <span className="text-[15px] text-white/60">{to}</span>
+                    <span className="text-[15px] text-white">{to}</span>
                   </div>
                 )}
                 {subject && (
                   <div className="flex items-baseline gap-2">
                     <span className="text-[13px] text-white/20 w-14 shrink-0">{t("action.emailSubject")}</span>
-                    <span className="text-[15px] text-white/70 font-medium">{subject}</span>
+                    <span className="text-[15px] text-white font-medium">{subject}</span>
                   </div>
                 )}
               </div>
@@ -231,7 +231,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
             {message && (
               <Expandable maxH={200}>
                 <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-4">
-                  <p className="text-[15px] text-white/60 leading-[1.75] whitespace-pre-wrap">{message}</p>
+                  <p className="text-[15px] text-white leading-[1.75] whitespace-pre-wrap">{message}</p>
                 </div>
               </Expandable>
             )}
@@ -259,7 +259,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           <div className="px-4 pb-3.5">
             {title && <p className="text-[15px] text-white font-medium mb-2.5">{title}</p>}
             <Expandable maxH={COLLAPSED_HEIGHT}>
-              <p className="text-[15px] text-white/65 leading-[1.75] whitespace-pre-wrap">{message}</p>
+              <p className="text-[15px] text-white leading-[1.75] whitespace-pre-wrap">{message}</p>
             </Expandable>
           </div>
         )}

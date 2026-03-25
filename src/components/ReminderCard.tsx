@@ -118,7 +118,7 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
 
   return (
     <>
-      <div className="my-3 max-w-[480px]">
+      <div className="my-3">
         <div className="flex items-start justify-between rounded-xl border border-white/[0.1] px-4 py-3 hover:border-white/[0.15] transition-colors">
           <button onClick={() => setEditOpen(true)} className="min-w-0 flex-1 text-left">
             <p className="text-[15px] text-white font-medium leading-snug truncate">{currentTitle}</p>

@@ -41,7 +41,7 @@ export default function CodeBlock({ language, code }: CodeBlockProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-5 h-12">
         <div className="flex items-center gap-2.5 text-[15px] text-white font-medium">
-          <Code2 size={16} strokeWidth={1.8} className="text-white/50" />
+          <Code2 size={16} strokeWidth={1.8} className="text-white/60" />
           <span>{displayLang}</span>
         </div>
         <button

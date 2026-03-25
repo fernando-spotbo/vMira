@@ -980,6 +980,7 @@ pub fn stream_ai_response(
                                         "source": quote.source,
                                         "updated": quote.updated,
                                         "description": args.description,
+                                        "chart": quote.chart,
                                     });
 
                                     let result = sqlx::query_scalar::<_, uuid::Uuid>(

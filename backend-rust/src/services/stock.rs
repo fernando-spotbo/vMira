@@ -17,6 +17,14 @@ pub struct StockQuote {
     pub source: String,
     pub currency: String,
     pub updated: String,
+    pub chart: Vec<ChartPoint>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct ChartPoint {
+    pub time: i64,  // unix timestamp
+    pub price: f64,
+    pub is_regular: bool, // true = regular hours, false = extended
 }
 
 // ── MOEX ISS (Russian stocks, no key needed) ────────────────────────────
@@ -109,6 +117,7 @@ async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
             high: md.get_f64(md_row, "HIGH"), low: md.get_f64(md_row, "LOW"),
             source: "moex".into(), currency: "pts".into(),
             updated: md.get_str(md_row, "UPDATETIME"),
+            chart: vec![],
         })
     } else {
         let price = md.get_f64(md_row, "LAST");
@@ -121,6 +130,7 @@ async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
             high: md.get_f64(md_row, "HIGH"), low: md.get_f64(md_row, "LOW"),
             source: "moex".into(), currency: "RUB".into(),
             updated: md.get_str(md_row, "UPDATETIME"),
+            chart: vec![],
         })
     }
 }
@@ -131,8 +141,9 @@ async fn fetch_yahoo(symbol: &str) -> Result<StockQuote, String> {
     let client = reqwest::Client::new();
     let upper = symbol.to_uppercase();
 
+    // Fetch intraday (5min intervals, 1 day) for chart
     let url = format!(
-        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=2d",
+        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=5m&range=1d&includePrePost=true",
         upper
     );
 
@@ -167,19 +178,39 @@ async fn fetch_yahoo(symbol: &str) -> Result<StockQuote, String> {
 
     let currency = meta["currency"].as_str().unwrap_or("USD").to_string();
 
-    // Get OHLC from indicators
+    // Regular market hours from meta
+    let reg_start = meta["currentTradingPeriod"]["regular"]["start"].as_i64().unwrap_or(0);
+    let reg_end = meta["currentTradingPeriod"]["regular"]["end"].as_i64().unwrap_or(0);
+
+    // Extract chart data from timestamps + close prices
+    let timestamps = result["timestamp"].as_array();
+    let closes = result["indicators"]["quote"][0]["close"].as_array();
+
+    let mut chart = Vec::new();
+    if let (Some(ts), Some(cl)) = (timestamps, closes) {
+        for (i, t) in ts.iter().enumerate() {
+            let time = t.as_i64().unwrap_or(0);
+            let p = cl.get(i).and_then(|v| v.as_f64());
+            if let Some(p) = p {
+                chart.push(ChartPoint {
+                    time,
+                    price: (p * 100.0).round() / 100.0,
+                    is_regular: time >= reg_start && time <= reg_end,
+                });
+            }
+        }
+    }
+
+    // Get OHLC from indicators (last period)
     let quotes = &result["indicators"]["quote"][0];
     let open = quotes["open"].as_array()
-        .and_then(|a| a.last())
-        .and_then(|v| v.as_f64())
+        .and_then(|a| a.iter().find_map(|v| v.as_f64()))
         .unwrap_or(price);
     let high = quotes["high"].as_array()
-        .and_then(|a| a.last())
-        .and_then(|v| v.as_f64())
+        .and_then(|a| a.iter().filter_map(|v| v.as_f64()).reduce(f64::max))
         .unwrap_or(price);
     let low = quotes["low"].as_array()
-        .and_then(|a| a.last())
-        .and_then(|v| v.as_f64())
+        .and_then(|a| a.iter().filter_map(|v| v.as_f64()).reduce(f64::min))
         .unwrap_or(price);
 
     Ok(StockQuote {
@@ -188,6 +219,7 @@ async fn fetch_yahoo(symbol: &str) -> Result<StockQuote, String> {
         high, low,
         source: "yahoo".into(), currency,
         updated: chrono::Utc::now().format("%H:%M").to_string(),
+        chart,
     })
 }
 

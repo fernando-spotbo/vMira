@@ -398,13 +398,56 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           const symbol = String(p.symbol || "");
           const name = String(p.name || symbol);
           const updated = String(p.updated || "");
+          const chartData = (p.chart as Array<{ time: number; price: number; is_regular: boolean }>) || [];
+          const lineColor = isUp ? "rgba(74,222,128,0.6)" : "rgba(248,113,113,0.6)";
+          const fillColor = isUp ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)";
+
+          // Build SVG chart
+          const W = 400;
+          const H = 80;
+          const PAD = 4;
+          let chartPath = "";
+          let chartFill = "";
+          if (chartData.length > 1) {
+            const prices = chartData.map(d => d.price);
+            const minP = Math.min(...prices);
+            const maxP = Math.max(...prices);
+            const range = maxP - minP || 1;
+            const points = chartData.map((d, i) => ({
+              x: PAD + (i / (chartData.length - 1)) * (W - PAD * 2),
+              y: PAD + (1 - (d.price - minP) / range) * (H - PAD * 2),
+              regular: d.is_regular,
+            }));
+
+            chartPath = `M ${points[0].x} ${points[0].y}`;
+            for (let i = 1; i < points.length; i++) {
+              const prev = points[i - 1];
+              const curr = points[i];
+              const cpx = (prev.x + curr.x) / 2;
+              chartPath += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
+            }
+            chartFill = `${chartPath} L ${points[points.length - 1].x} ${H} L ${points[0].x} ${H} Z`;
+
+            // Find boundary between pre-market and regular
+            const firstRegIdx = points.findIndex(p => p.regular);
+            const lastRegIdx = points.length - 1 - [...points].reverse().findIndex(p => p.regular);
+
+            // Draw extended hours as dashed sections
+            if (firstRegIdx > 0) {
+              // pre-market region indicator
+              const preX = points[firstRegIdx].x;
+              chartPath += ""; // line is continuous, but we'll overlay dashed for extended
+            }
+          }
+
+          const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
           return (
             <div className="px-5 pb-5 pt-1">
               {/* Symbol + Name */}
               <div className="flex items-baseline justify-between">
                 <div>
-                  <p className="text-[13px] text-white/30">{name !== symbol ? name : ""}</p>
+                  {name !== symbol && <p className="text-[13px] text-white/30">{name}</p>}
                   <span className="text-[13px] text-white/20 font-mono">{symbol}</span>
                 </div>
                 <span className="text-[11px] text-white/15">{updated}</span>
@@ -413,7 +456,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
               {/* Price + Change */}
               <div className="flex items-baseline gap-3 mt-2">
                 <span className="text-[36px] font-extralight text-white leading-none tracking-tighter">
-                  {price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {fmt(price)}
                 </span>
                 <span className="text-[13px] text-white/30">{currency}</span>
               </div>
@@ -423,6 +466,27 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
                   {isUp ? "+" : ""}{change.toFixed(2)} ({isUp ? "+" : ""}{changePct.toFixed(2)}%)
                 </span>
               </div>
+
+              {/* Chart */}
+              {chartData.length > 1 && (
+                <div className="mt-3 -mx-1">
+                  <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block">
+                    {/* Prev close reference line */}
+                    {prevClose > 0 && (() => {
+                      const prices = chartData.map(d => d.price);
+                      const minP = Math.min(...prices);
+                      const maxP = Math.max(...prices);
+                      const range = maxP - minP || 1;
+                      const y = PAD + (1 - (prevClose - minP) / range) * (H - PAD * 2);
+                      return <line x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />;
+                    })()}
+                    {/* Fill under curve */}
+                    {chartFill && <path d={chartFill} fill={fillColor} />}
+                    {/* Main line */}
+                    {chartPath && <path d={chartPath} fill="none" stroke={lineColor} strokeWidth="1.5" />}
+                  </svg>
+                </div>
+              )}
 
               {/* Details row */}
               <div className="flex gap-4 mt-3 pt-3 border-t border-white/[0.06]">
@@ -434,7 +498,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
                 ].map((item, i) => (
                   <div key={i} className="flex-1">
                     <p className="text-[11px] text-white/20">{item.label}</p>
-                    <p className="text-[14px] text-white/60 font-mono">{item.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p className="text-[14px] text-white/60 font-mono">{fmt(item.value)}</p>
                   </div>
                 ))}
               </div>

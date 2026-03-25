@@ -155,8 +155,8 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
   const to = String(payload.to || "");
   const subject = String(payload.subject || "");
   const title = String(payload.title || "");
-  const sourceText = String(payload.source_text || "");
-  const targetText = String(payload.target_text || "");
+  const sourceText = String(payload.source_text || ""); // fallback if AI still sends it
+  const targetText = String(payload.target_text || message);
   const sourceLang = String(payload.source_lang || "").toUpperCase();
   const targetLang = String(payload.target_lang || "").toUpperCase();
   const timerSeconds = Number(payload.seconds || 0);
@@ -288,12 +288,16 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
         {actionType === "translate" && (
           <div className="px-4 pb-3">
             <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] overflow-hidden">
-              {/* Source */}
-              <div className="px-3.5 py-3">
-                {sourceLang && <p className="text-[12px] text-white/20 mb-1 font-medium tracking-wide">{sourceLang}</p>}
-                <p className="text-[15px] text-white/40 leading-relaxed">{sourceText}</p>
-              </div>
-              <div className="border-t border-white/[0.06]" />
+              {/* Source — only if AI provided it (saves tokens otherwise) */}
+              {sourceText && (
+                <>
+                  <div className="px-3.5 py-3">
+                    {sourceLang && <p className="text-[12px] text-white/20 mb-1 font-medium tracking-wide">{sourceLang}</p>}
+                    <p className="text-[15px] text-white/40 leading-relaxed">{sourceText}</p>
+                  </div>
+                  <div className="border-t border-white/[0.06]" />
+                </>
+              )}
               {/* Target */}
               <div className="px-3.5 py-3">
                 {targetLang && <p className="text-[12px] text-white/20 mb-1 font-medium tracking-wide">{targetLang}</p>}

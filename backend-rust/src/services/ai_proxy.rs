@@ -270,7 +270,7 @@ fn propose_action_tool() -> serde_json::Value {
                 - 'send_telegram': send a message to user's Telegram. Payload: {message: 'text'}\n\
                 - 'send_email': compose an email. Payload: {to: 'email', subject: 'subject', body: 'text'}\n\
                 - 'create_draft': create an editable text draft (letter, post, message, code). Payload: {title: 'Draft title', content: 'full text', format: 'text'|'markdown'}\n\
-                - 'translate': show translation. Payload: {source_text: 'original', source_lang: 'ru', target_text: 'translated', target_lang: 'en'}\n\
+                - 'translate': show translation. Payload: {target_text: 'translated text only', source_lang: 'auto-detected', target_lang: 'target language code'}. Do NOT include source_text — the frontend already has it from the user's message.\n\
                 - 'set_timer': set a countdown timer. Payload: {seconds: 300, label: 'Timer label'}\n\
                 - 'create_code': generate code. Payload: {language: 'python', title: 'Description', code: 'full code here'}\n\
                 Use create_draft when user asks to: compose (составь), write (напиши), draft (черновик), prepare (подготовь) any text content.\n\

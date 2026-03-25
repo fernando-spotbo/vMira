@@ -338,7 +338,7 @@ export default function InputBar({ centered = false }: InputBarProps) {
       {centered ? (
         inputElement
       ) : (
-        <div className="w-full px-3 pb-4 pt-2 md:px-5">
+        <div className="w-full px-3 pb-4 pt-2 md:px-5" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-[52rem]">
             {inputElement}
           </div>

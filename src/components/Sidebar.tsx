@@ -405,28 +405,28 @@ function SidebarContent({
           <>
             <button
               onClick={() => { createNewChat(); setShowReminders(false); }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] text-white hover:bg-white/[0.06] transition-colors"
             >
               <PenLine size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("sidebar.newChat")}</span>
             </button>
             <button
               onClick={() => setSearchOpen(true)}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] text-white hover:bg-white/[0.06] transition-colors"
             >
               <Search size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("sidebar.search")}</span>
             </button>
             <button
               onClick={() => { setShowReminders(true); setActiveConversationId(null); }}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
             >
               <Clock size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("reminders.title")}</span>
             </button>
             <button
               onClick={() => { openBriefing(); }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] text-white hover:bg-white/[0.06] transition-colors"
             >
               <Sunrise size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("briefing.title")}</span>
@@ -583,7 +583,7 @@ function ChatItem({
     <div className="relative group">
       <button
         onClick={onSelect}
-        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors
+        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-[15px] transition-colors
           ${isActive ? "bg-white/[0.08] text-white font-medium" : "text-white hover:bg-white/[0.06]"}
         `}
       >

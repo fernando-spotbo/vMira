@@ -202,13 +202,35 @@ export default function ChatArea() {
     }
   }, [dismiss, generating, handleLoadMore]);
 
+  // ═══════════════════════════════════════════════════════════
+  //  AUTO-SCROLL DURING STREAMING — keep newest content visible
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!isStreaming && !isThinking) return;
+    if (state.current.scrollState === "dismissed") return;
+
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const interval = setInterval(() => {
+      if (state.current.scrollState === "dismissed") { clearInterval(interval); return; }
+      // Only auto-scroll if user is near the bottom (within 300px)
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distFromBottom < 300) {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [isStreaming, isThinking]);
+
   return (
     <div
       ref={scrollRef}
       onScroll={onScroll}
       className="flex-1 min-h-0 overflow-y-auto"
     >
-      <div className="mx-auto max-w-[52rem] px-4 pt-12 pb-4">
+      <div className="mx-auto max-w-[52rem] px-4 pt-12 pb-32">
         {/* Loading older messages indicator */}
         {activeConversation?.loadingMore && (
           <div className="flex justify-center py-4">

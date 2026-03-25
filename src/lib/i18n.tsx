@@ -133,6 +133,8 @@ const translations: Record<string, Record<Locale, string>> = {
   "settings.calendar": { ru: "Календарь", en: "Calendar" },
   "settings.calendarFeed": { ru: "Напоминания в календаре", en: "Reminders in Calendar" },
   "settings.calendarFeedDesc": { ru: "Все напоминания Mira появятся в выбранном календаре", en: "All your Mira reminders will appear in your chosen calendar" },
+  "settings.calendarAdd": { ru: "Добавить", en: "Add" },
+  "settings.calendarAdded": { ru: "Добавлено", en: "Added" },
   "settings.revokeFeedUrl": { ru: "Отключить синхронизацию", en: "Disable sync" },
   "settings.feedUrlCopied": { ru: "Скопировано", en: "Copied" },
   "settings.googleCalendar": { ru: "Google Календарь", en: "Google Calendar" },

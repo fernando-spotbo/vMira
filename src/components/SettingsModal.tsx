@@ -280,8 +280,8 @@ function CalendarTab() {
   const [connected, setConnected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    import("@/lib/api-client").then(({ getCalendarFeedStatus, getGoogleCalendarStatus }) => {
-      getCalendarFeedStatus().then(r => { if (r.ok && r.data.active) setConnected(prev => ({ ...prev, apple: true, outlook: true, yandex: true })); });
+    import("@/lib/api-client").then(({ getGoogleCalendarStatus }) => {
+      // Only Google has server-side connection state (OAuth). ICS apps can't be verified.
       getGoogleCalendarStatus().then(r => { if (r.ok && r.data.connected) setConnected(prev => ({ ...prev, google: true })); });
     });
   }, []);
@@ -352,6 +352,7 @@ function CalendarTab() {
       <p className="text-[13px] text-white/40 mb-4">{t("settings.calendarFeedDesc")}</p>
       <div className="space-y-1">
         {calApps.map(app => {
+          const isOAuth = app.id === "google";
           const isConnected = connected[app.id];
           const isLoading = loading === app.id;
 
@@ -361,7 +362,7 @@ function CalendarTab() {
                 <span className="text-[15px] text-white">{app.name}</span>
                 {app.badge && <span className="ml-2 text-[11px] text-white/20">{app.badge}</span>}
               </div>
-              {isConnected ? (
+              {isOAuth && isConnected ? (
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1 text-[13px] text-green-400/60">
                     <Check size={13} /> {t("settings.googleConnected")}
@@ -373,13 +374,17 @@ function CalendarTab() {
                     {t("settings.googleDisconnect")}
                   </button>
                 </div>
+              ) : !isOAuth && isConnected ? (
+                <span className="flex items-center gap-1 text-[13px] text-white/30">
+                  <Check size={13} /> {t("settings.calendarAdded")}
+                </span>
               ) : (
                 <button
                   onClick={() => handleConnect(app.id)}
                   disabled={isLoading}
                   className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-3.5 py-1.5 text-[13px] text-white/70 hover:text-white hover:bg-white/[0.1] transition-colors disabled:opacity-40"
                 >
-                  {isLoading ? "..." : t("settings.googleConnect")}
+                  {isLoading ? "..." : isOAuth ? t("settings.googleConnect") : t("settings.calendarAdd")}
                 </button>
               )}
             </div>

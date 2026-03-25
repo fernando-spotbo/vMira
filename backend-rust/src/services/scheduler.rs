@@ -135,6 +135,9 @@ async fn get_settings(db: &PgPool, user_id: Uuid) -> NotificationSettings {
         briefing_enabled: false,
         briefing_time: chrono::NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
         briefing_last_sent: None,
+        briefing_prompt: None,
+        briefing_last_content: None,
+        briefing_last_generated: None,
     })
 }
 
@@ -537,8 +540,25 @@ async fn process_due_briefings(state: &AppState) -> Result<(), String> {
 }
 
 async fn send_telegram_briefing(state: &AppState, user_id: Uuid) -> Result<(), String> {
-    use crate::services::telegram::html_escape;
+    // Get user's custom prompt
+    let prompt: Option<(Option<String>,)> = sqlx::query_as(
+        "SELECT briefing_prompt FROM notification_settings WHERE user_id = $1"
+    ).bind(user_id).fetch_optional(&state.db).await.unwrap_or(None);
 
+    let prompt = prompt
+        .and_then(|(p,)| p)
+        .filter(|p| !p.trim().is_empty())
+        .ok_or("No briefing prompt configured")?;
+
+    // Generate AI content
+    let content = crate::routes::briefing::generate_briefing_content(state, user_id, &prompt).await?;
+
+    // Cache it
+    let _ = sqlx::query(
+        "UPDATE notification_settings SET briefing_last_content = $1, briefing_last_generated = now() WHERE user_id = $2"
+    ).bind(&content).bind(user_id).execute(&state.db).await;
+
+    // Send to Telegram
     let link = sqlx::query_as::<_, TelegramLink>(
         "SELECT * FROM telegram_links WHERE user_id = $1 AND is_active = true"
     ).bind(user_id).fetch_optional(&state.db).await
@@ -549,55 +569,11 @@ async fn send_telegram_briefing(state: &AppState, user_id: Uuid) -> Result<(), S
     if bot_token.is_empty() { return Err("No bot token".into()); }
     let bot = TelegramBot::new(bot_token);
 
-    let now = Utc::now();
-    let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
-    let today_end = now.date_naive().and_hms_opt(23, 59, 59).unwrap().and_utc();
-
-    // Reminders
-    let reminders: Vec<(String, chrono::DateTime<Utc>)> = sqlx::query_as(
-        "SELECT title, remind_at FROM reminders
-         WHERE user_id = $1 AND status = 'pending' AND remind_at >= $2 AND remind_at <= $3
-         ORDER BY remind_at LIMIT 10"
-    ).bind(user_id).bind(today_start).bind(today_end)
-    .fetch_all(&state.db).await.unwrap_or_default();
-
-    // Events
-    let events: Vec<(String, chrono::DateTime<Utc>, Option<String>)> = sqlx::query_as(
-        "SELECT title, start_at, location FROM calendar_events
-         WHERE user_id = $1 AND start_at >= $2 AND start_at <= $3
-         ORDER BY start_at LIMIT 10"
-    ).bind(user_id).bind(today_start).bind(today_end)
-    .fetch_all(&state.db).await.unwrap_or_default();
-
-    // Weather
-    let city: Option<(String,)> = sqlx::query_as(
-        "SELECT value FROM user_memory WHERE user_id = $1 AND key IN ('city', 'location') LIMIT 1"
-    ).bind(user_id).fetch_optional(&state.db).await.unwrap_or(None);
-
-    let mut msg = String::from("<b>Mira</b>\n\n");
-
-    // Weather section
-    if let Some((city_name,)) = city {
-        if let Ok(w) = crate::services::weather::get_weather(&city_name).await {
-            msg.push_str(&format!(
-                "{} <b>{}°C</b>, {}\n{}\n\n",
-                w.icon, w.temperature.round(), html_escape(&w.description), html_escape(&w.city)
-            ));
-        }
-    }
-
-    // Schedule section
-    if !reminders.is_empty() || !events.is_empty() {
-        for (title, at) in &reminders {
-            msg.push_str(&format!("  {} <b>{}</b>\n", at.format("%H:%M"), html_escape(title)));
-        }
-        for (title, at, loc) in &events {
-            let loc_str = loc.as_deref().map(|l| format!(" — {}", html_escape(l))).unwrap_or_default();
-            msg.push_str(&format!("  {} <b>{}</b>{}\n", at.format("%H:%M"), html_escape(title), loc_str));
-        }
-    } else {
-        msg.push_str("No events today\n");
-    }
+    // Strip markdown for Telegram (send as plain text, it's cleaner)
+    let plain = content
+        .replace("**", "").replace("##", "").replace("# ", "")
+        .replace("- ", "  ").trim().to_string();
+    let msg = format!("Mira\n\n{}", plain);
 
     bot.send_message(link.chat_id, &msg, None).await
         .map_err(|e| format!("TG send: {e}"))?;

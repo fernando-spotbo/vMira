@@ -408,20 +408,12 @@ export async function disconnectCalendarProvider(provider: string) {
 // ── Briefing ──────────────────────────────────────────────────────────────
 
 export interface BriefingData {
-  date: string;
-  weather: {
-    city: string;
-    temperature: number;
-    description: string;
-    icon: string;
-    feels_like: number;
-    wind_speed: number;
-    humidity: number | null;
-    forecast: Array<{ day: string; temp_max: number; temp_min: number; icon: string; code: number }>;
-  } | null;
-  reminders: Array<{ id: string; title: string; body: string | null; remind_at: string; rrule: string | null }>;
-  events: Array<{ id: string; title: string; description: string | null; location: string | null; start_at: string; end_at: string | null }>;
-  stats: { total_reminders_pending: number; total_events_this_week: number; memories_saved: number };
+  configured: boolean;
+  prompt: string | null;
+  content: string | null;
+  generated_at: string | null;
+  enabled: boolean;
+  time: string;
 }
 
 export async function getBriefing() {
@@ -432,6 +424,6 @@ export async function getBriefingSettings() {
   return apiCall<{ enabled: boolean; time: string }>("/briefing/settings");
 }
 
-export async function updateBriefingSettings(data: { enabled?: boolean; time?: string }) {
+export async function updateBriefingSettings(data: { enabled?: boolean; time?: string; prompt?: string }) {
   return apiCall<{ enabled: boolean; time: string }>("/briefing/settings", { method: "PUT", body: JSON.stringify(data) });
 }

@@ -53,6 +53,9 @@ pub struct NotificationSettings {
     pub briefing_enabled: bool,
     pub briefing_time: NaiveTime,
     pub briefing_last_sent: Option<chrono::NaiveDate>,
+    pub briefing_prompt: Option<String>,
+    pub briefing_last_content: Option<String>,
+    pub briefing_last_generated: Option<chrono::DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

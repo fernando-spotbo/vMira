@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Send, Mail, Check, X, Loader2, AlertCircle, Copy, FileText, Languages, Timer, Play } from "lucide-react";
+import { Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages, Timer, ExternalLink } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { executeAction, cancelAction } from "@/lib/api-client";
 
@@ -19,17 +19,15 @@ function TelegramIcon({ size = 16, className }: { size?: number; className?: str
   );
 }
 
-// ── Type-specific icons ──────────────────────────────────────────────────
-
 function ActionIcon({ type }: { type: string }) {
-  const cls = "text-white/40";
+  const cls = "text-white/40 shrink-0";
   switch (type) {
     case "send_telegram": return <TelegramIcon size={16} className={cls} />;
     case "send_email": return <Mail size={16} strokeWidth={1.8} className={cls} />;
     case "create_draft": return <FileText size={16} strokeWidth={1.8} className={cls} />;
     case "translate": return <Languages size={16} strokeWidth={1.8} className={cls} />;
     case "set_timer": return <Timer size={16} strokeWidth={1.8} className={cls} />;
-    default: return <Send size={16} strokeWidth={1.8} className={cls} />;
+    default: return <FileText size={16} strokeWidth={1.8} className={cls} />;
   }
 }
 
@@ -44,13 +42,19 @@ function actionLabel(type: string): string {
   }
 }
 
-// ── Needs confirmation? ──────────────────────────────────────────────────
-
 function needsConfirmation(type: string): boolean {
   return type === "send_telegram" || type === "send_email";
 }
 
-// ── Timer countdown hook ─────────────────────────────────────────────────
+function buildMailtoLink(to: string, subject: string, body: string): string {
+  const params = new URLSearchParams();
+  if (subject) params.set("subject", subject);
+  if (body) params.set("body", body);
+  const query = params.toString();
+  return `mailto:${encodeURIComponent(to)}${query ? `?${query}` : ""}`;
+}
+
+// ── Timer ────────────────────────────────────────────────────────────────
 
 function useTimer(seconds: number, active: boolean) {
   const [remaining, setRemaining] = useState(seconds);
@@ -58,57 +62,57 @@ function useTimer(seconds: number, active: boolean) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || seconds <= 0) return;
     setRemaining(seconds);
     intervalRef.current = setInterval(() => {
       setRemaining(prev => {
         if (prev <= 1) {
           clearInterval(intervalRef.current!);
           setDone(true);
-          // Browser notification
           if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("Mira", { body: "Timer done!" });
+            new Notification("Mira", { body: t("action.timerDone") });
           }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+    // Request notification permission on timer start
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [seconds, active]);
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
-  const display = mins > 0 ? `${mins}:${String(secs).padStart(2, "0")}` : `${secs}s`;
+  const display = mins > 0 ? `${mins}:${String(secs).padStart(2, "0")}` : `0:${String(secs).padStart(2, "0")}`;
+  const progress = seconds > 0 ? (seconds - remaining) / seconds : 0;
 
-  return { remaining, display, done };
+  return { remaining, display, done, progress };
 }
 
-// ── Main component ───────────────────────────────────────────────────────
+// ── Card ─────────────────────────────────────────────────────────────────
 
 export default function ActionCard({ id, actionType, payload }: ActionCardProps) {
   const [status, setStatus] = useState<"proposed" | "executing" | "executed" | "cancelled" | "failed">(
     needsConfirmation(actionType) ? "proposed" : "executed"
   );
   const [copied, setCopied] = useState(false);
-  const [timerActive, setTimerActive] = useState(actionType === "set_timer");
 
   const description = String(payload.description || "");
   const message = String(payload.message || payload.body || payload.content || "");
   const to = String(payload.to || "");
   const subject = String(payload.subject || "");
   const title = String(payload.title || "");
-
-  // Translation
   const sourceText = String(payload.source_text || "");
   const targetText = String(payload.target_text || "");
-  const sourceLang = String(payload.source_lang || "");
-  const targetLang = String(payload.target_lang || "");
-
-  // Timer
+  const sourceLang = String(payload.source_lang || "").toUpperCase();
+  const targetLang = String(payload.target_lang || "").toUpperCase();
   const timerSeconds = Number(payload.seconds || 0);
   const timerLabel = String(payload.label || "");
-  const timer = useTimer(timerSeconds, timerActive);
+
+  const timer = useTimer(timerSeconds, actionType === "set_timer");
 
   const handleConfirm = async () => {
     setStatus("executing");
@@ -127,41 +131,83 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Render by type ─────────────────────────────────────────────────────
-
   return (
     <div className="my-3 max-w-[520px]">
-      <div className="rounded-xl border border-white/[0.08] overflow-hidden">
+      <div className="rounded-xl border border-white/[0.1] hover:border-white/[0.15] transition-colors overflow-hidden">
 
-        {/* Header */}
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.06]">
+        {/* ── Header ── */}
+        <div className="flex items-center gap-2.5 px-4 py-2.5">
           <ActionIcon type={actionType} />
-          <span className="text-[14px] text-white/40 flex-1">{actionLabel(actionType)}</span>
-          {status === "executed" && actionType !== "set_timer" && <Check size={14} strokeWidth={2} className="text-white/30" />}
-          {status === "failed" && <AlertCircle size={14} strokeWidth={1.8} className="text-red-400/60" />}
-          {status === "cancelled" && <X size={14} strokeWidth={1.8} className="text-white/20" />}
+          <span className="text-[15px] text-white/40 flex-1">{actionLabel(actionType)}</span>
+          {status === "executed" && actionType !== "set_timer" && (
+            <span className="flex items-center gap-1.5 text-[13px] text-white/25">
+              <Check size={13} strokeWidth={2} />
+              {needsConfirmation(actionType) && t("action.done")}
+            </span>
+          )}
+          {status === "failed" && (
+            <span className="flex items-center gap-1.5 text-[13px] text-red-400/60">
+              <AlertCircle size={13} strokeWidth={1.8} />
+              {t("action.failed")}
+            </span>
+          )}
+          {status === "cancelled" && (
+            <span className="text-[13px] text-white/20">{t("action.cancelled")}</span>
+          )}
         </div>
 
-        {/* ── Send Telegram / Email ── */}
-        {(actionType === "send_telegram" || actionType === "send_email") && (
-          <div className="px-4 py-3">
-            {to && <p className="text-[13px] text-white/30 mb-1">{to}{subject ? ` · ${subject}` : ""}</p>}
-            <p className="text-[15px] text-white/80 leading-relaxed whitespace-pre-wrap">{message || description}</p>
+        {/* ── Send Telegram ── */}
+        {actionType === "send_telegram" && (
+          <div className="px-4 pb-3">
+            <p className="text-[15px] text-white leading-relaxed whitespace-pre-wrap">{message || description}</p>
+          </div>
+        )}
+
+        {/* ── Send Email ── */}
+        {actionType === "send_email" && (
+          <div className="px-4 pb-3">
+            {to && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[13px] text-white/30">{t("action.emailTo")}</span>
+                <span className="text-[14px] text-white/60">{to}</span>
+              </div>
+            )}
+            {subject && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[13px] text-white/30">{t("action.emailSubject")}</span>
+                <span className="text-[14px] text-white/60">{subject}</span>
+              </div>
+            )}
+            {message && (
+              <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3 mt-1">
+                <p className="text-[15px] text-white/70 leading-relaxed whitespace-pre-wrap">{message}</p>
+              </div>
+            )}
+            {/* Mailto link */}
+            {to && (
+              <a
+                href={buildMailtoLink(to, subject, message)}
+                className="flex items-center gap-2 mt-3 text-[14px] text-white/40 hover:text-white/60 transition-colors"
+              >
+                <ExternalLink size={14} strokeWidth={1.8} />
+                {t("action.openInEmail")}
+              </a>
+            )}
           </div>
         )}
 
         {/* ── Draft ── */}
         {actionType === "create_draft" && (
-          <div className="px-4 py-3">
-            {title && <p className="text-[13px] text-white/40 mb-2 font-medium">{title}</p>}
-            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3 max-h-[300px] overflow-y-auto">
+          <div className="px-4 pb-3">
+            {title && <p className="text-[14px] text-white/50 mb-2 font-medium">{title}</p>}
+            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 max-h-[320px] overflow-y-auto">
               <p className="text-[15px] text-white/75 leading-relaxed whitespace-pre-wrap">{message}</p>
             </div>
             <button
               onClick={() => handleCopy(message)}
-              className="flex items-center gap-2 mt-2.5 text-[13px] text-white/40 hover:text-white/60 transition-colors"
+              className="flex items-center gap-2 mt-3 text-[14px] text-white/40 hover:text-white/60 transition-colors"
             >
-              {copied ? <Check size={13} strokeWidth={1.8} /> : <Copy size={13} strokeWidth={1.8} />}
+              {copied ? <Check size={14} strokeWidth={1.8} /> : <Copy size={14} strokeWidth={1.8} />}
               {copied ? t("action.copied") : t("action.copy")}
             </button>
           </div>
@@ -169,23 +215,23 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 
         {/* ── Translate ── */}
         {actionType === "translate" && (
-          <div className="px-4 py-3">
-            <div className="space-y-3">
-              <div>
-                <p className="text-[11px] text-white/25 uppercase tracking-wider mb-1">{sourceLang || "Original"}</p>
-                <p className="text-[14px] text-white/50 leading-relaxed">{sourceText}</p>
-              </div>
-              <div className="border-t border-white/[0.04]" />
-              <div>
-                <p className="text-[11px] text-white/25 uppercase tracking-wider mb-1">{targetLang || "Translation"}</p>
-                <p className="text-[15px] text-white/80 leading-relaxed">{targetText}</p>
-              </div>
+          <div className="px-4 pb-3">
+            {/* Source */}
+            <div className="mb-3">
+              {sourceLang && <p className="text-[13px] text-white/25 mb-1">{sourceLang}</p>}
+              <p className="text-[15px] text-white/40 leading-relaxed">{sourceText}</p>
+            </div>
+            <div className="border-t border-white/[0.06] mb-3" />
+            {/* Target */}
+            <div>
+              {targetLang && <p className="text-[13px] text-white/25 mb-1">{targetLang}</p>}
+              <p className="text-[15px] text-white leading-relaxed">{targetText}</p>
             </div>
             <button
               onClick={() => handleCopy(targetText)}
-              className="flex items-center gap-2 mt-2.5 text-[13px] text-white/40 hover:text-white/60 transition-colors"
+              className="flex items-center gap-2 mt-3 text-[14px] text-white/40 hover:text-white/60 transition-colors"
             >
-              {copied ? <Check size={13} strokeWidth={1.8} /> : <Copy size={13} strokeWidth={1.8} />}
+              {copied ? <Check size={14} strokeWidth={1.8} /> : <Copy size={14} strokeWidth={1.8} />}
               {copied ? t("action.copied") : t("action.copy")}
             </button>
           </div>
@@ -193,30 +239,39 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 
         {/* ── Timer ── */}
         {actionType === "set_timer" && (
-          <div className="px-4 py-4 flex flex-col items-center">
-            {timerLabel && <p className="text-[13px] text-white/40 mb-2">{timerLabel}</p>}
-            <p className={`text-[32px] font-light tabular-nums tracking-tight ${timer.done ? "text-white/50" : "text-white/80"}`}>
-              {timer.display}
-            </p>
-            {timer.done && (
-              <p className="text-[14px] text-white/40 mt-1">{t("action.timerDone")}</p>
-            )}
+          <div className="px-4 pb-4">
+            {timerLabel && <p className="text-[14px] text-white/40 text-center mb-3">{timerLabel}</p>}
+            <div className="flex flex-col items-center">
+              <p className={`text-[36px] font-light tabular-nums tracking-tight ${timer.done ? "text-white/40" : "text-white"}`}>
+                {timer.display}
+              </p>
+              {/* Progress bar */}
+              <div className="w-full max-w-[200px] h-1 rounded-full bg-white/[0.06] mt-3 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-1000 ease-linear ${timer.done ? "bg-white/20" : "bg-white/30"}`}
+                  style={{ width: `${timer.progress * 100}%` }}
+                />
+              </div>
+              {timer.done && (
+                <p className="text-[15px] text-white/40 mt-3">{t("action.timerDone")}</p>
+              )}
+            </div>
           </div>
         )}
 
-        {/* ── Footer: Confirm/Cancel for external actions ── */}
+        {/* ── Confirm / Cancel (external actions only) ── */}
         {needsConfirmation(actionType) && status === "proposed" && (
           <div className="flex border-t border-white/[0.06]">
             <button
               onClick={handleCancel}
-              className="flex-1 flex items-center justify-center gap-2 py-3 text-[14px] text-white/40 hover:text-white/60 hover:bg-white/[0.04] transition-colors"
+              className="flex-1 flex items-center justify-center py-3 text-[15px] text-white/40 hover:text-white/60 hover:bg-white/[0.04] transition-colors"
             >
               {t("reminders.cancel")}
             </button>
             <div className="w-px bg-white/[0.06]" />
             <button
               onClick={handleConfirm}
-              className="flex-1 flex items-center justify-center gap-2 py-3 text-[14px] text-white font-medium hover:bg-white/[0.04] transition-colors"
+              className="flex-1 flex items-center justify-center py-3 text-[15px] text-white font-medium hover:bg-white/[0.04] transition-colors"
             >
               {t("action.confirm")}
             </button>
@@ -225,26 +280,8 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 
         {status === "executing" && (
           <div className="flex items-center justify-center gap-2 py-3 border-t border-white/[0.06]">
-            <Loader2 size={14} className="text-white/30 animate-spin" />
+            <Loader2 size={15} className="text-white/30 animate-spin" />
             <span className="text-[14px] text-white/30">{t("action.executing")}</span>
-          </div>
-        )}
-
-        {needsConfirmation(actionType) && status === "executed" && (
-          <div className="flex items-center justify-center py-2.5 border-t border-white/[0.06]">
-            <span className="text-[13px] text-white/25">{t("action.done")}</span>
-          </div>
-        )}
-
-        {status === "cancelled" && (
-          <div className="flex items-center justify-center py-2.5 border-t border-white/[0.06]">
-            <span className="text-[13px] text-white/20">{t("action.cancelled")}</span>
-          </div>
-        )}
-
-        {status === "failed" && (
-          <div className="flex items-center justify-center py-2.5 border-t border-white/[0.06]">
-            <span className="text-[13px] text-red-400/60">{t("action.failed")}</span>
           </div>
         )}
       </div>

@@ -235,6 +235,9 @@ const translations: Record<string, Record<Locale, string>> = {
   "action.copy": { ru: "Копировать", en: "Copy" },
   "action.copied": { ru: "Скопировано", en: "Copied" },
   "action.timerDone": { ru: "Время вышло", en: "Time's up" },
+  "action.emailTo": { ru: "Кому:", en: "To:" },
+  "action.emailSubject": { ru: "Тема:", en: "Subject:" },
+  "action.openInEmail": { ru: "Открыть в почте", en: "Open in email" },
 
   "scheduled.everyDay": { ru: "Каждый день", en: "Every day" },
   "scheduled.everyWeek": { ru: "Каждую неделю", en: "Every week" },

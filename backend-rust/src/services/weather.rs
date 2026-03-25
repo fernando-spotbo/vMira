@@ -181,15 +181,16 @@ pub async fn get_weather(city: &str) -> Result<WeatherResponse, String> {
     };
 
     // Daily forecast
-    let weekdays_ru = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+    // Send day index instead of localized names — frontend handles i18n
+    let weekdays_key = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     let forecast: Vec<ForecastDay> = daily.time.iter().enumerate().map(|(i, date_str)| {
         let day_name = if i == 0 {
-            "Сегодня".to_string()
+            "today".to_string()
         } else if i == 1 {
-            "Завтра".to_string()
+            "tomorrow".to_string()
         } else {
             chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-                .map(|d| { use chrono::Datelike; weekdays_ru[d.weekday().num_days_from_sunday() as usize].to_string() })
+                .map(|d| { use chrono::Datelike; weekdays_key[d.weekday().num_days_from_sunday() as usize].to_string() })
                 .unwrap_or_else(|_| date_str.clone())
         };
         let code = daily.weathercode.get(i).copied().unwrap_or(0);
@@ -246,17 +247,18 @@ fn weather_icon(code: i64) -> String {
     }.to_string()
 }
 
+/// Returns a WMO description key — frontend translates via i18n
 fn weather_description(code: i64) -> String {
     match code {
-        0 => "Ясно", 1 => "Преимущественно ясно", 2 => "Переменная облачность",
-        3 => "Пасмурно", 45 | 48 => "Туман",
-        51 => "Лёгкая морось", 53 => "Морось", 55 => "Сильная морось",
-        61 => "Небольшой дождь", 63 => "Дождь", 65 => "Сильный дождь",
-        66 | 67 => "Ледяной дождь",
-        71 => "Небольшой снег", 73 => "Снег", 75 => "Сильный снег", 77 => "Снежная крупа",
-        80 => "Небольшой ливень", 81 => "Ливень", 82 => "Сильный ливень",
-        85 => "Небольшой снегопад", 86 => "Сильный снегопад",
-        95 => "Гроза", 96 | 99 => "Гроза с градом",
-        _ => "Переменная облачность",
+        0 => "clear", 1 => "mostly_clear", 2 => "partly_cloudy",
+        3 => "overcast", 45 | 48 => "fog",
+        51 => "light_drizzle", 53 => "drizzle", 55 => "heavy_drizzle",
+        61 => "light_rain", 63 => "rain", 65 => "heavy_rain",
+        66 | 67 => "freezing_rain",
+        71 => "light_snow", 73 => "snow", 75 => "heavy_snow", 77 => "snow_grains",
+        80 => "light_showers", 81 => "showers", 82 => "heavy_showers",
+        85 => "light_snow_showers", 86 => "heavy_snow_showers",
+        95 => "thunderstorm", 96 | 99 => "thunderstorm_hail",
+        _ => "partly_cloudy",
     }.to_string()
 }

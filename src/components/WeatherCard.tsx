@@ -19,6 +19,11 @@ interface WeatherCardProps {
 }
 
 function toF(c: number): number { return Math.round(c * 9 / 5 + 32); }
+function tDay(key: string): string {
+  const k = `weather.${key}`;
+  const v = t(k);
+  return v !== k ? v : key;
+}
 function convertTemp(val: string, f: boolean): string {
   if (!f) return val;
   return val.replace(/([+-]?\d+)(°C?)/g, (_, n) => `${toF(Number(n))}°`);
@@ -31,7 +36,9 @@ export default function WeatherCard(props: WeatherCardProps) {
   const tempMatch = props.summary.match(/([+-]?\d+)°/);
   const rawTemp = tempMatch ? Number(tempMatch[1]) : 0;
   const currentTemp = f ? `${toF(rawTemp)}°` : `${rawTemp}°`;
-  const conditions = props.summary.replace(/[+-]?\d+°C?,?\s*/, "").trim();
+  const rawCond = props.summary.replace(/[+-]?\d+°C?,?\s*/, "").trim();
+  const condKey = `weather.${rawCond}`;
+  const conditions = t(condKey) !== condKey ? t(condKey) : rawCond;
   const mainIcon = props.forecast[0]?.icon || "🌤️";
   const uvLabel = props.uvIndex != null ? (props.uvIndex <= 2 ? t("weather.uvLow") : props.uvIndex <= 5 ? t("weather.uvModerate") : props.uvIndex <= 7 ? t("weather.uvHigh") : t("weather.uvVeryHigh")) : "";
 
@@ -160,7 +167,7 @@ export default function WeatherCard(props: WeatherCardProps) {
               const lo = day.temp_min != null ? (f ? toF(day.temp_min) : Math.round(day.temp_min)) : null;
               return (
                 <div key={i} className="flex items-center gap-3 py-2 px-1 -mx-1 rounded-lg hover:bg-white/[0.02] transition-colors">
-                  <span className={`text-[14px] w-16 shrink-0 ${i === 0 ? "text-white font-medium" : "text-white/40"}`}>{day.day}</span>
+                  <span className={`text-[14px] w-16 shrink-0 ${i === 0 ? "text-white font-medium" : "text-white/40"}`}>{tDay(day.day)}</span>
                   <span className="text-[18px] leading-none shrink-0 select-none">{day.icon}</span>
                   {day.precip_prob != null && day.precip_prob > 0 ? (
                     <span className="text-[12px] text-white/20 w-8 shrink-0">{day.precip_prob}%</span>

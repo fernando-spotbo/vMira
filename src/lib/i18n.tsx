@@ -250,6 +250,26 @@ const translations: Record<string, Record<Locale, string>> = {
   "scheduled.everyWeek": { ru: "Каждую неделю", en: "Every week" },
   "scheduled.everyMonth": { ru: "Каждый месяц", en: "Every month" },
 
+  // ---- Weather ----
+  "weather.feelsLike": { ru: "Ощущается", en: "Feels like" },
+  "weather.wind": { ru: "Ветер", en: "Wind" },
+  "weather.humidity": { ru: "Влажность", en: "Humidity" },
+  "weather.precip": { ru: "Осадки", en: "Precipitation" },
+  "weather.uv": { ru: "УФ", en: "UV" },
+  "weather.uvLow": { ru: "Низкий", en: "Low" },
+  "weather.uvModerate": { ru: "Умеренный", en: "Moderate" },
+  "weather.uvHigh": { ru: "Высокий", en: "High" },
+  "weather.uvVeryHigh": { ru: "Очень высокий", en: "Very high" },
+
+  // ---- Edit reminder modal ----
+  "edit.noRepeat": { ru: "Не повторять", en: "Don't repeat" },
+  "edit.daily": { ru: "Каждый день", en: "Every day" },
+  "edit.weekly": { ru: "Каждую неделю", en: "Every week" },
+  "edit.weekdays": { ru: "По будням", en: "Weekdays" },
+  "edit.monthly": { ru: "Каждый месяц", en: "Every month" },
+  "edit.save": { ru: "Сохранить", en: "Save" },
+  "edit.networkError": { ru: "Ошибка сети", en: "Network error" },
+
   // ---- Тарифы (модальное окно) ----
   "pricing.title": { ru: "Выберите тариф", en: "Choose your plan" },
   "pricing.subtitle": { ru: "Обновите или отмените в любое время.", en: "Upgrade anytime. Cancel anytime." },

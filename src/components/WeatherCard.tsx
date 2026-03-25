@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { t } from "@/lib/i18n";
 
 interface WeatherCardProps {
   city: string;
@@ -32,7 +33,7 @@ export default function WeatherCard(props: WeatherCardProps) {
   const currentTemp = f ? `${toF(rawTemp)}°` : `${rawTemp}°`;
   const conditions = props.summary.replace(/[+-]?\d+°C?,?\s*/, "").trim();
   const mainIcon = props.forecast[0]?.icon || "🌤️";
-  const uvLabel = props.uvIndex != null ? (props.uvIndex <= 2 ? "Низкий" : props.uvIndex <= 5 ? "Умеренный" : props.uvIndex <= 7 ? "Высокий" : "Очень высокий") : "";
+  const uvLabel = props.uvIndex != null ? (props.uvIndex <= 2 ? t("weather.uvLow") : props.uvIndex <= 5 ? t("weather.uvModerate") : props.uvIndex <= 7 ? t("weather.uvHigh") : t("weather.uvVeryHigh")) : "";
 
   // Hourly temps for curve
   const temps = props.hourly.map(h => f ? toF(h.temp) : h.temp);
@@ -79,7 +80,7 @@ export default function WeatherCard(props: WeatherCardProps) {
           </div>
           <p className="text-[15px] text-white/50 mt-1">{conditions}</p>
           <p className="text-[13px] text-white/30 mt-0.5">
-            {convertTemp(props.feelsLike, f) && `Ощущается ${convertTemp(props.feelsLike, f)}`}
+            {convertTemp(props.feelsLike, f) && `${t("weather.feelsLike")} ${convertTemp(props.feelsLike, f)}`}
           </p>
         </div>
         <span className="text-[52px] leading-none mt-1 select-none">{mainIcon}</span>
@@ -88,10 +89,10 @@ export default function WeatherCard(props: WeatherCardProps) {
       {/* Detail pills */}
       <div className="flex gap-2 mt-4 overflow-x-auto">
         {[
-          props.wind && { l: "Ветер", v: props.wind },
-          props.humidity && { l: "Влажность", v: props.humidity },
-          props.precipProb && { l: "Осадки", v: props.precipProb },
-          props.uvIndex != null && { l: "УФ", v: `${props.uvIndex} · ${uvLabel}` },
+          props.wind && { l: t("weather.wind"), v: props.wind },
+          props.humidity && { l: t("weather.humidity"), v: props.humidity },
+          props.precipProb && { l: t("weather.precip"), v: props.precipProb },
+          props.uvIndex != null && { l: t("weather.uv"), v: `${props.uvIndex} · ${uvLabel}` },
           props.sunrise && props.sunset && { l: "☀", v: `${props.sunrise} — ${props.sunset}` },
         ].filter(Boolean).map((item, i) => {
           const d = item as { l: string; v: string };

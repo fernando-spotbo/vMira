@@ -3,16 +3,19 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
 import { updateReminder, deleteReminder, snoozeReminder } from "@/lib/api-client";
+import { t } from "@/lib/i18n";
 import MiraDatePicker from "./ui/MiraDatePicker";
 import MiraTimePicker from "./ui/MiraTimePicker";
 
-const RECURRENCE_OPTIONS = [
-  { value: "", label: "Не повторять" },
-  { value: "FREQ=DAILY", label: "Каждый день" },
-  { value: "FREQ=WEEKLY", label: "Каждую неделю" },
-  { value: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", label: "По будням" },
-  { value: "FREQ=MONTHLY", label: "Каждый месяц" },
-];
+function getRecurrenceOptions() {
+  return [
+    { value: "", label: t("edit.noRepeat") },
+    { value: "FREQ=DAILY", label: t("edit.daily") },
+    { value: "FREQ=WEEKLY", label: t("edit.weekly") },
+    { value: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", label: t("edit.weekdays") },
+    { value: "FREQ=MONTHLY", label: t("edit.monthly") },
+  ];
+}
 
 interface EditReminderModalProps {
   reminder: {
@@ -81,7 +84,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
         setSaving(false);
       }
     } catch (e) {
-      setError("Ошибка сети");
+      setError(t("edit.networkError"));
       setSaving(false);
     }
   };
@@ -163,7 +166,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
                     paddingRight: "30px",
                   }}
                 >
-                  {RECURRENCE_OPTIONS.map((opt) => (
+                  {getRecurrenceOptions().map((opt) => (
                     <option key={opt.value} value={opt.value} className="bg-[#1a1a1a] text-white">{opt.label}</option>
                   ))}
                 </select>
@@ -195,7 +198,7 @@ export default function EditReminderModal({ reminder, onClose, onUpdated, onDele
                 disabled={saving || !name.trim()}
                 className="rounded-lg bg-white px-4 py-2 text-[14px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {saving ? "..." : "Сохранить"}
+                {saving ? "..." : t("edit.save")}
               </button>
             </div>
           </div>

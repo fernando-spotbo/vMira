@@ -5,142 +5,75 @@ import { useChat } from "@/context/ChatContext";
 import MessageBubble from "./MessageBubble";
 import { ChevronDown } from "lucide-react";
 
+/**
+ * Simple approach — no spacer hack:
+ * - Messages container uses flex + justify-end so short content sits at bottom
+ * - Scroll to bottom on new conversation / new messages
+ * - MutationObserver follows streaming
+ * - User scrolls up → stop following
+ */
 export default function ChatArea() {
   const { activeConversation, activeConversationId, isThinking, isStreaming, loadMoreMessages } = useChat();
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const userMsgRef = useRef<HTMLDivElement>(null);
-  const spacerRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
   const prevConvId = useRef<string | null>(null);
-  const prevUserMsgId = useRef<string | null>(null);
   const autoFollow = useRef(true);
-  const selfScrolling = useRef(false);
+  const selfScroll = useRef(false);
   const loadingMore = useRef(false);
 
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const messages = activeConversation?.messages ?? [];
   const lastMsgIdx = messages.length - 1;
-
-  let lastUserIdx = -1;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user") { lastUserIdx = i; break; }
-  }
-  const lastUserMsg = lastUserIdx >= 0 ? messages[lastUserIdx] : null;
   const generating = isThinking || isStreaming;
 
-  // ── DOM-direct scroll (bypasses React, no re-render) ──
-
-  const doScroll = useCallback((top: number) => {
+  const scrollToEnd = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    selfScrolling.current = true;
-    el.scrollTop = top;
-    // Reset after browser processes scroll event
-    requestAnimationFrame(() => { selfScrolling.current = false; });
+    selfScroll.current = true;
+    el.scrollTop = el.scrollHeight;
+    requestAnimationFrame(() => { selfScroll.current = false; });
   }, []);
 
-  const scrollToBottom = useCallback(() => {
-    const el = scrollRef.current;
-    const spacer = spacerRef.current;
-    if (!el) return;
-    if (spacer) {
-      // Scroll to bottom of content (top of spacer), not into spacer void
-      const target = spacer.offsetTop - el.clientHeight + 40;
-      doScroll(Math.max(0, target));
-    } else {
-      doScroll(el.scrollHeight);
-    }
-  }, [doScroll]);
-
-  // Set spacer size via DOM — no React state, no re-render, no jump
-  const setSpacer = useCallback((large: boolean) => {
-    if (!spacerRef.current) return;
-    spacerRef.current.style.minHeight = large ? "60vh" : "24px";
-  }, []);
-
-  const pinUserMsg = useCallback(() => {
-    const container = scrollRef.current;
-    const el = userMsgRef.current;
-    if (!container || !el) return;
-    const cRect = container.getBoundingClientRect();
-    const eRect = el.getBoundingClientRect();
-    const offset = cRect.height * 0.10;
-    doScroll(Math.max(0, container.scrollTop + (eRect.top - cRect.top) - offset));
-  }, [doScroll]);
-
-  // ── 1. Conversation switch → bottom, small spacer ──
-
+  // Conversation switch → scroll to bottom
   useLayoutEffect(() => {
     if (activeConversationId !== prevConvId.current) {
       prevConvId.current = activeConversationId;
       autoFollow.current = true;
-      setSpacer(false);
       setShowScrollBtn(false);
-      requestAnimationFrame(scrollToBottom);
+      requestAnimationFrame(scrollToEnd);
     }
   });
 
-  // ── 2. New user message → large spacer, pin to top ──
-
+  // New messages added → scroll if following
   useEffect(() => {
-    if (!lastUserMsg) return;
-    if (lastUserMsg.id === prevUserMsgId.current) return;
-    prevUserMsgId.current = lastUserMsg.id;
-    if (!lastUserMsg.id.startsWith("user-")) return;
+    if (autoFollow.current) scrollToEnd();
+  }, [messages.length, scrollToEnd]);
 
-    autoFollow.current = true;
-    setShowScrollBtn(false);
-    setSpacer(true);
-
-    setTimeout(pinUserMsg, 10);
-    setTimeout(pinUserMsg, 60);
-    setTimeout(pinUserMsg, 150);
-  }, [lastUserMsg?.id, pinUserMsg, setSpacer]);
-
-  // ── 3. Re-pin on thinking ──
-
+  // Streaming → follow with MutationObserver
   useEffect(() => {
-    if (!autoFollow.current) return;
-    if (isThinking) setTimeout(pinUserMsg, 30);
-  }, [isThinking, pinUserMsg]);
-
-  // ── 4. Follow bottom of content during streaming (not spacer) ──
-
-  useEffect(() => {
-    if (!isStreaming) return;
-    if (!autoFollow.current) return;
-
+    if (!isStreaming || !autoFollow.current) return;
     const el = scrollRef.current;
-    const spacer = spacerRef.current;
-    if (!el || !spacer) return;
+    if (!el) return;
 
     const observer = new MutationObserver(() => {
       if (!autoFollow.current) return;
-      // Scroll to where the spacer starts (= bottom of actual content), not scrollHeight
-      const spacerTop = spacer.offsetTop;
-      const target = spacerTop - el.clientHeight + 40; // show last line + 40px breathing room
-      selfScrolling.current = true;
-      el.scrollTop = Math.max(0, target);
-      requestAnimationFrame(() => { selfScrolling.current = false; });
+      selfScroll.current = true;
+      el.scrollTop = el.scrollHeight;
+      requestAnimationFrame(() => { selfScroll.current = false; });
     });
-
     observer.observe(el, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
   }, [isStreaming]);
 
-  // ── 5. Streaming ends → do nothing. User is reading. No jumps. ──
-  // Spacer collapses only on conversation switch or new user message.
-
-  // ── 6. Scroll handler ──
-
+  // Scroll handler
   const onScroll = useCallback(() => {
-    if (selfScrolling.current) return;
+    if (selfScroll.current) return;
     const el = scrollRef.current;
     if (!el) return;
 
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
     if (nearBottom) {
       autoFollow.current = true;
       setShowScrollBtn(false);
@@ -149,7 +82,7 @@ export default function ChatArea() {
       if (messages.length > 0) setShowScrollBtn(true);
     }
 
-    // Infinite scroll at top
+    // Infinite scroll
     if (el.scrollTop < 200 && !loadingMore.current) {
       if (activeConversation?.hasMore && !activeConversation?.loadingMore) {
         loadingMore.current = true;
@@ -171,39 +104,38 @@ export default function ChatArea() {
         onScroll={onScroll}
         className="h-full overflow-y-auto"
       >
-        <div className="mx-auto max-w-[52rem] px-4 pt-12">
-          {activeConversation?.loadingMore && (
-            <div className="flex justify-center py-4">
-              <div className="mira-orb" style={{ position: "relative" }} />
-            </div>
-          )}
-
-          {messages.map((message, index) => {
-            const isLastAssistant = message.role === "assistant" && index === lastMsgIdx;
-            const isNewMsg = message.id.startsWith("user-") || message.id.startsWith("asst-");
-            return (
-              <div key={message.id} ref={index === lastUserIdx ? userMsgRef : undefined}>
-                <MessageBubble
-                  message={message}
-                  isNew={isNewMsg}
-                  isStreaming={isLastAssistant && message.id.startsWith("asst-") && generating}
-                />
+        {/* Flex container: justify-end pushes short content to bottom naturally */}
+        <div className="mx-auto max-w-[52rem] px-4 min-h-full flex flex-col justify-end">
+          <div className="pt-12">
+            {activeConversation?.loadingMore && (
+              <div className="flex justify-center py-4">
+                <div className="mira-orb" style={{ position: "relative" }} />
               </div>
-            );
-          })}
+            )}
 
-          {/* Spacer — sized via DOM ref, not React state. Starts small. */}
-          <div ref={spacerRef} style={{ minHeight: "24px" }} aria-hidden="true" />
+            {messages.map((message, index) => {
+              const isLastAssistant = message.role === "assistant" && index === lastMsgIdx;
+              const isNewMsg = message.id.startsWith("user-") || message.id.startsWith("asst-");
+              return (
+                <div key={message.id}>
+                  <MessageBubble
+                    message={message}
+                    isNew={isNewMsg}
+                    isStreaming={isLastAssistant && message.id.startsWith("asst-") && generating}
+                  />
+                </div>
+              );
+            })}
+
+            {/* Small padding so last message isn't flush against input */}
+            <div ref={endRef} className="h-6" aria-hidden="true" />
+          </div>
         </div>
       </div>
 
       {showScrollBtn && (
         <button
-          onClick={() => {
-            autoFollow.current = true;
-            setShowScrollBtn(false);
-            scrollToBottom();
-          }}
+          onClick={() => { autoFollow.current = true; setShowScrollBtn(false); scrollToEnd(); }}
           className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-[#252525] border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-[#303030] shadow-lg transition-all"
         >
           <ChevronDown size={16} strokeWidth={2} />

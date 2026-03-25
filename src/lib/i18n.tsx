@@ -144,18 +144,6 @@ const translations: Record<string, Record<Locale, string>> = {
   "settings.googleConnected": { ru: "Подключён", en: "Connected" },
   "settings.yandexCalendar": { ru: "Яндекс Календарь", en: "Yandex Calendar" },
 
-  // Briefing
-  "briefing.title": { ru: "Обзор дня", en: "Daily Briefing" },
-  "briefing.setupTitle": { ru: "Что вы хотите видеть каждый день?", en: "What do you want to see every day?" },
-  "briefing.setupDesc": { ru: "Опишите своими словами — Mira соберёт информацию для вас", en: "Describe in your own words — Mira will gather the information for you" },
-  "briefing.promptPlaceholder": { ru: "Цены TSLA и AAPL, погода, расписание на день...", en: "TSLA and AAPL prices, weather, today's schedule..." },
-  "briefing.generate": { ru: "Создать", en: "Generate" },
-  "briefing.saveAndGenerate": { ru: "Сохранить и обновить", en: "Save and refresh" },
-  "briefing.generating": { ru: "Mira собирает информацию...", en: "Mira is gathering information..." },
-  "briefing.refreshing": { ru: "Обновление...", en: "Refreshing..." },
-  "briefing.justNow": { ru: "Только что", en: "Just now" },
-  "briefing.ideas": { ru: "Идеи", en: "Ideas" },
-  "briefing.loadError": { ru: "Не удалось загрузить", en: "Failed to load" },
   "settings.language": { ru: "Язык", en: "Language" },
   "settings.theme": { ru: "Тема", en: "Theme" },
   "settings.themeDark": { ru: "Тёмная", en: "Dark" },

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock, Sunrise } from "lucide-react";
+import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock } from "lucide-react";
 import SearchModal from "./SearchModal";
 import SettingsModal from "./SettingsModal";
 import PricingModal from "./PricingModal";
@@ -202,7 +202,6 @@ export default function Sidebar() {
     createNewChat,
     showReminders,
     setShowReminders,
-    openBriefing,
   } = useChat();
   const { user, logout } = useAuth();
 
@@ -293,7 +292,6 @@ export default function Sidebar() {
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
-          openBriefing={openBriefing}
         />
       </aside>
 
@@ -319,7 +317,6 @@ export default function Sidebar() {
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
-          openBriefing={openBriefing}
         />
       </aside>
     </>
@@ -343,7 +340,6 @@ interface SidebarContentProps {
   userPlanLabel: string;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
-  openBriefing: () => void;
 }
 
 function SidebarContent({
@@ -362,7 +358,6 @@ function SidebarContent({
   userPlanLabel,
   showReminders,
   setShowReminders,
-  openBriefing,
 }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col" style={{ minWidth: expanded ? 260 : 50 }}>
@@ -424,13 +419,6 @@ function SidebarContent({
               <Clock size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("reminders.title")}</span>
             </button>
-            <button
-              onClick={() => { openBriefing(); }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] text-white hover:bg-white/[0.06] transition-colors"
-            >
-              <Sunrise size={16} strokeWidth={1.8} className="shrink-0" />
-              <span className="truncate">{t("briefing.title")}</span>
-            </button>
           </>
         ) : (
           <>
@@ -454,13 +442,6 @@ function SidebarContent({
               title={t("reminders.title")}
             >
               <Clock size={18} strokeWidth={1.8} />
-            </button>
-            <button
-              onClick={() => { openBriefing(); }}
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
-              title={t("briefing.title")}
-            >
-              <Sunrise size={18} strokeWidth={1.8} />
             </button>
           </>
         )}

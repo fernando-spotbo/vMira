@@ -47,7 +47,6 @@ interface ChatContextType {
   cancelMessage: () => void;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
-  openBriefing: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -253,29 +252,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // The actual conversation is created when the user sends the first message.
     setActiveConversationId(null);
   }, []);
-
-  const openBriefing = useCallback(async () => {
-    setShowReminders(false);
-    // Find existing briefing conversation
-    const existing = conversations.find(c => c.title === "Daily Briefing");
-    if (existing) {
-      setActiveConversationId(existing.id);
-      return;
-    }
-    // Create a new briefing conversation
-    if (!getAccessToken()) return;
-    const conv = await chatApi.createConversation("Daily Briefing");
-    if (conv) {
-      setConversations(prev => [{
-        id: conv.id,
-        title: "Daily Briefing",
-        messages: [],
-        createdAt: new Date().toISOString().split("T")[0],
-        starred: true,
-      }, ...prev]);
-      setActiveConversationId(conv.id);
-    }
-  }, [conversations]);
 
   const addMessage = useCallback(
     (conversationId: string, message: Message) => {
@@ -882,7 +858,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         queuePosition,
         showReminders,
         setShowReminders,
-        openBriefing,
       }}
     >
       {children}

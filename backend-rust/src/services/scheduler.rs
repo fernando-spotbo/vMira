@@ -15,21 +15,10 @@ pub async fn run_reminder_scheduler(state: AppState) {
     tracing::info!("Reminder scheduler started (30s interval)");
     let mut interval = tokio::time::interval(Duration::from_secs(30));
 
-    // Briefing check runs every 5 minutes (not every 30s)
-    let mut briefing_counter: u32 = 0;
-
     loop {
         interval.tick().await;
         if let Err(e) = process_due_reminders(&state).await {
             tracing::error!(error = %e, "Reminder scheduler error");
-        }
-        // Check briefings every ~5 min (10 ticks * 30s)
-        briefing_counter += 1;
-        if briefing_counter >= 10 {
-            briefing_counter = 0;
-            if let Err(e) = process_due_briefings(&state).await {
-                tracing::error!(error = %e, "Briefing scheduler error");
-            }
         }
     }
 }
@@ -475,109 +464,3 @@ async fn send_email_notification(
     Ok(())
 }
 
-// ── Daily Briefing Delivery ─────────────────────────────────────────────
-
-async fn process_due_briefings(state: &AppState) -> Result<(), String> {
-    let now = Utc::now();
-    let today = now.date_naive();
-
-    // Find users who have briefing enabled, it's past their briefing_time today,
-    // and we haven't sent a briefing for today yet
-    #[derive(sqlx::FromRow)]
-    struct BriefingUser {
-        user_id: Uuid,
-        timezone: String,
-    }
-
-    let users = sqlx::query_as::<_, BriefingUser>(
-        "SELECT ns.user_id, ns.timezone FROM notification_settings ns
-         WHERE ns.briefing_enabled = true
-           AND (ns.briefing_last_sent IS NULL OR ns.briefing_last_sent < $1)
-         LIMIT 50"
-    )
-    .bind(today)
-    .fetch_all(&state.db)
-    .await
-    .map_err(|e| format!("Briefing query: {e}"))?;
-
-    if users.is_empty() {
-        return Ok(());
-    }
-
-    for bu in &users {
-        // Check if current time in user's timezone is past briefing_time
-        let offset_hours: i64 = match bu.timezone.as_str() {
-            "Europe/Kaliningrad" => 2, "Europe/Moscow" => 3, "Europe/Samara" => 4,
-            "Asia/Yekaterinburg" => 5, "Asia/Omsk" => 6, "Asia/Novosibirsk" | "Asia/Krasnoyarsk" => 7,
-            "Asia/Irkutsk" => 8, "Asia/Yakutsk" => 9, "Asia/Vladivostok" => 10,
-            "Asia/Magadan" => 11, "Asia/Kamchatka" => 12, _ => 3,
-        };
-        let user_now = now + chrono::Duration::hours(offset_hours);
-        let user_time = user_now.time();
-
-        let briefing_time: Option<(chrono::NaiveTime,)> = sqlx::query_as(
-            "SELECT briefing_time FROM notification_settings WHERE user_id = $1"
-        ).bind(bu.user_id).fetch_optional(&state.db).await.unwrap_or(None);
-
-        let target_time = briefing_time.map(|(t,)| t).unwrap_or(chrono::NaiveTime::from_hms_opt(8, 0, 0).unwrap());
-        if user_time < target_time {
-            continue;
-        }
-
-        // Send briefing via Telegram
-        if let Err(e) = send_telegram_briefing(state, bu.user_id).await {
-            tracing::warn!(user_id = %bu.user_id, error = %e, "Briefing delivery failed");
-            continue;
-        }
-
-        // Mark as sent
-        let _ = sqlx::query(
-            "UPDATE notification_settings SET briefing_last_sent = $1 WHERE user_id = $2"
-        ).bind(today).bind(bu.user_id).execute(&state.db).await;
-    }
-
-    Ok(())
-}
-
-async fn send_telegram_briefing(state: &AppState, user_id: Uuid) -> Result<(), String> {
-    // Get user's custom prompt
-    let prompt: Option<(Option<String>,)> = sqlx::query_as(
-        "SELECT briefing_prompt FROM notification_settings WHERE user_id = $1"
-    ).bind(user_id).fetch_optional(&state.db).await.unwrap_or(None);
-
-    let prompt = prompt
-        .and_then(|(p,)| p)
-        .filter(|p| !p.trim().is_empty())
-        .ok_or("No briefing prompt configured")?;
-
-    // Generate AI content
-    let content = crate::routes::briefing::generate_briefing_content(state, user_id, &prompt).await?;
-
-    // Cache it
-    let _ = sqlx::query(
-        "UPDATE notification_settings SET briefing_last_content = $1, briefing_last_generated = now() WHERE user_id = $2"
-    ).bind(&content).bind(user_id).execute(&state.db).await;
-
-    // Send to Telegram
-    let link = sqlx::query_as::<_, TelegramLink>(
-        "SELECT * FROM telegram_links WHERE user_id = $1 AND is_active = true"
-    ).bind(user_id).fetch_optional(&state.db).await
-    .map_err(|e| format!("TG link query: {e}"))?
-    .ok_or("No Telegram link")?;
-
-    let bot_token = &state.config.telegram_bot_token;
-    if bot_token.is_empty() { return Err("No bot token".into()); }
-    let bot = TelegramBot::new(bot_token);
-
-    // Strip markdown for Telegram (send as plain text, it's cleaner)
-    let plain = content
-        .replace("**", "").replace("##", "").replace("# ", "")
-        .replace("- ", "  ").trim().to_string();
-    let msg = format!("Mira\n\n{}", plain);
-
-    bot.send_message(link.chat_id, &msg, None).await
-        .map_err(|e| format!("TG send: {e}"))?;
-
-    tracing::info!(user_id = %user_id, "Daily briefing sent to Telegram");
-    Ok(())
-}

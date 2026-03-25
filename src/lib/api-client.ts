@@ -405,25 +405,3 @@ export async function disconnectCalendarProvider(provider: string) {
   return apiCall(`/calendar/${provider}/disconnect`, { method: "DELETE" });
 }
 
-// ── Briefing ──────────────────────────────────────────────────────────────
-
-export interface BriefingData {
-  configured: boolean;
-  prompt: string | null;
-  content: string | null;
-  generated_at: string | null;
-  enabled: boolean;
-  time: string;
-}
-
-export async function getBriefing() {
-  return apiCall<BriefingData>("/briefing");
-}
-
-export async function getBriefingSettings() {
-  return apiCall<{ enabled: boolean; time: string }>("/briefing/settings");
-}
-
-export async function updateBriefingSettings(data: { enabled?: boolean; time?: string; prompt?: string }) {
-  return apiCall<{ enabled: boolean; time: string }>("/briefing/settings", { method: "PUT", body: JSON.stringify(data) });
-}

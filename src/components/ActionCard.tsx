@@ -1,16 +1,33 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages, Timer, ExternalLink, Send, Code } from "lucide-react";
+import {
+  Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages,
+  Timer, Send, Code2, ChevronDown, ExternalLink,
+} from "lucide-react";
 import hljs from "highlight.js";
 import { t } from "@/lib/i18n";
 import { executeAction, cancelAction } from "@/lib/api-client";
+
+// ── Types & constants ────────────────────────────────────────────────────
 
 interface ActionCardProps {
   id: string;
   actionType: string;
   payload: Record<string, unknown>;
 }
+
+const COLLAPSED_HEIGHT = 240;
+
+const EMAIL_PROVIDERS = [
+  { name: "Gmail", letter: "G", url: (to: string, s: string, b: string) => `https://mail.google.com/mail/?view=cm&to=${e(to)}&su=${e(s)}&body=${e(b)}` },
+  { name: "Yandex", letter: "Я", url: (to: string, s: string, b: string) => `https://mail.yandex.ru/compose?to=${e(to)}&subject=${e(s)}&body=${e(b)}` },
+  { name: "Mail.ru", letter: "@", url: (to: string, s: string, b: string) => `https://e.mail.ru/compose/?to=${e(to)}&subject=${e(s)}&body=${e(b)}` },
+  { name: "Outlook", letter: "O", url: (to: string, s: string, b: string) => `https://outlook.live.com/mail/0/deeplink/compose?to=${e(to)}&subject=${e(s)}&body=${e(b)}` },
+];
+function e(s: string) { return encodeURIComponent(s); }
+
+// ── Shared primitives ────────────────────────────────────────────────────
 
 function TelegramIcon({ size = 16, className }: { size?: number; className?: string }) {
   return (
@@ -20,20 +37,20 @@ function TelegramIcon({ size = 16, className }: { size?: number; className?: str
   );
 }
 
-function ActionIcon({ type }: { type: string }) {
-  const cls = "text-white/40 shrink-0";
+function TypeIcon({ type }: { type: string }) {
+  const c = "text-white/40 shrink-0";
   switch (type) {
-    case "send_telegram": return <TelegramIcon size={16} className={cls} />;
-    case "send_email": return <Mail size={16} strokeWidth={1.8} className={cls} />;
-    case "create_draft": return <FileText size={16} strokeWidth={1.8} className={cls} />;
-    case "translate": return <Languages size={16} strokeWidth={1.8} className={cls} />;
-    case "set_timer": return <Timer size={16} strokeWidth={1.8} className={cls} />;
-    case "create_code": return <Code size={16} strokeWidth={1.8} className={cls} />;
-    default: return <FileText size={16} strokeWidth={1.8} className={cls} />;
+    case "send_telegram": return <TelegramIcon size={16} className={c} />;
+    case "send_email": return <Mail size={16} strokeWidth={1.8} className={c} />;
+    case "create_draft": return <FileText size={16} strokeWidth={1.8} className={c} />;
+    case "translate": return <Languages size={16} strokeWidth={1.8} className={c} />;
+    case "set_timer": return <Timer size={16} strokeWidth={1.8} className={c} />;
+    case "create_code": return <Code2 size={16} strokeWidth={1.8} className={c} />;
+    default: return <FileText size={16} strokeWidth={1.8} className={c} />;
   }
 }
 
-function actionLabel(type: string): string {
+function typeLabel(type: string): string {
   switch (type) {
     case "send_telegram": return "Telegram";
     case "send_email": return "Email";
@@ -45,333 +62,276 @@ function actionLabel(type: string): string {
   }
 }
 
-function buildMailtoLink(to: string, subject: string, body: string): string {
-  const params = new URLSearchParams();
-  if (subject) params.set("subject", subject);
-  if (body) params.set("body", body);
-  const query = params.toString();
-  return `mailto:${encodeURIComponent(to)}${query ? `?${query}` : ""}`;
+function CopyBtn({ text, className }: { text: string; className?: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 2000); }}
+      className={`flex h-8 w-8 items-center justify-center rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors ${className || ""}`}
+      title={ok ? t("action.copied") : t("action.copy")}
+    >
+      {ok ? <Check size={14} strokeWidth={1.8} /> : <Copy size={14} strokeWidth={1.8} />}
+    </button>
+  );
 }
 
-interface EmailProvider {
-  name: string;
-  icon: string;
-  buildUrl: (to: string, subject: string, body: string) => string;
-}
+/** Expandable content wrapper — collapses long content with a gradient fade */
+function Expandable({ children, maxH = COLLAPSED_HEIGHT }: { children: React.ReactNode; maxH?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [needsExpand, setNeedsExpand] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
-const EMAIL_PROVIDERS: EmailProvider[] = [
-  {
-    name: "Gmail",
-    icon: "G",
-    buildUrl: (to, subject, body) =>
-      `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-  },
-  {
-    name: "Yandex",
-    icon: "Я",
-    buildUrl: (to, subject, body) =>
-      `https://mail.yandex.ru/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-  },
-  {
-    name: "Mail.ru",
-    icon: "@",
-    buildUrl: (to, subject, body) =>
-      `https://e.mail.ru/compose/?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-  },
-  {
-    name: "Outlook",
-    icon: "O",
-    buildUrl: (to, subject, body) =>
-      `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-  },
-];
+  useEffect(() => {
+    if (ref.current && ref.current.scrollHeight > maxH + 40) setNeedsExpand(true);
+  }, [maxH]);
+
+  return (
+    <div className="relative">
+      <div
+        ref={ref}
+        className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
+        style={{ maxHeight: expanded ? "none" : `${maxH}px` }}
+      >
+        {children}
+      </div>
+      {needsExpand && !expanded && (
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="h-16 bg-gradient-to-t from-[#161616] to-transparent pointer-events-none" />
+          <button
+            onClick={() => setExpanded(true)}
+            className="relative z-10 flex w-full items-center justify-center gap-1.5 py-2 text-[14px] text-white/40 hover:text-white/60 transition-colors bg-[#161616]"
+          >
+            <ChevronDown size={14} strokeWidth={1.8} />
+            {t("action.showMore")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Timer hook ───────────────────────────────────────────────────────────
 
 function useTimer(seconds: number, active: boolean) {
   const [remaining, setRemaining] = useState(seconds);
   const [done, setDone] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!active || seconds <= 0) return;
     setRemaining(seconds);
-    intervalRef.current = setInterval(() => {
-      setRemaining(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current!);
-          setDone(true);
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("Mira", { body: t("action.timerDone") });
-          }
-          return 0;
-        }
-        return prev - 1;
+    ref.current = setInterval(() => {
+      setRemaining(p => {
+        if (p <= 1) { clearInterval(ref.current!); setDone(true); try { new Notification("Mira", { body: t("action.timerDone") }); } catch {} return 0; }
+        return p - 1;
       });
     }, 1000);
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+    return () => { if (ref.current) clearInterval(ref.current); };
   }, [seconds, active]);
 
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
-  const display = `${mins}:${String(secs).padStart(2, "0")}`;
-  const progress = seconds > 0 ? (seconds - remaining) / seconds : 0;
-
-  return { display, done, progress };
+  const m = Math.floor(remaining / 60), s = remaining % 60;
+  return { display: `${m}:${String(s).padStart(2, "0")}`, done, progress: seconds > 0 ? (seconds - remaining) / seconds : 0 };
 }
 
-// ── Copyable text block ──────────────────────────────────────────────────
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex items-center gap-1.5 text-[14px] text-white/30 hover:text-white/50 transition-colors"
-    >
-      {copied ? <Check size={14} strokeWidth={1.8} /> : <Copy size={14} strokeWidth={1.8} />}
-      {copied ? t("action.copied") : t("action.copy")}
-    </button>
-  );
-}
-
-// ── Main ─────────────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────
 
 export default function ActionCard({ id, actionType, payload }: ActionCardProps) {
   const [status, setStatus] = useState<"proposed" | "executing" | "executed" | "cancelled" | "failed">(
     actionType === "send_telegram" ? "proposed" : "executed"
   );
 
+  // Payload extraction
   const description = String(payload.description || "");
   const message = String(payload.message || payload.body || payload.content || "");
   const to = String(payload.to || "");
   const subject = String(payload.subject || "");
   const title = String(payload.title || "");
-  const sourceText = String(payload.source_text || ""); // fallback if AI still sends it
+  const sourceText = String(payload.source_text || "");
   const targetText = String(payload.target_text || message);
   const sourceLang = String(payload.source_lang || "").toUpperCase();
   const targetLang = String(payload.target_lang || "").toUpperCase();
+  const codeContent = String(payload.code || message);
+  const codeLang = String(payload.language || "text");
   const timerSeconds = Number(payload.seconds || 0);
   const timerLabel = String(payload.label || description);
   const timer = useTimer(timerSeconds, actionType === "set_timer");
-  const codeContent = String(payload.code || message);
-  const codeLang = String(payload.language || "text");
 
-  // Syntax highlighting for code
-  const highlightedCode = useMemo(() => {
+  const highlighted = useMemo(() => {
     if (actionType !== "create_code" || !codeContent) return "";
-    try {
-      const lang = hljs.getLanguage(codeLang) ? codeLang : "plaintext";
-      return hljs.highlight(codeContent, { language: lang }).value;
-    } catch {
-      return codeContent.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
+    try { return hljs.highlight(codeContent, { language: hljs.getLanguage(codeLang) ? codeLang : "plaintext" }).value; }
+    catch { return codeContent.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   }, [actionType, codeContent, codeLang]);
 
-  const handleConfirm = async () => {
-    setStatus("executing");
-    const result = await executeAction(id);
-    setStatus(result.ok ? (result.data.status as typeof status) : "failed");
-  };
+  const handleConfirm = async () => { setStatus("executing"); const r = await executeAction(id); setStatus(r.ok ? (r.data.status as typeof status) : "failed"); };
+  const handleCancel = async () => { setStatus("cancelled"); await cancelAction(id); };
 
-  const handleCancel = async () => {
-    setStatus("cancelled");
-    await cancelAction(id);
-  };
+  // Determine primary copyable text
+  const copyText = actionType === "translate" ? targetText : actionType === "create_code" ? codeContent : actionType === "send_email" ? `${subject}\n\n${message}` : message;
 
   return (
     <div className="my-3 max-w-[520px]">
-      <div className="rounded-xl border border-white/[0.1] hover:border-white/[0.15] transition-colors overflow-hidden">
+      <div className="rounded-xl border border-white/[0.1] hover:border-white/[0.15] transition-colors">
 
-        {/* ── Header ── */}
-        <div className="flex items-center gap-2.5 px-4 py-2.5">
-          <ActionIcon type={actionType} />
-          <span className="text-[15px] text-white/40 flex-1">{actionLabel(actionType)}</span>
-          {status === "executed" && actionType !== "set_timer" && actionType !== "send_telegram" && (
-            <CopyButton text={actionType === "translate" ? targetText : actionType === "create_code" ? codeContent : message} />
-          )}
+        {/* ═══ Header bar ═══ */}
+        <div className="flex items-center gap-2.5 px-4 h-10">
+          <TypeIcon type={actionType} />
+          <span className="text-[14px] text-white/35 flex-1">{typeLabel(actionType)}</span>
+
+          {/* Status indicators */}
           {status === "executed" && actionType === "send_telegram" && (
-            <span className="flex items-center gap-1.5 text-[13px] text-white/25">
-              <Check size={13} strokeWidth={2} />
-              {t("action.done")}
-            </span>
+            <span className="flex items-center gap-1.5 text-[13px] text-white/25"><Check size={13} strokeWidth={2} />{t("action.done")}</span>
           )}
           {status === "failed" && (
-            <span className="flex items-center gap-1.5 text-[13px] text-red-400/60">
-              <AlertCircle size={13} strokeWidth={1.8} />
-              {t("action.failed")}
-            </span>
+            <span className="flex items-center gap-1.5 text-[13px] text-red-400/60"><AlertCircle size={13} strokeWidth={1.8} />{t("action.failed")}</span>
           )}
           {status === "cancelled" && (
             <span className="text-[13px] text-white/20">{t("action.cancelled")}</span>
           )}
+
+          {/* Copy button — for non-confirm cards */}
+          {actionType !== "send_telegram" && actionType !== "set_timer" && copyText && (
+            <CopyBtn text={copyText} />
+          )}
         </div>
 
-        {/* ── Telegram ── */}
+        {/* ═══ TELEGRAM ═══ */}
         {actionType === "send_telegram" && (
-          <div className="px-4 pb-3">
+          <div className="px-4 pb-3.5">
             <p className="text-[15px] text-white leading-relaxed whitespace-pre-wrap">{message || description}</p>
           </div>
         )}
 
-        {/* ── Email — draft with provider links ── */}
+        {/* ═══ EMAIL ═══ */}
         {actionType === "send_email" && (
-          <div className="px-4 pb-3">
-            {/* Email header fields */}
-            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] px-3.5 py-2.5 space-y-1.5 mb-2">
-              {to && (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[13px] text-white/25 w-14 shrink-0">{t("action.emailTo")}</span>
-                  <span className="text-[15px] text-white/70">{to}</span>
-                </div>
-              )}
-              {subject && (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[13px] text-white/25 w-14 shrink-0">{t("action.emailSubject")}</span>
-                  <span className="text-[15px] text-white/70">{subject}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Email body */}
-            {message && (
-              <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 mb-3 max-h-[300px] overflow-y-auto">
-                <p className="text-[15px] text-white/70 leading-[1.7] whitespace-pre-wrap">{message}</p>
+          <div className="px-4 pb-3.5">
+            {/* Header fields */}
+            {(to || subject) && (
+              <div className="mb-2.5 space-y-1">
+                {to && (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[13px] text-white/20 w-14 shrink-0">{t("action.emailTo")}</span>
+                    <span className="text-[15px] text-white/60">{to}</span>
+                  </div>
+                )}
+                {subject && (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[13px] text-white/20 w-14 shrink-0">{t("action.emailSubject")}</span>
+                    <span className="text-[15px] text-white/70 font-medium">{subject}</span>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Provider buttons */}
-            <p className="text-[13px] text-white/25 mb-2">{t("action.openWith")}</p>
-            <div className="flex flex-wrap gap-2">
-              {EMAIL_PROVIDERS.map((provider) => (
+            {/* Body */}
+            {message && (
+              <Expandable maxH={200}>
+                <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-4">
+                  <p className="text-[15px] text-white/60 leading-[1.75] whitespace-pre-wrap">{message}</p>
+                </div>
+              </Expandable>
+            )}
+
+            {/* Provider row */}
+            <div className="flex items-center gap-1.5 mt-3 overflow-x-auto">
+              {EMAIL_PROVIDERS.map((p) => (
                 <a
-                  key={provider.name}
-                  href={provider.buildUrl(to, subject, message)}
+                  key={p.name}
+                  href={p.url(to, subject, message)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[14px] text-white/50 hover:text-white/70 hover:bg-white/[0.06] hover:border-white/[0.1] transition-colors"
+                  className="flex items-center gap-1.5 shrink-0 rounded-lg border border-white/[0.06] px-2.5 py-1.5 text-[13px] text-white/40 hover:text-white/60 hover:border-white/[0.1] hover:bg-white/[0.03] transition-colors"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold text-white/40 bg-white/[0.06]">{provider.icon}</span>
-                  {provider.name}
+                  <span className="text-[11px] font-bold text-white/30">{p.letter}</span>
+                  {p.name}
                 </a>
               ))}
             </div>
-
-            {/* Copy fallback */}
-            <div className="flex items-center gap-4 mt-3">
-              <CopyButton text={`${subject ? `${subject}\n\n` : ""}${message}`} />
-            </div>
           </div>
         )}
 
-        {/* ── Draft — clean text with title ── */}
+        {/* ═══ DRAFT ═══ */}
         {actionType === "create_draft" && (
-          <div className="px-4 pb-3">
-            {title && (
-              <p className="text-[15px] text-white font-medium mb-2">{title}</p>
-            )}
-            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-4 max-h-[400px] overflow-y-auto">
-              <p className="text-[15px] text-white/70 leading-[1.7] whitespace-pre-wrap">{message}</p>
-            </div>
+          <div className="px-4 pb-3.5">
+            {title && <p className="text-[15px] text-white font-medium mb-2.5">{title}</p>}
+            <Expandable maxH={COLLAPSED_HEIGHT}>
+              <p className="text-[15px] text-white/65 leading-[1.75] whitespace-pre-wrap">{message}</p>
+            </Expandable>
           </div>
         )}
 
-        {/* ── Translate — source / target ── */}
+        {/* ═══ TRANSLATE ═══ */}
         {actionType === "translate" && (
-          <div className="px-4 pb-3">
-            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] overflow-hidden">
-              {/* Source — only if AI provided it (saves tokens otherwise) */}
-              {sourceText && (
-                <>
-                  <div className="px-3.5 py-3">
-                    {sourceLang && <p className="text-[12px] text-white/20 mb-1 font-medium tracking-wide">{sourceLang}</p>}
-                    <p className="text-[15px] text-white/40 leading-relaxed">{sourceText}</p>
-                  </div>
-                  <div className="border-t border-white/[0.06]" />
-                </>
-              )}
-              {/* Target */}
-              <div className="px-3.5 py-3">
-                {targetLang && <p className="text-[12px] text-white/20 mb-1 font-medium tracking-wide">{targetLang}</p>}
-                <p className="text-[15px] text-white leading-relaxed">{targetText}</p>
-              </div>
+          <div className="px-4 pb-3.5">
+            {sourceText && (
+              <p className="text-[15px] text-white/30 leading-relaxed mb-3">{sourceText}</p>
+            )}
+            <div>
+              {targetLang && <span className="text-[12px] text-white/20 font-medium tracking-wider">{targetLang}</span>}
+              <p className="text-[15px] text-white leading-relaxed mt-1">{targetText}</p>
             </div>
           </div>
         )}
 
-        {/* ── Timer ── */}
+        {/* ═══ TIMER ═══ */}
         {actionType === "set_timer" && (
-          <div className="px-4 pb-4">
-            {timerLabel && <p className="text-[14px] text-white/40 text-center mb-3">{timerLabel}</p>}
+          <div className="px-4 pb-5 pt-1">
+            {timerLabel && <p className="text-[14px] text-white/35 text-center mb-4">{timerLabel}</p>}
             <div className="flex flex-col items-center">
-              <p className={`text-[40px] font-light tabular-nums tracking-tight ${timer.done ? "text-white/30" : "text-white"}`}>
+              <p className={`text-[44px] font-extralight tabular-nums tracking-tight leading-none ${timer.done ? "text-white/25" : "text-white"}`}>
                 {timer.display}
               </p>
-              <div className="w-full max-w-[180px] h-[3px] rounded-full bg-white/[0.06] mt-4 overflow-hidden">
+              <div className="w-40 h-[2px] rounded-full bg-white/[0.06] mt-5 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-1000 ease-linear ${timer.done ? "bg-white/15" : "bg-white/30"}`}
+                  className={`h-full rounded-full transition-all duration-1000 ease-linear ${timer.done ? "bg-white/10" : "bg-white/30"}`}
                   style={{ width: `${timer.progress * 100}%` }}
                 />
               </div>
-              {timer.done && (
-                <p className="text-[15px] text-white/40 mt-3">{t("action.timerDone")}</p>
-              )}
+              {timer.done && <p className="text-[14px] text-white/35 mt-4">{t("action.timerDone")}</p>}
             </div>
           </div>
         )}
 
-        {/* ── Code ── */}
+        {/* ═══ CODE ═══ */}
         {actionType === "create_code" && (
-          <div className="px-4 pb-3">
-            {title && <p className="text-[15px] text-white font-medium mb-2">{title}</p>}
-            <div className="rounded-lg bg-[#0d0d0d] border border-white/[0.06] overflow-hidden">
-              {/* Language badge */}
-              <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/[0.04]">
+          <div className="overflow-hidden">
+            {title && <p className="text-[15px] text-white font-medium px-4 mb-2">{title}</p>}
+            <div className="bg-[#0d0d0d] border-t border-white/[0.04]">
+              {/* Lang badge row */}
+              <div className="flex items-center px-3.5 h-8">
                 <span className="text-[12px] text-white/25 font-mono">{codeLang}</span>
               </div>
-              {/* Code with highlighting */}
-              <pre className="p-3.5 overflow-x-auto max-h-[400px] overflow-y-auto">
-                <code
-                  className={`hljs language-${codeLang} text-[13px] leading-[1.6] font-mono`}
-                  dangerouslySetInnerHTML={{ __html: highlightedCode }}
-                />
-              </pre>
+              {/* Code */}
+              <Expandable maxH={320}>
+                <pre className="px-3.5 pb-3.5 overflow-x-auto">
+                  <code
+                    className={`hljs language-${codeLang} text-[13px] leading-[1.65] font-mono`}
+                    dangerouslySetInnerHTML={{ __html: highlighted }}
+                  />
+                </pre>
+              </Expandable>
             </div>
           </div>
         )}
 
-        {/* ── Confirm/Cancel (Telegram only for now) ── */}
+        {/* ═══ Footer: Confirm / Cancel ═══ */}
         {actionType === "send_telegram" && status === "proposed" && (
           <div className="flex border-t border-white/[0.06]">
-            <button
-              onClick={handleCancel}
-              className="flex-1 flex items-center justify-center py-3 text-[15px] text-white/40 hover:text-white/60 hover:bg-white/[0.04] transition-colors"
-            >
+            <button onClick={handleCancel} className="flex-1 flex items-center justify-center h-11 text-[15px] text-white/35 hover:text-white/50 hover:bg-white/[0.03] transition-colors">
               {t("reminders.cancel")}
             </button>
             <div className="w-px bg-white/[0.06]" />
-            <button
-              onClick={handleConfirm}
-              className="flex-1 flex items-center justify-center py-3 text-[15px] text-white font-medium hover:bg-white/[0.04] transition-colors"
-            >
-              <Send size={14} strokeWidth={1.8} className="mr-2" />
+            <button onClick={handleConfirm} className="flex-1 flex items-center justify-center gap-2 h-11 text-[15px] text-white font-medium hover:bg-white/[0.03] transition-colors">
+              <Send size={14} strokeWidth={1.8} />
               {t("action.confirm")}
             </button>
           </div>
         )}
 
         {status === "executing" && (
-          <div className="flex items-center justify-center gap-2 py-3 border-t border-white/[0.06]">
-            <Loader2 size={15} className="text-white/30 animate-spin" />
-            <span className="text-[14px] text-white/30">{t("action.executing")}</span>
+          <div className="flex items-center justify-center gap-2 h-11 border-t border-white/[0.06]">
+            <Loader2 size={14} className="text-white/25 animate-spin" />
+            <span className="text-[14px] text-white/25">{t("action.executing")}</span>
           </div>
         )}
       </div>

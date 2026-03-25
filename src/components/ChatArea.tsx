@@ -178,10 +178,11 @@ export default function ChatArea() {
   }, [activeConversation?.hasMore, activeConversation?.loadingMore, loadMoreMessages, isStreaming, messages.length]);
 
   return (
+    <div className="relative flex-1 min-h-0">
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="flex-1 min-h-0 overflow-y-auto"
+      className="h-full overflow-y-auto"
     >
       <div className="mx-auto max-w-[52rem] px-4 pt-12">
         {/* Loading older messages */}
@@ -219,11 +220,13 @@ export default function ChatArea() {
         />
       </div>
 
-      {/* Scroll to bottom button */}
+    </div>
+
+      {/* Scroll to bottom button — positioned at bottom of chat area, above input */}
       {showScrollDown && (
         <button
           onClick={() => { scrollToBottom(true); setShowScrollDown(false); mode.current = "idle"; }}
-          className="fixed bottom-32 left-1/2 -translate-x-1/2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-[#252525] border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-[#303030] shadow-lg transition-all"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-[#252525] border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-[#303030] shadow-lg transition-all"
         >
           <ChevronDown size={18} strokeWidth={2} />
         </button>

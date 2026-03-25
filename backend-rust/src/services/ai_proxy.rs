@@ -388,11 +388,26 @@ pub fn stream_ai_response(
     let tz = user_timezone.unwrap_or_else(|| "Europe/Moscow".to_string());
     let system_prompt = if voice_mode { MIRA_VOICE_PROMPT } else { MIRA_SYSTEM_PROMPT };
 
-    // Inject current datetime for reminder time resolution
-    let now = chrono::Utc::now();
+    // Inject current datetime in the USER'S timezone for correct reminder time resolution
+    let now_utc = chrono::Utc::now();
+    let offset_hours: i64 = match tz.as_str() {
+        "Europe/Kaliningrad" => 2,
+        "Europe/Moscow" => 3,
+        "Europe/Samara" => 4,
+        "Asia/Yekaterinburg" => 5,
+        "Asia/Omsk" => 6,
+        "Asia/Novosibirsk" | "Asia/Krasnoyarsk" => 7,
+        "Asia/Irkutsk" => 8,
+        "Asia/Yakutsk" => 9,
+        "Asia/Vladivostok" => 10,
+        "Asia/Magadan" => 11,
+        "Asia/Kamchatka" => 12,
+        _ => 3,
+    };
+    let now_local = now_utc + chrono::Duration::hours(offset_hours);
     let datetime_context = format!(
-        "\n\nCurrent datetime: {}. User timezone: {}.",
-        now.format("%Y-%m-%dT%H:%M:%S+00:00"), tz
+        "\n\nТекущая дата и время: {}+{:02}:00. Часовой пояс: {}. ВСЕ remind_at значения должны использовать этот часовой пояс (+{:02}:00).",
+        now_local.format("%Y-%m-%dT%H:%M:%S"), offset_hours, tz, offset_hours
     );
 
     let mut full_messages: Vec<serde_json::Value> = vec![json!({

@@ -431,7 +431,8 @@ export default function MessageBubble({
   );
 
   const rawContent = isStreaming && !isUser ? stripDSML(displayedText) : (isUser ? displayContent : stripDSML(message.content));
-  const { content: cleanContent, suggestions } = !isUser && !isStreaming ? parseSuggestions(rawContent) : { content: rawContent, suggestions: [] as string[] };
+  // Always parse suggestions (even during streaming) — strips [suggestions] block from content
+  const { content: cleanContent, suggestions } = !isUser ? parseSuggestions(rawContent) : { content: rawContent, suggestions: [] as string[] };
   const contentToRender = !isUser ? preprocessCitations(cleanContent) : cleanContent;
 
   useEffect(() => {
@@ -715,7 +716,7 @@ export default function MessageBubble({
                 }
                 // text step
                 const isLastStep = i === message.steps!.length - 1;
-                const rawText = isLastStep && isStreaming && !isUser ? displayedText : step.content;
+                const rawText = isLastStep && isStreaming && !isUser ? stripDSML(displayedText) : step.content;
                 const { content: cleanStepText } = parseSuggestions(rawText);
                 const textContent = preprocessCitations(cleanStepText);
                 return (

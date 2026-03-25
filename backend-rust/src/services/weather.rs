@@ -53,7 +53,7 @@ pub struct ForecastDay {
 struct GeoResult { results: Option<Vec<GeoEntry>> }
 
 #[derive(Debug, Deserialize)]
-struct GeoEntry { latitude: f64, longitude: f64, name: String, country: Option<String> }
+struct GeoEntry { latitude: f64, longitude: f64, name: String, country: Option<String>, population: Option<u64> }
 
 #[derive(Debug, Deserialize)]
 struct MeteoResponse {
@@ -100,9 +100,9 @@ struct HourlyData {
 pub async fn get_weather(city: &str) -> Result<WeatherResponse, String> {
     let client = reqwest::Client::new();
 
-    // Geocode
+    // Geocode — fetch 5 results and pick the one with the largest population
     let geo_url = format!(
-        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1",
+        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=5",
         urlencoding::encode(city)
     );
     let geo: GeoResult = client.get(&geo_url)
@@ -110,7 +110,11 @@ pub async fn get_weather(city: &str) -> Result<WeatherResponse, String> {
         .send().await.map_err(|e| format!("Geocoding: {e}"))?
         .json().await.map_err(|e| format!("Geocoding parse: {e}"))?;
 
-    let entry = geo.results.and_then(|r| r.into_iter().next())
+    let entry = geo.results
+        .and_then(|mut r| {
+            r.sort_by(|a, b| b.population.unwrap_or(0).cmp(&a.population.unwrap_or(0)));
+            r.into_iter().next()
+        })
         .ok_or_else(|| format!("City not found: {city}"))?;
 
     // Fetch weather — all available fields

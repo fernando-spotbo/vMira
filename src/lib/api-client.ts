@@ -392,14 +392,15 @@ export async function revokeCalendarFeedToken() {
   return apiCall("/calendar/feed-token", { method: "DELETE" });
 }
 
-export async function getGoogleCalendarAuthUrl() {
-  return apiCall<{ url: string }>("/calendar/google/auth");
+// Generic calendar provider OAuth (google, outlook, yandex)
+export async function getCalendarAuthUrl(provider: string) {
+  return apiCall<{ url: string }>(`/calendar/${provider}/auth`);
 }
 
-export async function getGoogleCalendarStatus() {
-  return apiCall<{ connected: boolean; last_synced_at: string | null }>("/calendar/google/status");
+export async function getCalendarProviderStatus(provider: string) {
+  return apiCall<{ connected: boolean; last_synced_at: string | null }>(`/calendar/${provider}/status`);
 }
 
-export async function disconnectGoogleCalendar() {
-  return apiCall("/calendar/google/disconnect", { method: "DELETE" });
+export async function disconnectCalendarProvider(provider: string) {
+  return apiCall(`/calendar/${provider}/disconnect`, { method: "DELETE" });
 }

@@ -279,12 +279,19 @@ function CalendarTab() {
   const [loading, setLoading] = useState<string | null>(null);
   const [connected, setConnected] = useState<Record<string, boolean>>({});
 
+  // OAuth providers that have two-way sync (server-side connection state)
+  const oauthProviders = ["google", "outlook", "yandex"];
+
   useEffect(() => {
-    import("@/lib/api-client").then(({ getGoogleCalendarStatus }) => {
-      // Only Google has server-side connection state (OAuth). ICS apps can't be verified.
-      getGoogleCalendarStatus().then(r => { if (r.ok && r.data.connected) setConnected(prev => ({ ...prev, google: true })); });
+    import("@/lib/api-client").then(({ getCalendarProviderStatus }) => {
+      // Check connection status for all OAuth providers
+      for (const p of oauthProviders) {
+        getCalendarProviderStatus(p).then(r => {
+          if (r.ok && r.data.connected) setConnected(prev => ({ ...prev, [p]: true }));
+        });
+      }
     });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ensureFeedUrl = async (): Promise<string | null> => {
     if (feedUrl) return feedUrl;
@@ -297,15 +304,15 @@ function CalendarTab() {
   const handleConnect = async (app: string) => {
     setLoading(app);
 
-    if (app === "google") {
-      // Google gets full OAuth (two-way sync)
-      const { getGoogleCalendarAuthUrl } = await import("@/lib/api-client");
-      const r = await getGoogleCalendarAuthUrl();
+    if (oauthProviders.includes(app)) {
+      // OAuth flow — opens popup, user authorizes, we get tokens
+      const { getCalendarAuthUrl } = await import("@/lib/api-client");
+      const r = await getCalendarAuthUrl(app);
       if (r.ok && r.data.url) {
-        const popup = window.open(r.data.url, "google_calendar", "width=500,height=600");
+        const popup = window.open(r.data.url, `cal_${app}`, "width=500,height=600");
         const handler = (e: MessageEvent) => {
-          if (e.data?.type === "google_calendar_connected") {
-            setConnected(prev => ({ ...prev, google: true }));
+          if (e.data?.type === "calendar_connected" && e.data?.provider === app) {
+            setConnected(prev => ({ ...prev, [app]: true }));
             setLoading(null);
             window.removeEventListener("message", handler);
             popup?.close();
@@ -317,34 +324,25 @@ function CalendarTab() {
       return;
     }
 
-    // Other apps use ICS feed subscription
+    // Apple — ICS feed (no OAuth available)
     const url = await ensureFeedUrl();
     if (!url) { setLoading(null); return; }
-
-    const webcalUrl = url.replace(/^https?:\/\//, "webcal://");
-    const encodedUrl = encodeURIComponent(url);
-
-    if (app === "apple") window.location.href = webcalUrl;
-    else if (app === "outlook") window.open(`https://outlook.live.com/calendar/0/addfromweb?url=${encodedUrl}&name=Mira`, "_blank");
-    else if (app === "yandex") window.open(`https://calendar.yandex.ru/?ics=${encodedUrl}`, "_blank");
-
+    window.location.href = url.replace(/^https?:\/\//, "webcal://");
     setConnected(prev => ({ ...prev, [app]: true }));
     setLoading(null);
   };
 
   const handleDisconnect = async (app: string) => {
-    if (app === "google") {
-      const { disconnectGoogleCalendar } = await import("@/lib/api-client");
-      await disconnectGoogleCalendar();
-    }
+    const { disconnectCalendarProvider } = await import("@/lib/api-client");
+    await disconnectCalendarProvider(app);
     setConnected(prev => ({ ...prev, [app]: false }));
   };
 
   const calApps = [
-    { id: "google", name: "Google Calendar", badge: t("settings.googleSyncDesc") },
-    { id: "apple", name: "Apple Calendar" },
-    { id: "outlook", name: "Outlook" },
-    { id: "yandex", name: t("settings.yandexCalendar") },
+    { id: "google", name: "Google Calendar", oauth: true },
+    { id: "outlook", name: "Outlook", oauth: true },
+    { id: "yandex", name: t("settings.yandexCalendar"), oauth: true },
+    { id: "apple", name: "Apple Calendar", oauth: false },
   ];
 
   return (
@@ -352,7 +350,6 @@ function CalendarTab() {
       <p className="text-[13px] text-white/40 mb-4">{t("settings.calendarFeedDesc")}</p>
       <div className="space-y-1">
         {calApps.map(app => {
-          const isOAuth = app.id === "google";
           const isConnected = connected[app.id];
           const isLoading = loading === app.id;
 
@@ -360,9 +357,8 @@ function CalendarTab() {
             <div key={app.id} className="flex items-center justify-between py-3 border-b border-white/[0.04] last:border-0">
               <div className="flex-1 min-w-0">
                 <span className="text-[15px] text-white">{app.name}</span>
-                {app.badge && <span className="ml-2 text-[11px] text-white/20">{app.badge}</span>}
               </div>
-              {isOAuth && isConnected ? (
+              {isConnected ? (
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1 text-[13px] text-green-400/60">
                     <Check size={13} /> {t("settings.googleConnected")}
@@ -374,17 +370,13 @@ function CalendarTab() {
                     {t("settings.googleDisconnect")}
                   </button>
                 </div>
-              ) : !isOAuth && isConnected ? (
-                <span className="flex items-center gap-1 text-[13px] text-white/30">
-                  <Check size={13} /> {t("settings.calendarAdded")}
-                </span>
               ) : (
                 <button
                   onClick={() => handleConnect(app.id)}
                   disabled={isLoading}
                   className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-3.5 py-1.5 text-[13px] text-white/70 hover:text-white hover:bg-white/[0.1] transition-colors disabled:opacity-40"
                 >
-                  {isLoading ? "..." : isOAuth ? t("settings.googleConnect") : t("settings.calendarAdd")}
+                  {isLoading ? "..." : t("settings.googleConnect")}
                 </button>
               )}
             </div>

@@ -28,11 +28,11 @@ pub fn calendar_routes() -> Router<AppState> {
         .route("/calendar/events", get(list_events))
         .route("/calendar/events", post(create_event))
         .route("/calendar/events/{id}", delete(delete_event))
-        // Google Calendar OAuth (authenticated)
-        .route("/calendar/google/auth", get(google_auth_url))
-        .route("/calendar/google/callback", get(google_callback))
-        .route("/calendar/google/disconnect", delete(google_disconnect))
-        .route("/calendar/google/status", get(google_status))
+        // OAuth for all providers: google, outlook, yandex (authenticated)
+        .route("/calendar/{provider}/auth", get(provider_auth_url))
+        .route("/calendar/{provider}/callback", get(provider_callback))
+        .route("/calendar/{provider}/disconnect", delete(provider_disconnect))
+        .route("/calendar/{provider}/status", get(provider_status))
         // ICS feed (unauthenticated — token in URL)
         .route("/calendar/feed/{token}", get(ics_feed))
 }
@@ -398,25 +398,68 @@ async fn delete_event(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ── Google Calendar OAuth ────────────────────────────────────────────────
+// ── Generic Calendar OAuth (Google, Outlook, Yandex) ─────────────────────
+
+struct ProviderConfig {
+    auth_url: &'static str,
+    token_url: &'static str,
+    scope: &'static str,
+    extra_params: &'static str, // e.g. "&access_type=offline&prompt=consent"
+}
+
+fn get_provider_config(provider: &str) -> Option<ProviderConfig> {
+    match provider {
+        "google" => Some(ProviderConfig {
+            auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
+            token_url: "https://oauth2.googleapis.com/token",
+            scope: "https://www.googleapis.com/auth/calendar.events",
+            extra_params: "&access_type=offline&prompt=consent",
+        }),
+        "outlook" => Some(ProviderConfig {
+            auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+            token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+            scope: "Calendars.ReadWrite offline_access",
+            extra_params: "&response_mode=query",
+        }),
+        "yandex" => Some(ProviderConfig {
+            auth_url: "https://oauth.yandex.ru/authorize",
+            token_url: "https://oauth.yandex.ru/token",
+            scope: "calendar:all",
+            extra_params: "&force_confirm=yes",
+        }),
+        _ => None,
+    }
+}
+
+fn get_provider_credentials<'a>(config: &'a crate::config::Config, provider: &str) -> (&'a str, &'a str) {
+    match provider {
+        "google" => (&config.google_client_id, &config.google_client_secret),
+        "outlook" => (&config.microsoft_client_id, &config.microsoft_client_secret),
+        "yandex" => (&config.yandex_calendar_client_id, &config.yandex_calendar_client_secret),
+        _ => ("", ""),
+    }
+}
 
 #[derive(Serialize)]
-struct GoogleAuthUrlResponse {
+struct AuthUrlResponse {
     url: String,
 }
 
-async fn google_auth_url(
+async fn provider_auth_url(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-) -> Result<Json<GoogleAuthUrlResponse>, AppError> {
-    let client_id = &state.config.google_client_id;
+    Path(provider): Path<String>,
+) -> Result<Json<AuthUrlResponse>, AppError> {
+    let pc = get_provider_config(&provider)
+        .ok_or_else(|| AppError::BadRequest(format!("Unknown provider: {provider}")))?;
+    let (client_id, _) = get_provider_credentials(&state.config, &provider);
     if client_id.is_empty() {
-        return Err(AppError::BadRequest("Google Calendar not configured".into()));
+        return Err(AppError::BadRequest(format!("{provider} calendar not configured")));
     }
 
-    // Store CSRF state in Redis (5 min TTL)
+    // Store CSRF state in Redis (5 min TTL) — includes provider name
     let csrf_state = generate_token();
-    let redis_key = format!("gcal_oauth:{}", csrf_state);
+    let redis_key = format!("cal_oauth:{}:{}", provider, csrf_state);
     let mut conn = state.redis.get_multiplexed_async_connection().await
         .map_err(|e| AppError::Internal(format!("Redis: {e}")))?;
     redis::cmd("SETEX")
@@ -427,39 +470,45 @@ async fn google_auth_url(
         .await
         .map_err(|e| AppError::Internal(format!("Redis: {e}")))?;
 
-    let redirect_uri = urlencoding::encode("https://vmira.ai/api/calendar/google/callback");
-    let scope = urlencoding::encode("https://www.googleapis.com/auth/calendar.events");
+    let raw_redirect = format!("https://vmira.ai/api/calendar/{}/callback", provider);
+    let redirect_uri = urlencoding::encode(&raw_redirect);
+    let scope = urlencoding::encode(pc.scope);
 
     let url = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?\
-         client_id={}&redirect_uri={}&response_type=code&scope={}\
-         &access_type=offline&prompt=consent&state={}",
-        client_id, redirect_uri, scope, csrf_state
+        "{}?client_id={}&redirect_uri={}&response_type=code&scope={}{}&state={}",
+        pc.auth_url, client_id, redirect_uri, scope, pc.extra_params, csrf_state
     );
 
-    Ok(Json(GoogleAuthUrlResponse { url }))
+    Ok(Json(AuthUrlResponse { url }))
 }
 
 #[derive(Deserialize)]
-struct GoogleCallbackQuery {
+struct OAuthCallbackQuery {
     code: Option<String>,
     state: Option<String>,
     error: Option<String>,
+    error_description: Option<String>,
 }
 
-async fn google_callback(
+async fn provider_callback(
     State(state): State<AppState>,
-    Query(q): Query<GoogleCallbackQuery>,
+    Path(provider): Path<String>,
+    Query(q): Query<OAuthCallbackQuery>,
 ) -> Result<Response, AppError> {
     if let Some(error) = q.error {
-        return Ok(callback_html(&format!("Authorization denied: {}", error)).into_response());
+        let desc = q.error_description.unwrap_or_default();
+        return Ok(callback_html(&provider, &format!("Authorization denied: {} {}", error, desc)).into_response());
     }
+
+    let pc = get_provider_config(&provider)
+        .ok_or_else(|| AppError::BadRequest(format!("Unknown provider: {provider}")))?;
+    let (client_id, client_secret) = get_provider_credentials(&state.config, &provider);
 
     let code = q.code.ok_or_else(|| AppError::BadRequest("Missing code".into()))?;
     let csrf_state = q.state.ok_or_else(|| AppError::BadRequest("Missing state".into()))?;
 
     // Verify CSRF state from Redis
-    let redis_key = format!("gcal_oauth:{}", csrf_state);
+    let redis_key = format!("cal_oauth:{}:{}", provider, csrf_state);
     let mut conn = state.redis.get_multiplexed_async_connection().await
         .map_err(|e| AppError::Internal(format!("Redis: {e}")))?;
     let user_id_str: Option<String> = redis::cmd("GETDEL")
@@ -474,27 +523,28 @@ async fn google_callback(
         .map_err(|_| AppError::BadRequest("Invalid state".into()))?;
 
     // Exchange code for tokens
+    let redirect_uri = format!("https://vmira.ai/api/calendar/{}/callback", provider);
     let client = reqwest::Client::new();
     let token_resp = client
-        .post("https://oauth2.googleapis.com/token")
+        .post(pc.token_url)
         .form(&[
             ("code", code.as_str()),
-            ("client_id", state.config.google_client_id.as_str()),
-            ("client_secret", state.config.google_client_secret.as_str()),
-            ("redirect_uri", "https://vmira.ai/api/calendar/google/callback"),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("redirect_uri", redirect_uri.as_str()),
             ("grant_type", "authorization_code"),
         ])
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("Google token exchange: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("{provider} token exchange: {e}")))?;
 
     if !token_resp.status().is_success() {
         let body = token_resp.text().await.unwrap_or_default();
-        tracing::error!("Google token exchange failed: {}", body);
-        return Ok(callback_html("Failed to connect Google Calendar").into_response());
+        tracing::error!(provider = %provider, "Token exchange failed: {}", body);
+        return Ok(callback_html(&provider, &format!("Failed to connect {}", provider)).into_response());
     }
 
-    let tokens: GoogleTokenResponse = token_resp.json().await
+    let tokens: OAuthTokenResponse = token_resp.json().await
         .map_err(|e| AppError::Internal(format!("Parse tokens: {e}")))?;
 
     let expires_at = tokens.expires_in.map(|s| Utc::now() + chrono::Duration::seconds(s));
@@ -502,42 +552,48 @@ async fn google_callback(
     // Upsert connection
     sqlx::query(
         "INSERT INTO calendar_connections (user_id, provider, access_token, refresh_token, token_expires_at, calendar_id)
-         VALUES ($1, 'google', $2, $3, $4, 'primary')
+         VALUES ($1, $2, $3, $4, $5, 'primary')
          ON CONFLICT (user_id, provider) DO UPDATE SET
-           access_token = $2, refresh_token = COALESCE($3, calendar_connections.refresh_token),
-           token_expires_at = $4, updated_at = now()"
+           access_token = $3, refresh_token = COALESCE($4, calendar_connections.refresh_token),
+           token_expires_at = $5, updated_at = now()"
     )
     .bind(user_id)
+    .bind(&provider)
     .bind(&tokens.access_token)
     .bind(&tokens.refresh_token)
     .bind(expires_at)
     .execute(&state.db)
     .await?;
 
-    Ok(callback_html("Google Calendar connected! You can close this window.").into_response())
+    let name = match provider.as_str() {
+        "google" => "Google Calendar",
+        "outlook" => "Outlook Calendar",
+        "yandex" => "Yandex Calendar",
+        _ => &provider,
+    };
+    Ok(callback_html(&provider, &format!("{} connected!", name)).into_response())
 }
 
 #[derive(Deserialize)]
-struct GoogleTokenResponse {
+struct OAuthTokenResponse {
     access_token: String,
     refresh_token: Option<String>,
     expires_in: Option<i64>,
 }
 
-fn callback_html(message: &str) -> Response {
+fn callback_html(provider: &str, message: &str) -> Response {
     let html = format!(
         r#"<!DOCTYPE html><html><head><title>Mira</title></head>
         <body style="background:#161616;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center">
-            <p style="font-size:18px">{}</p>
+            <p style="font-size:18px">{message}</p>
             <p style="color:#666;font-size:14px">This window will close automatically</p>
         </div>
         <script>
-            window.opener && window.opener.postMessage({{ type: "google_calendar_connected" }}, "*");
+            window.opener && window.opener.postMessage({{ type: "calendar_connected", provider: "{provider}" }}, "*");
             setTimeout(() => window.close(), 2000);
         </script>
-        </body></html>"#,
-        message
+        </body></html>"#
     );
     (
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
@@ -545,40 +601,44 @@ fn callback_html(message: &str) -> Response {
     ).into_response()
 }
 
-async fn google_disconnect(
+async fn provider_disconnect(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
+    Path(provider): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    sqlx::query("DELETE FROM calendar_connections WHERE user_id = $1 AND provider = 'google'")
+    sqlx::query("DELETE FROM calendar_connections WHERE user_id = $1 AND provider = $2")
         .bind(user.id)
+        .bind(&provider)
         .execute(&state.db)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Serialize)]
-struct GoogleStatusResponse {
+struct ProviderStatusResponse {
     connected: bool,
     last_synced_at: Option<String>,
 }
 
-async fn google_status(
+async fn provider_status(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-) -> Result<Json<GoogleStatusResponse>, AppError> {
+    Path(provider): Path<String>,
+) -> Result<Json<ProviderStatusResponse>, AppError> {
     let row = sqlx::query_as::<_, (Option<chrono::DateTime<Utc>>,)>(
-        "SELECT last_synced_at FROM calendar_connections WHERE user_id = $1 AND provider = 'google'"
+        "SELECT last_synced_at FROM calendar_connections WHERE user_id = $1 AND provider = $2"
     )
     .bind(user.id)
+    .bind(&provider)
     .fetch_optional(&state.db)
     .await?;
 
     match row {
-        Some((synced,)) => Ok(Json(GoogleStatusResponse {
+        Some((synced,)) => Ok(Json(ProviderStatusResponse {
             connected: true,
             last_synced_at: synced.map(|s| s.to_rfc3339()),
         })),
-        None => Ok(Json(GoogleStatusResponse {
+        None => Ok(Json(ProviderStatusResponse {
             connected: false,
             last_synced_at: None,
         })),

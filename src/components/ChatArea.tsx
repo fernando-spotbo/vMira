@@ -5,31 +5,17 @@ import { useChat } from "@/context/ChatContext";
 import MessageBubble from "./MessageBubble";
 import { ChevronDown } from "lucide-react";
 
-/**
- * ChatArea scroll behavior (final, robust):
- *
- * 1. Constant bottom padding (100vh) — never changes. This ensures any message
- *    can be scrolled to the top of the viewport. No dynamic spacer = no jumps.
- *
- * 2. On new user message: scroll so user message is at ~10% from top.
- *
- * 3. During streaming: follow bottom of growing content (MutationObserver).
- *    Only if user hasn't scrolled away.
- *
- * 4. User scrolls up → stop following, show "scroll to bottom" button.
- *    User scrolls back to bottom → resume following.
- *
- * 5. Conversation switch → instant scroll to bottom.
- */
 export default function ChatArea() {
   const { activeConversation, activeConversationId, isThinking, isStreaming, loadMoreMessages } = useChat();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const userMsgRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
   const prevConvId = useRef<string | null>(null);
   const prevUserMsgId = useRef<string | null>(null);
-  const userScrolled = useRef(false); // true when user manually scrolled away
-  const programmatic = useRef(false); // true during our scroll commands
+  const autoFollow = useRef(true);
+  const selfScrolling = useRef(false);
+  const wasStreaming = useRef(false);
   const loadingMore = useRef(false);
 
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -37,58 +23,58 @@ export default function ChatArea() {
   const messages = activeConversation?.messages ?? [];
   const lastMsgIdx = messages.length - 1;
 
-  // Find last user message
   let lastUserIdx = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") { lastUserIdx = i; break; }
   }
   const lastUserMsg = lastUserIdx >= 0 ? messages[lastUserIdx] : null;
+  const generating = isThinking || isStreaming;
 
-  // ── Helpers ──
+  // ── DOM-direct scroll (bypasses React, no re-render) ──
 
-  const scrollTo = useCallback((top: number) => {
+  const doScroll = useCallback((top: number) => {
     const el = scrollRef.current;
     if (!el) return;
-    programmatic.current = true;
+    selfScrolling.current = true;
     el.scrollTop = top;
-    // Reset flag after browser processes the scroll event
-    requestAnimationFrame(() => { programmatic.current = false; });
+    // Reset after browser processes scroll event
+    requestAnimationFrame(() => { selfScrolling.current = false; });
   }, []);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
-    if (el) scrollTo(el.scrollHeight);
-  }, [scrollTo]);
+    if (el) doScroll(el.scrollHeight);
+  }, [doScroll]);
 
-  const scrollUserMsgToTop = useCallback(() => {
+  // Set spacer size via DOM — no React state, no re-render, no jump
+  const setSpacer = useCallback((large: boolean) => {
+    if (!spacerRef.current) return;
+    spacerRef.current.style.minHeight = large ? "80vh" : "24px";
+  }, []);
+
+  const pinUserMsg = useCallback(() => {
     const container = scrollRef.current;
     const el = userMsgRef.current;
     if (!container || !el) return;
-    const containerRect = container.getBoundingClientRect();
-    const msgRect = el.getBoundingClientRect();
-    const offset = containerRect.height * 0.10; // 10% from top
-    const target = container.scrollTop + (msgRect.top - containerRect.top) - offset;
-    scrollTo(Math.max(0, target));
-  }, [scrollTo]);
+    const cRect = container.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    const offset = cRect.height * 0.10;
+    doScroll(Math.max(0, container.scrollTop + (eRect.top - cRect.top) - offset));
+  }, [doScroll]);
 
-  const isNearBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  }, []);
-
-  // ── 1. Conversation switch → scroll to bottom ──
+  // ── 1. Conversation switch → bottom, small spacer ──
 
   useLayoutEffect(() => {
     if (activeConversationId !== prevConvId.current) {
       prevConvId.current = activeConversationId;
-      userScrolled.current = false;
+      autoFollow.current = true;
+      setSpacer(false);
       setShowScrollBtn(false);
       requestAnimationFrame(scrollToBottom);
     }
   });
 
-  // ── 2. New user message → pin to top ──
+  // ── 2. New user message → large spacer, pin to top ──
 
   useEffect(() => {
     if (!lastUserMsg) return;
@@ -96,64 +82,81 @@ export default function ChatArea() {
     prevUserMsgId.current = lastUserMsg.id;
     if (!lastUserMsg.id.startsWith("user-")) return;
 
-    userScrolled.current = false;
+    autoFollow.current = true;
     setShowScrollBtn(false);
+    setSpacer(true);
 
-    // Multiple attempts to pin — DOM may not be ready on first try
-    const t1 = setTimeout(scrollUserMsgToTop, 10);
-    const t2 = setTimeout(scrollUserMsgToTop, 60);
-    const t3 = setTimeout(scrollUserMsgToTop, 150);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [lastUserMsg?.id, scrollUserMsgToTop]);
+    setTimeout(pinUserMsg, 10);
+    setTimeout(pinUserMsg, 60);
+    setTimeout(pinUserMsg, 150);
+  }, [lastUserMsg?.id, pinUserMsg, setSpacer]);
 
-  // ── 3. Re-pin when thinking starts ──
+  // ── 3. Re-pin on thinking ──
 
   useEffect(() => {
-    if (userScrolled.current) return;
-    if (isThinking) {
-      setTimeout(scrollUserMsgToTop, 30);
-    }
-  }, [isThinking, scrollUserMsgToTop]);
+    if (!autoFollow.current) return;
+    if (isThinking) setTimeout(pinUserMsg, 30);
+  }, [isThinking, pinUserMsg]);
 
-  // ── 4. During streaming → follow bottom ──
+  // ── 4. Follow bottom during streaming ──
 
   useEffect(() => {
     if (!isStreaming) return;
-    if (userScrolled.current) return;
+    if (!autoFollow.current) return;
 
     const el = scrollRef.current;
     if (!el) return;
 
     const observer = new MutationObserver(() => {
-      if (userScrolled.current) return;
-      programmatic.current = true;
+      if (!autoFollow.current) return;
+      selfScrolling.current = true;
       el.scrollTop = el.scrollHeight;
-      requestAnimationFrame(() => { programmatic.current = false; });
+      requestAnimationFrame(() => { selfScrolling.current = false; });
     });
 
     observer.observe(el, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
   }, [isStreaming]);
 
-  // ── 5. Scroll handler ──
+  // ── 5. Streaming ends → collapse spacer without jump ──
+
+  useEffect(() => {
+    if (generating) {
+      wasStreaming.current = true;
+      return;
+    }
+    if (!wasStreaming.current) return;
+    wasStreaming.current = false;
+
+    // Collapse spacer and re-anchor in same synchronous block
+    // Browser won't paint between these two operations
+    const el = scrollRef.current;
+    setSpacer(false);
+    if (el) {
+      selfScrolling.current = true;
+      el.scrollTop = el.scrollHeight;
+      requestAnimationFrame(() => { selfScrolling.current = false; });
+    }
+  }, [generating, setSpacer]);
+
+  // ── 6. Scroll handler ──
 
   const onScroll = useCallback(() => {
-    // Ignore our own scrolls
-    if (programmatic.current) return;
-
+    if (selfScrolling.current) return;
     const el = scrollRef.current;
     if (!el) return;
 
-    // User scrolled manually
-    if (isNearBottom()) {
-      userScrolled.current = false;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+
+    if (nearBottom) {
+      autoFollow.current = true;
       setShowScrollBtn(false);
     } else {
-      userScrolled.current = true;
+      autoFollow.current = false;
       if (messages.length > 0) setShowScrollBtn(true);
     }
 
-    // Infinite scroll: load more at top
+    // Infinite scroll at top
     if (el.scrollTop < 200 && !loadingMore.current) {
       if (activeConversation?.hasMore && !activeConversation?.loadingMore) {
         loadingMore.current = true;
@@ -166,9 +169,7 @@ export default function ChatArea() {
         });
       }
     }
-  }, [isNearBottom, activeConversation?.hasMore, activeConversation?.loadingMore, loadMoreMessages, messages.length]);
-
-  // ── Render ──
+  }, [activeConversation?.hasMore, activeConversation?.loadingMore, loadMoreMessages, messages.length]);
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -178,7 +179,6 @@ export default function ChatArea() {
         className="h-full overflow-y-auto"
       >
         <div className="mx-auto max-w-[52rem] px-4 pt-12">
-          {/* Loading older messages */}
           {activeConversation?.loadingMore && (
             <div className="flex justify-center py-4">
               <div className="mira-orb" style={{ position: "relative" }} />
@@ -186,38 +186,28 @@ export default function ChatArea() {
           )}
 
           {messages.map((message, index) => {
-            const isLastAssistant =
-              message.role === "assistant" && index === lastMsgIdx;
-            const isNewMsg =
-              message.id.startsWith("user-") || message.id.startsWith("asst-");
-
+            const isLastAssistant = message.role === "assistant" && index === lastMsgIdx;
+            const isNewMsg = message.id.startsWith("user-") || message.id.startsWith("asst-");
             return (
-              <div
-                key={message.id}
-                ref={index === lastUserIdx ? userMsgRef : undefined}
-              >
+              <div key={message.id} ref={index === lastUserIdx ? userMsgRef : undefined}>
                 <MessageBubble
                   message={message}
                   isNew={isNewMsg}
-                  isStreaming={isLastAssistant && message.id.startsWith("asst-") && (isStreaming || isThinking)}
+                  isStreaming={isLastAssistant && message.id.startsWith("asst-") && generating}
                 />
               </div>
             );
           })}
 
-          {/*
-            Constant bottom padding. This never changes — it ensures any message
-            can be scrolled to the top of the viewport. No dynamic spacer = no jumps.
-          */}
-          <div className="h-[80vh]" aria-hidden="true" />
+          {/* Spacer — sized via DOM ref, not React state. Starts small. */}
+          <div ref={spacerRef} style={{ minHeight: "24px" }} aria-hidden="true" />
         </div>
       </div>
 
-      {/* Scroll to bottom button */}
       {showScrollBtn && (
         <button
           onClick={() => {
-            userScrolled.current = false;
+            autoFollow.current = true;
             setShowScrollBtn(false);
             scrollToBottom();
           }}

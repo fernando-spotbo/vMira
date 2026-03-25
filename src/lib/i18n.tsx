@@ -164,7 +164,12 @@ const translations: Record<string, Record<Locale, string>> = {
   "settings.quietHours": { ru: "Тихие часы", en: "Quiet hours" },
   "settings.quietHoursDesc": { ru: "Не отправлять уведомления в это время", en: "Don't send notifications during this time" },
   "settings.telegramConnect": { ru: "Telegram", en: "Telegram" },
-  "settings.telegramComingSoon": { ru: "Уведомления в Telegram — скоро", en: "Telegram notifications — coming soon" },
+  "settings.telegramDesc": { ru: "Напоминания и чат с Мирой", en: "Reminders and chat with Mira" },
+  "settings.telegramConnected": { ru: "Подключен", en: "Connected" },
+  "settings.telegramConnect.btn": { ru: "Подключить", en: "Connect" },
+  "settings.telegramSettings.btn": { ru: "Настроить", en: "Configure" },
+  "settings.telegramNotifs": { ru: "Уведомления в Telegram", en: "Telegram notifications" },
+  "settings.telegramNotifsDesc": { ru: "Напоминания приходят в Telegram", en: "Reminders sent to Telegram" },
 
   // ---- Напоминания и уведомления ----
   "reminders.title": { ru: "Напоминания", en: "Reminders" },
@@ -184,6 +189,37 @@ const translations: Record<string, Record<Locale, string>> = {
   "notifications.empty": { ru: "Нет уведомлений", en: "No notifications" },
   "notifications.markAllRead": { ru: "Прочитать все", en: "Mark all read" },
   "notifications.unread": { ru: "Непрочитанные", en: "Unread" },
+
+  // ---- Reminder card / delivery ----
+  "delivery.label": { ru: "Доставка", en: "Delivery" },
+  "delivery.inApp": { ru: "В приложении", en: "In app" },
+  "delivery.telegram": { ru: "Telegram", en: "Telegram" },
+  "delivery.email": { ru: "Email", en: "Email" },
+  "reminders.pause": { ru: "Пауза", en: "Pause" },
+  "reminders.scheduled": { ru: "Запланировано", en: "Scheduled" },
+  "reminders.recent": { ru: "Недавние", en: "Recent" },
+  "reminders.subscriptions": { ru: "Рассылки", en: "Subscriptions" },
+  "reminders.noReminders": { ru: "Нет напоминаний", en: "No reminders" },
+  "reminders.noRemindersHint": { ru: "Попросите Миру создать одно в чате", en: "Ask Mira to create one in chat" },
+  "reminders.allReminders": { ru: "Напоминания", en: "Reminders" },
+  "reminders.cancel": { ru: "Отменить", en: "Cancel" },
+
+  // ---- Telegram link modal ----
+  "telegram.title": { ru: "Telegram", en: "Telegram" },
+  "telegram.linkDesc": { ru: "Откройте ссылку, чтобы привязать Telegram. После привязки вы сможете получать напоминания и общаться с Мирой.", en: "Open the link to connect Telegram. After connecting, you'll receive reminders and can chat with Mira." },
+  "telegram.openInTelegram": { ru: "Открыть в Telegram", en: "Open in Telegram" },
+  "telegram.linkExpiry": { ru: "Ссылка действует 10 минут. Страница обновится автоматически.", en: "Link valid for 10 minutes. Page updates automatically." },
+  "telegram.connected": { ru: "Подключен", en: "Connected" },
+  "telegram.connectedDesc": { ru: "Напоминания будут приходить в Telegram. Также можно писать Мире прямо в чат бота.", en: "Reminders will be sent to Telegram. You can also message Mira directly in the bot chat." },
+  "telegram.done": { ru: "Готово", en: "Done" },
+  "telegram.unlink": { ru: "Отвязать", en: "Unlink" },
+  "telegram.error": { ru: "Не удалось создать ссылку. Попробуйте позже.", en: "Failed to create link. Try later." },
+  "telegram.close": { ru: "Закрыть", en: "Close" },
+
+  // ---- Scheduled content ----
+  "scheduled.everyDay": { ru: "Каждый день", en: "Every day" },
+  "scheduled.everyWeek": { ru: "Каждую неделю", en: "Every week" },
+  "scheduled.everyMonth": { ru: "Каждый месяц", en: "Every month" },
 
   // ---- Тарифы (модальное окно) ----
   "pricing.title": { ru: "Выберите тариф", en: "Choose your plan" },

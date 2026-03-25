@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Repeat, Trash2, Sparkles } from "lucide-react";
+import { t } from "@/lib/i18n";
 import { deleteReminder } from "@/lib/api-client";
 
 interface ScheduledContentCardProps {
@@ -13,16 +14,16 @@ interface ScheduledContentCardProps {
 }
 
 function formatRrule(rrule: string): string {
-  if (rrule.includes("FREQ=DAILY")) return "Каждый день";
+  if (rrule.includes("FREQ=DAILY")) return t("scheduled.everyDay");
   if (rrule.includes("FREQ=WEEKLY")) {
     const days = rrule.match(/BYDAY=([A-Z,]+)/)?.[1];
     if (days) {
       const map: Record<string, string> = { MO: "Пн", TU: "Вт", WE: "Ср", TH: "Чт", FR: "Пт", SA: "Сб", SU: "Вс" };
       return days.split(",").map(d => map[d] || d).join(", ");
     }
-    return "Каждую неделю";
+    return t("scheduled.everyWeek");
   }
-  if (rrule.includes("FREQ=MONTHLY")) return "Каждый месяц";
+  if (rrule.includes("FREQ=MONTHLY")) return t("scheduled.everyMonth");
   return rrule;
 }
 

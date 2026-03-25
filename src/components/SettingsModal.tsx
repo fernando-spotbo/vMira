@@ -279,8 +279,8 @@ function NotificationsTab() {
 
       {/* Telegram — single-click opens modal */}
       <SettingRow
-        label="Telegram"
-        description={tgLinked ? `Подключен${tgUsername ? ` · @${tgUsername}` : ""}` : "Напоминания и чат с Мирой"}
+        label={t("settings.telegramConnect")}
+        description={tgLinked ? `${t("settings.telegramConnected")}${tgUsername ? ` · @${tgUsername}` : ""}` : t("settings.telegramDesc")}
       >
         <button
           onClick={() => setTgModalOpen(true)}
@@ -290,11 +290,11 @@ function NotificationsTab() {
               : "border-white/[0.08] text-white hover:bg-white/[0.06]"
           }`}
         >
-          {tgLinked ? "Настроить" : "Подключить"}
+          {tgLinked ? t("settings.telegramSettings.btn") : t("settings.telegramConnect.btn")}
         </button>
       </SettingRow>
       {tgLinked && (
-        <SettingRow label="Уведомления в Telegram" description="Напоминания приходят в Telegram">
+        <SettingRow label={t("settings.telegramNotifs")} description={t("settings.telegramNotifsDesc")}>
           <ToggleSwitch enabled={telegramEnabled} onToggle={handleTelegramToggle} />
         </SettingRow>
       )}

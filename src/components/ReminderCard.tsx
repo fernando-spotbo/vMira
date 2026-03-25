@@ -56,7 +56,9 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
   const [currentChannels, setCurrentChannels] = useState<string[]>(initialChannels || ["in_app"]);
   const [deleted, setDeleted] = useState(false);
   const [tgLinkModal, setTgLinkModal] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const { setShowReminders } = useChat();
 
   useEffect(() => {
@@ -132,14 +134,22 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
 
           <div ref={menuRef} className="relative ml-3 shrink-0">
             <button
-              onClick={() => setMenuOpen(!menuOpen)}
+              ref={btnRef}
+              onClick={() => {
+                if (!menuOpen && btnRef.current) {
+                  const rect = btnRef.current.getBoundingClientRect();
+                  const spaceBelow = window.innerHeight - rect.bottom;
+                  setDropUp(spaceBelow < 320);
+                }
+                setMenuOpen(!menuOpen);
+              }}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
             >
               <Ellipsis size={16} strokeWidth={1.8} />
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
+              <div className={`absolute right-0 z-50 mt-1 w-52 overflow-hidden rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)] ${dropUp ? "bottom-full mb-1" : "top-full"}`}>
                 <button
                   onClick={() => { setMenuOpen(false); setEditOpen(true); }}
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors"
@@ -150,16 +160,16 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
                 {status === "pending" && (
                   <button onClick={handlePause} className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors">
                     <Pause size={14} strokeWidth={1.8} />
-                    <span>Пауза</span>
+                    <span>{t("reminders.pause")}</span>
                   </button>
                 )}
 
                 {/* Delivery channels */}
                 <div className="my-1 border-t border-white/[0.06]" />
-                <p className="px-3.5 py-1 text-[11px] text-white/20 uppercase tracking-wider">Доставка</p>
+                <p className="px-3.5 py-1 text-[11px] text-white/20 uppercase tracking-wider">{t("delivery.label")}</p>
                 <div className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/30">
                   <Bell size={14} strokeWidth={1.8} />
-                  <span className="flex-1 text-left">В приложении</span>
+                  <span className="flex-1 text-left">{t("delivery.inApp")}</span>
                   <span className="text-[11px]">✓</span>
                 </div>
                 <button
@@ -167,7 +177,7 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors"
                 >
                   <TelegramIcon size={14} className={hasTelegram ? "text-white/70" : "text-white/30"} />
-                  <span className="flex-1 text-left">Telegram</span>
+                  <span className="flex-1 text-left">{t("delivery.telegram")}</span>
                   {hasTelegram && <span className="text-[11px] text-white/30">✓</span>}
                 </button>
                 <button
@@ -175,7 +185,7 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors"
                 >
                   <Mail size={14} strokeWidth={1.8} className={hasEmail ? "text-white/70" : "text-white/30"} />
-                  <span className="flex-1 text-left">Email</span>
+                  <span className="flex-1 text-left">{t("delivery.email")}</span>
                   {hasEmail && <span className="text-[11px] text-white/30">✓</span>}
                 </button>
 
@@ -187,7 +197,7 @@ export default function ReminderCard({ id, title: initialTitle, body: initialBod
                 <div className="my-1 border-t border-white/[0.06]" />
                 <button onClick={() => { setMenuOpen(false); setShowReminders(true); }} className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[14px] text-white/70 hover:bg-white/[0.06] transition-colors">
                   <Calendar size={14} strokeWidth={1.8} />
-                  <span>Напоминания</span>
+                  <span>{t("reminders.allReminders")}</span>
                 </button>
               </div>
             )}

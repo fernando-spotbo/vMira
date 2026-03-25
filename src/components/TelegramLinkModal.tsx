@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Check, Loader2 } from "lucide-react";
+import { t } from "@/lib/i18n";
 import { generateTelegramLinkToken, getTelegramStatus, unlinkTelegram } from "@/lib/api-client";
 
 interface TelegramLinkModalProps {
@@ -94,7 +95,7 @@ export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkMod
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-2.5">
             <TelegramIcon size={18} />
-            <h2 className="text-[16px] font-medium text-white">Telegram</h2>
+            <h2 className="text-[16px] font-medium text-white">{t("telegram.title")}</h2>
           </div>
           <button onClick={close} className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors">
             <X size={15} />
@@ -111,7 +112,7 @@ export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkMod
           {step === "link" && (
             <div>
               <p className="text-[14px] text-white/50 mb-4">
-                Откройте ссылку, чтобы привязать Telegram. После привязки вы сможете получать напоминания и общаться с Мирой.
+                {t("telegram.linkDesc")}
               </p>
               <a
                 href={deepLink}
@@ -120,10 +121,10 @@ export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkMod
                 className="flex items-center justify-center gap-2 w-full rounded-xl bg-white/[0.08] border border-white/[0.08] px-4 py-3 text-[14px] text-white hover:bg-white/[0.12] transition-colors"
               >
                 <TelegramIcon size={16} />
-                Открыть в Telegram
+                {t("telegram.openInTelegram")}
               </a>
               <p className="text-[12px] text-white/20 mt-3 text-center">
-                Ссылка действует 10 минут. Страница обновится автоматически.
+                {t("telegram.linkExpiry")}
               </p>
             </div>
           )}
@@ -135,25 +136,25 @@ export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkMod
                   <Check size={16} className="text-white/70" />
                 </div>
                 <div>
-                  <p className="text-[14px] text-white">Подключен</p>
+                  <p className="text-[14px] text-white">{t("telegram.connected")}</p>
                   {username && <p className="text-[13px] text-white/40">@{username}</p>}
                 </div>
               </div>
               <p className="text-[13px] text-white/40 mb-4">
-                Напоминания будут приходить в Telegram. Также можно писать Мире прямо в чат бота.
+                {t("telegram.connectedDesc")}
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={close}
                   className="flex-1 rounded-xl bg-white/[0.08] px-4 py-2.5 text-[14px] text-white hover:bg-white/[0.12] transition-colors"
                 >
-                  Готово
+                  {t("telegram.done")}
                 </button>
                 <button
                   onClick={handleUnlink}
                   className="rounded-xl border border-white/[0.06] px-4 py-2.5 text-[13px] text-white/30 hover:text-red-400 hover:border-red-500/20 transition-colors"
                 >
-                  Отвязать
+                  {t("telegram.unlink")}
                 </button>
               </div>
             </div>
@@ -161,9 +162,9 @@ export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkMod
 
           {step === "error" && (
             <div>
-              <p className="text-[14px] text-white/50 py-4">Не удалось создать ссылку. Попробуйте позже.</p>
+              <p className="text-[14px] text-white/50 py-4">{t("telegram.error")}</p>
               <button onClick={close} className="w-full rounded-xl bg-white/[0.08] px-4 py-2.5 text-[14px] text-white hover:bg-white/[0.12] transition-colors">
-                Закрыть
+                {t("telegram.close")}
               </button>
             </div>
           )}

@@ -81,8 +81,8 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
         ) : reminders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Clock size={32} strokeWidth={1.2} className="text-white/15 mb-3" />
-            <p className="text-[15px] text-white/30">Нет напоминаний</p>
-            <p className="text-[13px] text-white/20 mt-1">Попросите Миру создать одно в чате</p>
+            <p className="text-[15px] text-white/30">{t("reminders.noReminders")}</p>
+            <p className="text-[13px] text-white/20 mt-1">{t("reminders.noRemindersHint")}</p>
           </div>
         ) : (
           <div className="max-w-2xl mx-auto">
@@ -91,7 +91,7 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
               <div className="mb-10">
                 <h2 className="text-[15px] font-semibold text-white mb-5 flex items-center gap-2">
                   <Sparkles size={14} strokeWidth={1.8} className="text-white/40" />
-                  Рассылки
+                  {t("reminders.subscriptions")}
                 </h2>
                 <div className="space-y-2">
                   {scheduledContent.map((sc) => (
@@ -131,7 +131,7 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
             {/* Scheduled section */}
             {pending.length > 0 && (
               <div className="mb-10">
-                <h2 className="text-[15px] font-semibold text-white mb-5">Запланировано</h2>
+                <h2 className="text-[15px] font-semibold text-white mb-5">{t("reminders.scheduled")}</h2>
                 <div className="space-y-1">
                   {pending.map((reminder) => (
                     <button
@@ -151,7 +151,7 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
             {/* Recent section */}
             {recent.length > 0 && (
               <div>
-                <h2 className="text-[15px] font-semibold text-white mb-5">Недавние</h2>
+                <h2 className="text-[15px] font-semibold text-white mb-5">{t("reminders.recent")}</h2>
                 <div className="space-y-1">
                   {recent.map((reminder) => (
                     <button

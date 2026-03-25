@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -431,8 +431,14 @@ export default function MessageBubble({
   );
 
   const rawContent = isStreaming && !isUser ? stripDSML(displayedText) : (isUser ? displayContent : stripDSML(message.content));
-  // Always parse suggestions (even during streaming) — strips [suggestions] block from content
-  const { content: cleanContent, suggestions } = !isUser ? parseSuggestions(rawContent) : { content: rawContent, suggestions: [] as string[] };
+  // Always strip [suggestions] block from displayed content
+  const { content: cleanContent, suggestions: inlineSuggestions } = !isUser ? parseSuggestions(rawContent) : { content: rawContent, suggestions: [] as string[] };
+  // Extract suggestions from final message content (stable, not affected by streaming state)
+  const suggestions = useMemo(() => {
+    if (isUser) return [];
+    const { suggestions: s } = parseSuggestions(stripDSML(message.content));
+    return s;
+  }, [isUser, message.content]);
   const contentToRender = !isUser ? preprocessCitations(cleanContent) : cleanContent;
 
   useEffect(() => {

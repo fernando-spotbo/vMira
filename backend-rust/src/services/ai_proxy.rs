@@ -999,12 +999,32 @@ pub fn stream_ai_response(
                 .unwrap_or("");
 
             let (_thinking, visible) = parse_thinking(raw_content);
-            let _ = tx.send(AiEvent::Token(visible)).await;
+            let visible = crate::services::sanitize::sanitize_output(&visible);
+            if !visible.trim().is_empty() {
+                let _ = tx.send(AiEvent::Token(visible)).await;
+            }
         } else {
             // No tool calls — direct response
             let raw_content = choice.message.content.as_deref().unwrap_or("");
             let (_thinking, visible) = parse_thinking(raw_content);
-            let _ = tx.send(AiEvent::Token(visible)).await;
+            let visible = crate::services::sanitize::sanitize_output(&visible);
+            if !visible.trim().is_empty() {
+                let _ = tx.send(AiEvent::Token(visible)).await;
+            } else if !raw_content.trim().is_empty() {
+                // Model output was entirely DSML/internal syntax — retry without tools
+                tracing::warn!("Model output was entirely internal syntax, retrying without tools");
+                let mut retry_body = body.clone();
+                retry_body["tools"] = serde_json::json!([]);
+                if let Ok(retry_data) = call_model(&client, &url, &api_key, &retry_body).await {
+                    if let Some(rc) = retry_data.choices.first().and_then(|c| c.message.content.as_deref()) {
+                        let (_, rv) = parse_thinking(rc);
+                        let rv = crate::services::sanitize::sanitize_output(&rv);
+                        if !rv.trim().is_empty() {
+                            let _ = tx.send(AiEvent::Token(rv)).await;
+                        }
+                    }
+                }
+            }
         }
     });
 

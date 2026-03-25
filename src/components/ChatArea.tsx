@@ -20,6 +20,7 @@ export default function ChatArea() {
   const loadingMore = useRef(false);
 
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [largeSpacer, setLargeSpacer] = useState(false);
 
   const messages = activeConversation?.messages ?? [];
 
@@ -63,6 +64,7 @@ export default function ChatArea() {
     if (activeConversationId !== prevConvId.current) {
       prevConvId.current = activeConversationId;
       mode.current = "idle";
+      setLargeSpacer(false);
       setShowScrollDown(false);
       requestAnimationFrame(() => scrollToBottom());
     }
@@ -76,6 +78,7 @@ export default function ChatArea() {
     if (!lastUserMsg.id.startsWith("user-")) return;
 
     mode.current = "pinned";
+    setLargeSpacer(true);
     setShowScrollDown(false);
     // Pin after DOM updates
     setTimeout(pinToUser, 20);
@@ -108,10 +111,29 @@ export default function ChatArea() {
     return () => observer.disconnect();
   }, [isStreaming]);
 
-  // ── When streaming ends: go idle ──
+  // ── When streaming ends: scroll to bottom, then collapse spacer ──
   useEffect(() => {
     if (!isStreaming && !isThinking && mode.current === "pinned") {
       mode.current = "idle";
+      // Scroll to bottom first, then shrink spacer so there's no jump
+      const el = scrollRef.current;
+      if (el) {
+        isProgrammaticScroll.current = true;
+        el.scrollTop = el.scrollHeight;
+        isProgrammaticScroll.current = false;
+      }
+      // Delay spacer collapse to let scroll settle
+      setTimeout(() => {
+        setLargeSpacer(false);
+        // Re-scroll after spacer shrinks
+        requestAnimationFrame(() => {
+          if (scrollRef.current) {
+            isProgrammaticScroll.current = true;
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            isProgrammaticScroll.current = false;
+          }
+        });
+      }, 50);
     }
   }, [isStreaming, isThinking]);
 
@@ -192,7 +214,7 @@ export default function ChatArea() {
         {/* Spacer: when pinned, push content down so user msg stays at top */}
         <div
           className="shrink-0"
-          style={{ minHeight: mode.current === "pinned" || isStreaming || isThinking ? "70vh" : "144px" }}
+          style={{ minHeight: largeSpacer ? "70vh" : "144px" }}
           aria-hidden="true"
         />
       </div>

@@ -215,7 +215,7 @@ export default function ChatArea() {
         {/* Spacer: when pinned, push content down so user msg stays at top */}
         <div
           className="shrink-0"
-          style={{ minHeight: largeSpacer ? "70vh" : "144px" }}
+          style={{ minHeight: largeSpacer ? "70vh" : "24px" }}
           aria-hidden="true"
         />
       </div>

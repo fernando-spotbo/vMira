@@ -102,6 +102,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         channels: reminderStep.channels || ["in_app"],
       } : undefined;
 
+      // Extract action data from steps
+      const actionStep = m.steps?.find((s: any) => s.type === "action_proposed");
+      const action = actionStep ? {
+        id: actionStep.id || "",
+        action_type: actionStep.action_type || "",
+        payload: actionStep.payload || {},
+      } : undefined;
+
       // Extract scheduled content data from steps
       const scStep = m.steps?.find((s: any) => s.type === "scheduled_content_created");
       const scheduledContent = scStep ? {
@@ -116,7 +124,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         id: m.id,
         role: m.role,
         content: m.content,
-        steps: m.steps?.filter((s: any) => s.type !== "reminder_created" && s.type !== "scheduled_content_created").map((step: any) => {
+        steps: m.steps?.filter((s: any) => s.type !== "reminder_created" && s.type !== "scheduled_content_created" && s.type !== "action_proposed").map((step: any) => {
           if (step.type === "reasoning") {
             return {
               type: "reasoning" as const,
@@ -148,6 +156,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         })) ?? undefined,
         reminder,
         scheduledContent,
+        action,
       };
     });
   }
@@ -622,6 +631,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                                     prompt: event.prompt,
                                     schedule_at: event.schedule_at,
                                     rrule: event.rrule,
+                                  },
+                                }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
+                break;
+
+              case "action_proposed":
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === convId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === asstId
+                              ? {
+                                  ...m,
+                                  action: {
+                                    id: event.id,
+                                    action_type: event.action_type,
+                                    payload: event.payload,
+                                    status: "proposed" as const,
                                   },
                                 }
                               : m

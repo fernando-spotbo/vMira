@@ -10,6 +10,7 @@ import CodeBlock from "./CodeBlock";
 import ReasoningBlock from "./ReasoningBlock";
 import ReminderCard from "./ReminderCard";
 import ScheduledContentCard from "./ScheduledContentCard";
+import ActionCard from "./ActionCard";
 import { useStreamingText } from "@/hooks/useStreamingText";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
@@ -741,6 +742,15 @@ export default function MessageBubble({
               prompt={message.scheduledContent.prompt}
               scheduleAt={message.scheduledContent.schedule_at}
               rrule={message.scheduledContent.rrule}
+            />
+          )}
+
+          {/* Action card */}
+          {message.action && (
+            <ActionCard
+              id={message.action.id}
+              actionType={message.action.action_type}
+              payload={message.action.payload}
             />
           )}
 

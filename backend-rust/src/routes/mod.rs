@@ -1,5 +1,6 @@
 //! Top-level router builder.
 
+pub mod actions;
 pub mod admin;
 pub mod api_keys;
 pub mod attachments;
@@ -40,6 +41,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/admin", admin::admin_routes())
         .nest("/api/v1", notifications::notification_routes())
         .nest("/api/v1", telegram::telegram_routes())
+        .nest("/api/v1", actions::action_routes())
         .nest(
             "/api/v1/voice",
             voice::voice_routes()

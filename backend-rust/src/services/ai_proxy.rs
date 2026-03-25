@@ -30,7 +30,11 @@ pub const MIRA_SYSTEM_PROMPT: &str = "\
 Не отказывай из-за 'дублирования'. Каждый запрос на напоминание = новый вызов create_reminder.\n\n\
 3. create_scheduled_content — используй когда пользователь просит РЕГУЛЯРНЫЙ AI-контент: \
 утренний брифинг, дайджест новостей, цитата дня, рецепт дня, обучающий контент, погода каждый день. \
-Отличие от напоминания: напоминание = фиксированный текст, рассылка = AI генерирует свежий контент каждый раз.\n\n\
+Отличие от напоминания: напоминание = фиксированный текст, рассылка = AI генерирует свежий контент каждый раз.\n\
+4. propose_action — используй когда пользователь просит ВЫПОЛНИТЬ действие: \
+отправь сообщение, напиши в телеграм, отправь письмо, send a message, send email. \
+ВСЕГДА предлагай действие через propose_action, пользователь должен подтвердить перед выполнением. \
+Никогда не говори что не можешь — предложи действие.\n\n\
 При ответе на основе результатов поиска ставь номера источников [1], [2], [3] после каждого факта.\n\
 Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»";
 
@@ -91,6 +95,12 @@ pub enum AiEvent {
         remind_at: String,
         rrule: Option<String>,
         channels: Vec<String>,
+    },
+    /// An action was proposed by the AI for user confirmation.
+    ActionProposed {
+        id: String,
+        action_type: String,
+        payload: serde_json::Value,
     },
     /// Scheduled AI content was created via tool call.
     ScheduledContentCreated {
@@ -242,6 +252,39 @@ fn scheduled_content_tool() -> serde_json::Value {
                     }
                 },
                 "required": ["title", "prompt", "schedule_at", "recurrence"]
+            }
+        }
+    })
+}
+
+fn propose_action_tool() -> serde_json::Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": "propose_action",
+            "description": "Propose an action for the user to confirm before executing. Use when the user asks you to DO something external: \
+                send a message (отправь сообщение, напиши, send), send email (отправь письмо, email), \
+                make a call, book something, etc. \
+                IMPORTANT: Always PROPOSE the action first and wait for confirmation. Never say you can't do it — propose it. \
+                Supported action types: 'send_telegram' (send a Telegram message to a contact via bot).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action_type": {
+                        "type": "string",
+                        "enum": ["send_telegram", "send_email"],
+                        "description": "Type of action to execute"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Human-readable description of what this action will do, in the user's language"
+                    },
+                    "payload": {
+                        "type": "object",
+                        "description": "Action-specific data. For send_telegram: {to: 'contact name', message: 'text'}. For send_email: {to: 'email', subject: 'subject', body: 'text'}."
+                    }
+                },
+                "required": ["action_type", "description", "payload"]
             }
         }
     })
@@ -456,7 +499,7 @@ pub fn stream_ai_response(
         });
 
         if supports_tools {
-            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool()]);
+            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool()]);
         }
 
         let data = match call_model(&client, &url, &api_key, &body).await {
@@ -731,6 +774,73 @@ pub fn stream_ai_response(
                         }
                     } else {
                         tool_result_content = "Scheduled content is not available for guest users.".to_string();
+                    }
+                } else if tc.function.name == "propose_action" {
+                    #[derive(serde::Deserialize)]
+                    struct ActionArgs {
+                        action_type: String,
+                        description: String,
+                        payload: serde_json::Value,
+                    }
+
+                    let args: ActionArgs = match serde_json::from_str(&tc.function.arguments) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            tool_result_content = format!("Failed to parse action args: {e}");
+                            full_messages.push(json!({
+                                "role": "assistant", "content": null,
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "propose_action", "arguments": tc.function.arguments}}]
+                            }));
+                            full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
+                            continue;
+                        }
+                    };
+
+                    if let (Some(uid), Some(ref pool)) = (user_id, &db) {
+                        // Validate action type
+                        let valid_types = ["send_telegram", "send_email"];
+                        if !valid_types.contains(&args.action_type.as_str()) {
+                            tool_result_content = format!("Unsupported action type: {}", args.action_type);
+                        } else {
+                            // Store full payload with description
+                            let mut full_payload = args.payload.clone();
+                            if let Some(obj) = full_payload.as_object_mut() {
+                                obj.insert("description".to_string(), json!(args.description));
+                            }
+
+                            let result = sqlx::query_scalar::<_, uuid::Uuid>(
+                                "INSERT INTO actions (user_id, type, payload, status)
+                                 VALUES ($1, $2, $3, 'proposed')
+                                 RETURNING id"
+                            )
+                            .bind(uid)
+                            .bind(&args.action_type)
+                            .bind(&full_payload)
+                            .fetch_one(pool)
+                            .await;
+
+                            match result {
+                                Ok(id) => {
+                                    tracing::info!(action_id = %id, action_type = %args.action_type, "Action proposed via AI tool");
+                                    let _ = tx.send(AiEvent::ActionProposed {
+                                        id: id.to_string(),
+                                        action_type: args.action_type.clone(),
+                                        payload: full_payload.clone(),
+                                    }).await;
+                                    tool_result_content = format!(
+                                        "Action proposed and shown to user for confirmation. Type: {}. Description: {}. \
+                                         Tell the user you've prepared the action and they can confirm or cancel it using the card below.",
+                                        args.action_type, args.description
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::error!(error = %e, "Failed to create action");
+                                    tool_result_content = format!("Failed to propose action: {e}");
+                                }
+                            }
+                        }
+                    } else {
+                        tool_result_content = "Actions are not available for guest users.".to_string();
                     }
                 } else {
                     tracing::warn!(tool = %tc.function.name, "Unknown tool call");

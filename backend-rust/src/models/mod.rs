@@ -1,3 +1,4 @@
+pub mod action;
 pub mod user;
 pub mod conversation;
 pub mod message;
@@ -8,6 +9,7 @@ pub mod session;
 pub mod notification;
 pub mod usage;
 
+pub use action::Action;
 pub use user::User;
 pub use conversation::Conversation;
 pub use message::Message;

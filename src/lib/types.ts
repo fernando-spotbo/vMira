@@ -65,6 +65,13 @@ export interface ScheduledContentInfo {
   rrule: string;
 }
 
+export interface ActionInfo {
+  id: string;
+  action_type: string;
+  payload: Record<string, unknown>;
+  status?: "proposed" | "executing" | "executed" | "cancelled" | "failed";
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -76,6 +83,7 @@ export interface Message {
   error?: MessageError;
   reminder?: ReminderInfo;
   scheduledContent?: ScheduledContentInfo;
+  action?: ActionInfo;
 }
 
 export interface Conversation {

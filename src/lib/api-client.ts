@@ -363,3 +363,13 @@ export async function getTelegramStatus() {
 export async function unlinkTelegram() {
   return apiCall("/telegram/unlink", { method: "DELETE" });
 }
+
+// ---- Actions ----
+
+export async function executeAction(id: string) {
+  return apiCall<{ id: string; status: string; result?: unknown }>(`/actions/${id}/execute`, { method: "POST" });
+}
+
+export async function cancelAction(id: string) {
+  return apiCall(`/actions/${id}/cancel`, { method: "POST" });
+}

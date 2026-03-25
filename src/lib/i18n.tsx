@@ -223,6 +223,13 @@ const translations: Record<string, Record<Locale, string>> = {
   "telegram.close": { ru: "Закрыть", en: "Close" },
 
   // ---- Scheduled content ----
+  // ---- Actions ----
+  "action.confirm": { ru: "Подтвердить", en: "Confirm" },
+  "action.executing": { ru: "Выполняю...", en: "Executing..." },
+  "action.done": { ru: "Выполнено", en: "Done" },
+  "action.cancelled": { ru: "Отменено", en: "Cancelled" },
+  "action.failed": { ru: "Ошибка", en: "Failed" },
+
   "scheduled.everyDay": { ru: "Каждый день", en: "Every day" },
   "scheduled.everyWeek": { ru: "Каждую неделю", en: "Every week" },
   "scheduled.everyMonth": { ru: "Каждый месяц", en: "Every month" },

@@ -202,8 +202,7 @@ export default function Sidebar() {
     createNewChat,
     showReminders,
     setShowReminders,
-    showBriefing,
-    setShowBriefing,
+    openBriefing,
   } = useChat();
   const { user, logout } = useAuth();
 
@@ -294,8 +293,7 @@ export default function Sidebar() {
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
-          showBriefing={showBriefing}
-          setShowBriefing={setShowBriefing}
+          openBriefing={openBriefing}
         />
       </aside>
 
@@ -321,8 +319,7 @@ export default function Sidebar() {
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
-          showBriefing={showBriefing}
-          setShowBriefing={setShowBriefing}
+          openBriefing={openBriefing}
         />
       </aside>
     </>
@@ -346,8 +343,7 @@ interface SidebarContentProps {
   userPlanLabel: string;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
-  showBriefing: boolean;
-  setShowBriefing: (show: boolean) => void;
+  openBriefing: () => void;
 }
 
 function SidebarContent({
@@ -366,8 +362,7 @@ function SidebarContent({
   userPlanLabel,
   showReminders,
   setShowReminders,
-  showBriefing,
-  setShowBriefing,
+  openBriefing,
 }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col" style={{ minWidth: expanded ? 260 : 50 }}>
@@ -394,7 +389,7 @@ function SidebarContent({
               </svg>
             </button>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); setShowBriefing(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -409,7 +404,7 @@ function SidebarContent({
         {expanded ? (
           <>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); setShowBriefing(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); }}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
             >
               <PenLine size={16} strokeWidth={1.8} className="shrink-0" />
@@ -423,15 +418,15 @@ function SidebarContent({
               <span className="truncate">{t("sidebar.search")}</span>
             </button>
             <button
-              onClick={() => { setShowReminders(true); setShowBriefing(false); setActiveConversationId(null); }}
+              onClick={() => { setShowReminders(true); setActiveConversationId(null); }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
             >
               <Clock size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("reminders.title")}</span>
             </button>
             <button
-              onClick={() => { setShowBriefing(true); setShowReminders(false); setActiveConversationId(null); }}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${showBriefing ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+              onClick={() => { openBriefing(); }}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
             >
               <Sunrise size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("briefing.title")}</span>
@@ -440,7 +435,7 @@ function SidebarContent({
         ) : (
           <>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); setShowBriefing(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -454,15 +449,15 @@ function SidebarContent({
               <Search size={18} strokeWidth={1.8} />
             </button>
             <button
-              onClick={() => { setShowReminders(true); setShowBriefing(false); setActiveConversationId(null); }}
+              onClick={() => { setShowReminders(true); setActiveConversationId(null); }}
               className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
               title={t("reminders.title")}
             >
               <Clock size={18} strokeWidth={1.8} />
             </button>
             <button
-              onClick={() => { setShowBriefing(true); setShowReminders(false); setActiveConversationId(null); }}
-              className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showBriefing ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+              onClick={() => { openBriefing(); }}
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title={t("briefing.title")}
             >
               <Sunrise size={18} strokeWidth={1.8} />
@@ -483,7 +478,7 @@ function SidebarContent({
                 </div>
                 <div className="space-y-0.5 mb-4">
                   {starredConversations.map((conv) => (
-                    <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); setShowBriefing(false); }} />
+                    <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); }} />
                   ))}
                 </div>
               </>
@@ -493,7 +488,7 @@ function SidebarContent({
             </div>
             <div className="space-y-0.5">
               {recentConversations.map((conv) => (
-                <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); setShowBriefing(false); }} />
+                <ChatItem key={conv.id} conv={conv} isActive={activeConversationId === conv.id} onSelect={() => { setActiveConversationId(conv.id); setShowReminders(false); }} />
               ))}
             </div>
           </nav>

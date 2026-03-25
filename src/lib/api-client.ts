@@ -373,3 +373,7 @@ export async function executeAction(id: string) {
 export async function cancelAction(id: string) {
   return apiCall(`/actions/${id}/cancel`, { method: "POST" });
 }
+
+export async function getActionStatus(id: string) {
+  return apiCall<{ id: string; status: string }>(`/actions/${id}`);
+}

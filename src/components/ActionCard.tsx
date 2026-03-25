@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import hljs from "highlight.js";
 import { t } from "@/lib/i18n";
-import { executeAction, cancelAction } from "@/lib/api-client";
+import { executeAction, cancelAction, getActionStatus } from "@/lib/api-client";
 
 // ── Types & constants ────────────────────────────────────────────────────
 
@@ -144,9 +144,23 @@ function useTimer(seconds: number, active: boolean) {
 // ── Main component ───────────────────────────────────────────────────────
 
 export default function ActionCard({ id, actionType, payload }: ActionCardProps) {
-  const [status, setStatus] = useState<"proposed" | "executing" | "executed" | "cancelled" | "failed">(
-    actionType === "send_telegram" ? "proposed" : "executed"
-  );
+  const defaultStatus = actionType === "send_telegram" ? "proposed" : "executed";
+  const [status, setStatus] = useState<"proposed" | "executing" | "executed" | "cancelled" | "failed">(defaultStatus);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+
+  // Fetch persisted status on mount (handles page reloads)
+  useEffect(() => {
+    if (actionType === "send_telegram" || actionType === "set_timer") {
+      getActionStatus(id).then(r => {
+        if (r.ok && r.data.status) {
+          setStatus(r.data.status as typeof defaultStatus);
+        }
+        setStatusLoaded(true);
+      }).catch(() => setStatusLoaded(true));
+    } else {
+      setStatusLoaded(true);
+    }
+  }, [id, actionType, defaultStatus]);
 
   // Payload extraction
   const description = String(payload.description || "");
@@ -162,7 +176,16 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
   const codeLang = String(payload.language || "text");
   const timerSeconds = Number(payload.seconds || 0);
   const timerLabel = String(payload.label || description);
-  const timer = useTimer(timerSeconds, actionType === "set_timer");
+  // Timer should only count on first render in this session.
+  // Use a session-scoped set to track which timers have been started.
+  const [timerStarted] = useState(() => {
+    if (actionType !== "set_timer") return false;
+    const key = `timer_started_${id}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(key)) return false;
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem(key, "1");
+    return true;
+  });
+  const timer = useTimer(timerSeconds, timerStarted);
 
   // Weather
   const weatherCity = String(payload.city || "");

@@ -3,7 +3,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use serde::Serialize;
@@ -19,8 +19,30 @@ use crate::services::telegram::{TelegramBot, html_escape};
 
 pub fn action_routes() -> Router<AppState> {
     Router::new()
+        .route("/actions/{id}", get(get_action_status))
         .route("/actions/{id}/execute", post(execute_action))
         .route("/actions/{id}/cancel", post(cancel_action))
+}
+
+async fn get_action_status(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ActionResponse>, AppError> {
+    let action = sqlx::query_as::<_, Action>(
+        "SELECT * FROM actions WHERE id = $1 AND user_id = $2"
+    )
+    .bind(id)
+    .bind(user.id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Action not found".into()))?;
+
+    Ok(Json(ActionResponse {
+        id: action.id,
+        status: action.status,
+        result: action.result,
+    }))
 }
 
 // ── Execute ─────────────────────────────────────────────────────────────

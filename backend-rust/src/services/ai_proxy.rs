@@ -39,7 +39,15 @@ pub const MIRA_SYSTEM_PROMPT: &str = "\
   - set_timer: 'таймер', 'засеки', 'timer'\n\
 ВСЕГДА сразу вызывай propose_action. НЕ спрашивай уточнений. Создай контент сам.\n\n\
 При ответе на основе результатов поиска ставь номера источников [1], [2], [3] после каждого факта.\n\
-Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»";
+Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»\n\n\
+FOLLOW-UPS: В конце КАЖДОГО ответа (кроме tool calls) добавь ровно 3 коротких вопроса-продолжения \
+на том же языке, что и ответ. Формат строго:\n\
+[suggestions]\n\
+- первый вопрос\n\
+- второй вопрос\n\
+- третий вопрос\n\
+[/suggestions]\n\
+Вопросы должны быть естественными продолжениями темы разговора. Не повторяй вопрос пользователя.";
 
 /// Voice mode system prompt — short, conversational, TTS-friendly, multilingual.
 pub const MIRA_VOICE_PROMPT: &str = "\
@@ -273,17 +281,25 @@ fn propose_action_tool() -> serde_json::Value {
                 - 'translate': show translation. Payload: {target_text: 'translated text only', source_lang: 'auto-detected', target_lang: 'target language code'}. Do NOT include source_text — the frontend already has it from the user's message.\n\
                 - 'set_timer': set a countdown timer. Payload: {seconds: 300, label: 'Timer label'}\n\
                 - 'create_code': generate code. Payload: {language: 'python', title: 'Description', code: 'full code here'}\n\
+                - 'show_weather': show weather card. Payload: {city: 'Moscow', summary: '☀️ +15°C, ясно', forecast: [{day:'Сегодня',temp:'+15°C',icon:'☀️'},{day:'Завтра',temp:'+12°C',icon:'🌤️'}]}. Generate the forecast yourself based on your knowledge — do NOT say you can't check weather.\n\
+                - 'calculate': show calculation/conversion result. Payload: {expression: '15% of 48000', result: '7200', details: 'optional explanation'}. For currency: {expression: '150 USD to RUB', result: '~13 500 ₽', details: 'по курсу ~90 ₽/$ '}\n\
+                - 'create_event': show calendar event card. Payload: {title: 'Meeting', date: '2026-03-28', time: '15:00', end_time: '16:00', location: 'Office', description: 'optional'}\n\
+                - 'save_memory': save a fact about the user. Payload: {key: 'city', value: 'Moscow'}. Use when user shares personal info (name, city, job, preferences). Say what you saved briefly.\n\
                 Use create_draft when user asks to: compose (составь), write (напиши), draft (черновик), prepare (подготовь) any text content.\n\
                 Use create_code when user asks to: write code (напиши код), create a script, function, program, algorithm, snippet.\n\
                 Use translate when user explicitly asks to translate text.\n\
                 Use set_timer for timers (таймер, timer, засеки).\n\
+                Use show_weather for weather queries (погода, weather, forecast).\n\
+                Use calculate for math, percentages, currency conversion (посчитай, сколько будет, convert).\n\
+                Use create_event for calendar/scheduling (встреча, meeting, event, schedule).\n\
+                Use save_memory when user says: меня зовут, я живу в, мне нравится, запомни что, remember that.\n\
                 ALWAYS call this immediately — do NOT ask follow-up questions.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action_type": {
                         "type": "string",
-                        "enum": ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code"],
+                        "enum": ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code", "show_weather", "calculate", "create_event", "save_memory"],
                         "description": "Type of action"
                     },
                     "description": {
@@ -493,6 +509,27 @@ pub fn stream_ai_response(
             tracing::error!(error = %e, "SSRF protection triggered");
             let _ = tx.send(AiEvent::Token(format!("Ошибка безопасности: {e}"))).await;
             return;
+        }
+
+        // Fetch user memories and inject into system prompt
+        if let (Some(uid), Some(ref pool)) = (user_id, &db) {
+            let memories: Vec<(String, String)> = sqlx::query_as(
+                "SELECT key, value FROM user_memory WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 20"
+            )
+            .bind(uid)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+
+            if !memories.is_empty() {
+                let facts: Vec<String> = memories.iter().map(|(k, v)| format!("- {}: {}", k, v)).collect();
+                let mem_str = format!("\n\nЧто ты знаешь о пользователе:\n{}", facts.join("\n"));
+                if let Some(sys) = full_messages.first_mut() {
+                    if let Some(content) = sys.get_mut("content") {
+                        *content = json!(format!("{}{}", content.as_str().unwrap_or(""), mem_str));
+                    }
+                }
+            }
         }
 
         let client = reqwest::Client::builder()
@@ -809,9 +846,28 @@ pub fn stream_ai_response(
 
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
                         // Validate action type
-                        let valid_types = ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code"];
+                        let valid_types = ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code", "show_weather", "calculate", "create_event", "save_memory"];
                         if !valid_types.contains(&args.action_type.as_str()) {
                             tool_result_content = format!("Unsupported action type: {}", args.action_type);
+                        } else if args.action_type == "save_memory" {
+                            // Save memory directly to DB — no action card
+                            let key = args.payload.get("key").and_then(|v| v.as_str()).unwrap_or("fact");
+                            let value = args.payload.get("value").and_then(|v| v.as_str()).unwrap_or("");
+                            if !value.is_empty() {
+                                let _ = sqlx::query(
+                                    "INSERT INTO user_memory (user_id, key, value)
+                                     VALUES ($1, $2, $3)
+                                     ON CONFLICT (user_id, key) DO UPDATE SET value = $3, updated_at = now()"
+                                )
+                                .bind(uid)
+                                .bind(key)
+                                .bind(value)
+                                .execute(pool)
+                                .await;
+                                tool_result_content = format!("Memory saved: {} = {}. Confirm briefly to the user.", key, value);
+                            } else {
+                                tool_result_content = "Empty value, nothing saved.".to_string();
+                            }
                         } else {
                             // Store full payload with description
                             let mut full_payload = args.payload.clone();

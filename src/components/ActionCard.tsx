@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages,
-  Timer, Send, Code2, ChevronDown, ExternalLink,
+  Timer, Send, Code2, ChevronDown, ExternalLink, CloudSun, Calculator,
+  CalendarPlus, Download,
 } from "lucide-react";
 import hljs from "highlight.js";
 import { t } from "@/lib/i18n";
@@ -46,6 +47,9 @@ function TypeIcon({ type }: { type: string }) {
     case "translate": return <Languages size={16} strokeWidth={1.8} className={c} />;
     case "set_timer": return <Timer size={16} strokeWidth={1.8} className={c} />;
     case "create_code": return <Code2 size={16} strokeWidth={1.8} className={c} />;
+    case "show_weather": return <CloudSun size={16} strokeWidth={1.8} className={c} />;
+    case "calculate": return <Calculator size={16} strokeWidth={1.8} className={c} />;
+    case "create_event": return <CalendarPlus size={16} strokeWidth={1.8} className={c} />;
     default: return <FileText size={16} strokeWidth={1.8} className={c} />;
   }
 }
@@ -58,6 +62,9 @@ function typeLabel(type: string): string {
     case "translate": return t("action.translate");
     case "set_timer": return t("action.timer");
     case "create_code": return t("action.code");
+    case "show_weather": return t("action.weather");
+    case "calculate": return t("action.calc");
+    case "create_event": return t("action.event");
     default: return type;
   }
 }
@@ -156,6 +163,24 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
   const timerSeconds = Number(payload.seconds || 0);
   const timerLabel = String(payload.label || description);
   const timer = useTimer(timerSeconds, actionType === "set_timer");
+
+  // Weather
+  const weatherCity = String(payload.city || "");
+  const weatherSummary = String(payload.summary || "");
+  const weatherForecast = (payload.forecast as Array<{ day: string; temp: string; icon: string }>) || [];
+
+  // Calculator
+  const calcExpression = String(payload.expression || "");
+  const calcResult = String(payload.result || "");
+  const calcDetails = String(payload.details || "");
+
+  // Calendar event
+  const eventTitle = String(payload.title || title);
+  const eventDate = String(payload.date || "");
+  const eventTime = String(payload.time || "");
+  const eventEndTime = String(payload.end_time || "");
+  const eventLocation = String(payload.location || "");
+  const eventDesc = String(payload.description || description);
 
   const highlighted = useMemo(() => {
     if (actionType !== "create_code" || !codeContent) return "";
@@ -310,6 +335,85 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
                 </pre>
               </div>
             </Expandable>
+          </div>
+        )}
+
+        {/* ═══ WEATHER ═══ */}
+        {actionType === "show_weather" && (
+          <div className="px-4 pb-3.5">
+            {weatherCity && <p className="text-[13px] text-white/30 mb-2">{weatherCity}</p>}
+            <p className="text-[22px] text-white font-light mb-3">{weatherSummary}</p>
+            {weatherForecast.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {weatherForecast.map((day, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1 min-w-[64px] rounded-lg bg-white/[0.03] px-3 py-2.5">
+                    <span className="text-[12px] text-white/40">{day.day}</span>
+                    <span className="text-[18px]">{day.icon}</span>
+                    <span className="text-[14px] text-white font-medium">{day.temp}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ CALCULATE ═══ */}
+        {actionType === "calculate" && (
+          <div className="px-4 pb-3.5">
+            {calcExpression && <p className="text-[14px] text-white/40 mb-1">{calcExpression}</p>}
+            <p className="text-[28px] text-white font-light tracking-tight">{calcResult}</p>
+            {calcDetails && <p className="text-[13px] text-white/30 mt-1">{calcDetails}</p>}
+          </div>
+        )}
+
+        {/* ═══ CALENDAR EVENT ═══ */}
+        {actionType === "create_event" && (
+          <div className="px-4 pb-3.5">
+            <p className="text-[16px] text-white font-medium mb-2">{eventTitle}</p>
+            <div className="space-y-1.5 mb-3">
+              <p className="text-[14px] text-white/60">
+                {eventDate}{eventTime ? `, ${eventTime}` : ""}{eventEndTime ? ` — ${eventEndTime}` : ""}
+              </p>
+              {eventLocation && <p className="text-[14px] text-white/40">{eventLocation}</p>}
+              {eventDesc && <p className="text-[14px] text-white/40">{eventDesc}</p>}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  // Generate ICS file and download
+                  const start = `${eventDate.replace(/-/g, "")}T${(eventTime || "12:00").replace(":", "")}00`;
+                  const end = eventEndTime
+                    ? `${eventDate.replace(/-/g, "")}T${eventEndTime.replace(":", "")}00`
+                    : `${eventDate.replace(/-/g, "")}T${String(parseInt(eventTime || "12") + 1).padStart(2, "0")}${(eventTime || "12:00").slice(3)}00`;
+                  const ics = [
+                    "BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT",
+                    `DTSTART:${start}`, `DTEND:${end}`,
+                    `SUMMARY:${eventTitle}`,
+                    eventLocation ? `LOCATION:${eventLocation}` : "",
+                    eventDesc ? `DESCRIPTION:${eventDesc}` : "",
+                    "END:VEVENT", "END:VCALENDAR",
+                  ].filter(Boolean).join("\r\n");
+                  const blob = new Blob([ics], { type: "text/calendar" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = `${eventTitle.replace(/\s+/g, "_")}.ics`;
+                  a.click(); URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-3 py-2 text-[14px] text-white/50 hover:text-white hover:bg-white/[0.04] transition-colors"
+              >
+                <Download size={14} strokeWidth={1.8} />
+                .ics
+              </button>
+              <a
+                href={`https://calendar.google.com/calendar/r/eventedit?text=${e(eventTitle)}&dates=${eventDate.replace(/-/g, "")}T${(eventTime || "12:00").replace(":", "")}00/${eventDate.replace(/-/g, "")}T${(eventEndTime || String(parseInt(eventTime || "12") + 1).padStart(2, "0") + ":00").replace(":", "")}00&location=${e(eventLocation)}&details=${e(eventDesc)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-3 py-2 text-[14px] text-white/50 hover:text-white hover:bg-white/[0.04] transition-colors"
+              >
+                <ExternalLink size={14} strokeWidth={1.8} />
+                Google Calendar
+              </a>
+            </div>
           </div>
         )}
 

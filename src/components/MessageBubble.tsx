@@ -18,6 +18,20 @@ import MessageReactions from "./MessageReactions";
 import PricingModal from "./PricingModal";
 import AuthModal from "./AuthModal";
 import FeedbackModal from "./FeedbackModal";
+
+/** Parse [suggestions]...[/suggestions] block from message content */
+function parseSuggestions(text: string): { content: string; suggestions: string[] } {
+  const match = text.match(/\[suggestions\]\s*([\s\S]*?)\s*\[\/suggestions\]/);
+  if (!match) return { content: text, suggestions: [] };
+  const raw = match[1].trim();
+  const suggestions = raw
+    .split("\n")
+    .map(l => l.replace(/^[-•*]\s*/, "").trim())
+    .filter(l => l.length > 0)
+    .slice(0, 3);
+  const content = text.replace(/\[suggestions\][\s\S]*?\[\/suggestions\]/, "").trim();
+  return { content, suggestions };
+}
 import ExternalLinkModal from "./ExternalLinkModal";
 
 interface MessageBubbleProps {
@@ -399,7 +413,7 @@ export default function MessageBubble({
   const [externalLink, setExternalLink] = useState<string | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === "user";
-  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, resendMessage } = useChat();
+  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, resendMessage, sendMessage } = useChat();
 
   const versions = message.versions ?? [message.content];
   const versionIndex = message.versionIndex ?? versions.length - 1;
@@ -412,7 +426,8 @@ export default function MessageBubble({
   );
 
   const rawContent = isStreaming && !isUser ? displayedText : (isUser ? displayContent : message.content);
-  const contentToRender = !isUser ? preprocessCitations(rawContent) : rawContent;
+  const { content: cleanContent, suggestions } = !isUser && !isStreaming ? parseSuggestions(rawContent) : { content: rawContent, suggestions: [] as string[] };
+  const contentToRender = !isUser ? preprocessCitations(cleanContent) : cleanContent;
 
   useEffect(() => {
     if (editing && editRef.current) {
@@ -696,7 +711,8 @@ export default function MessageBubble({
                 // text step
                 const isLastStep = i === message.steps!.length - 1;
                 const rawText = isLastStep && isStreaming && !isUser ? displayedText : step.content;
-                const textContent = preprocessCitations(rawText);
+                const { content: cleanStepText } = parseSuggestions(rawText);
+                const textContent = preprocessCitations(cleanStepText);
                 return (
                   <div key={i}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{textContent}</ReactMarkdown>
@@ -815,6 +831,21 @@ export default function MessageBubble({
               <div className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <MessageReactions messageId={message.id} />
               </div>
+            </div>
+          )}
+
+          {/* Follow-up suggestion chips */}
+          {suggestions.length > 0 && !isStreaming && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(s)}
+                  className="rounded-xl border border-white/[0.08] px-3.5 py-2 text-[14px] text-white/60 hover:text-white hover:bg-white/[0.04] hover:border-white/[0.12] transition-colors text-left"
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           )}
 

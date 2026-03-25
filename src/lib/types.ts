@@ -84,6 +84,7 @@ export interface Message {
   reminder?: ReminderInfo;
   scheduledContent?: ScheduledContentInfo;
   action?: ActionInfo;
+  suggestions?: string[];
 }
 
 export interface Conversation {

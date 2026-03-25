@@ -241,6 +241,10 @@ const translations: Record<string, Record<Locale, string>> = {
   "action.openWith": { ru: "Открыть в:", en: "Open with:" },
   "action.code": { ru: "Код", en: "Code" },
   "action.showMore": { ru: "Показать полностью", en: "Show more" },
+  "action.weather": { ru: "Погода", en: "Weather" },
+  "action.calc": { ru: "Расчёт", en: "Calculation" },
+  "action.event": { ru: "Событие", en: "Event" },
+  "action.download": { ru: "Скачать", en: "Download" },
 
   "scheduled.everyDay": { ru: "Каждый день", en: "Every day" },
   "scheduled.everyWeek": { ru: "Каждую неделю", en: "Every week" },

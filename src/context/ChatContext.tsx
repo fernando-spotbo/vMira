@@ -99,6 +99,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         body: reminderStep.body || null,
         remind_at: reminderStep.remind_at || "",
         rrule: reminderStep.rrule || null,
+        channels: reminderStep.channels || ["in_app"],
       } : undefined;
 
       // Extract scheduled content data from steps
@@ -594,6 +595,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                                     title: event.title,
                                     remind_at: event.remind_at,
                                     rrule: event.rrule,
+                                    channels: event.channels,
                                   },
                                 }
                               : m

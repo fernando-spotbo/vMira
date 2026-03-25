@@ -93,7 +93,7 @@ export type StreamEvent =
   | { type: "token"; content: string }
   | { type: "search"; query: string }
   | { type: "search_results"; query: string; results: SearchResultItem[] }
-  | { type: "reminder_created"; id: string; title: string; remind_at: string; rrule?: string | null }
+  | { type: "reminder_created"; id: string; title: string; remind_at: string; rrule?: string | null; channels?: string[] }
   | { type: "scheduled_content_created"; id: string; title: string; prompt: string; schedule_at: string; rrule: string }
   | { type: "done"; usage?: { input_tokens: number; output_tokens: number; total_tokens: number; cost_microcents: number } }
   | { type: "error"; message: string };
@@ -197,7 +197,7 @@ export async function* streamMessage(
                 : parsed.type === "search_results"
                 ? { type: "search_results", query: String(parsed.query || ""), results: parsed.results || [] }
                 : parsed.type === "reminder_created"
-                ? { type: "reminder_created", id: String(parsed.id || ""), title: String(parsed.title || ""), remind_at: String(parsed.remind_at || ""), rrule: parsed.rrule || null }
+                ? { type: "reminder_created", id: String(parsed.id || ""), title: String(parsed.title || ""), remind_at: String(parsed.remind_at || ""), rrule: parsed.rrule || null, channels: parsed.channels || ["in_app"] }
                 : parsed.type === "scheduled_content_created"
                 ? { type: "scheduled_content_created", id: String(parsed.id || ""), title: String(parsed.title || ""), prompt: String(parsed.prompt || ""), schedule_at: String(parsed.schedule_at || ""), rrule: String(parsed.rrule || "") }
                 : parsed.type === "done"

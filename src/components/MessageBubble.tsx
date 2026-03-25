@@ -729,6 +729,7 @@ export default function MessageBubble({
               body={message.reminder.body}
               remindAt={message.reminder.remind_at}
               rrule={message.reminder.rrule}
+              channels={message.reminder.channels}
             />
           )}
 

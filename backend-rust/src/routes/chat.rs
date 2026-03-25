@@ -971,13 +971,14 @@ async fn send_message(
                             });
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
                         }
-                        Some(ai_proxy::AiEvent::ReminderCreated { id, title, remind_at, rrule }) => {
+                        Some(ai_proxy::AiEvent::ReminderCreated { id, title, remind_at, rrule, channels }) => {
                             let rd = serde_json::json!({
                                 "type": "reminder_created",
                                 "id": id,
                                 "title": title,
                                 "remind_at": remind_at,
                                 "rrule": rrule,
+                                "channels": channels,
                             });
                             reminder_data = Some(rd.clone());
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&rd).unwrap_or_default()));

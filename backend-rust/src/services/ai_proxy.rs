@@ -90,6 +90,7 @@ pub enum AiEvent {
         title: String,
         remind_at: String,
         rrule: Option<String>,
+        channels: Vec<String>,
     },
     /// Scheduled AI content was created via tool call.
     ScheduledContentCreated {
@@ -614,6 +615,7 @@ pub fn stream_ai_response(
                                             title: args.title.clone(),
                                             remind_at: args.remind_at.clone(),
                                             rrule: args.recurrence.clone(),
+                                            channels: channels.clone(),
                                         }).await;
                                         let mut msg = format!("Reminder created. Respond briefly: confirm the reminder title and time in a natural, human-friendly way (e.g. 'через 2 минуты' or 'завтра в 10:00'). Do NOT show the ID or ISO datetime to the user.");
                                         if telegram_not_linked {

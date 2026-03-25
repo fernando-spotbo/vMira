@@ -37,11 +37,11 @@ export default function CodeBlock({ language, code }: CodeBlockProps) {
     : "Code";
 
   return (
-    <div className="my-3 -mx-1 rounded-xl bg-[#1e1e1e] overflow-hidden">
+    <div className="my-4 rounded-2xl bg-[#1a1a1a] overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 h-11">
-        <div className="flex items-center gap-2 text-[14px] text-white font-medium">
-          <Code2 size={15} strokeWidth={1.8} className="text-white/50" />
+      <div className="flex items-center justify-between px-5 h-12">
+        <div className="flex items-center gap-2.5 text-[15px] text-white font-medium">
+          <Code2 size={16} strokeWidth={1.8} className="text-white/50" />
           <span>{displayLang}</span>
         </div>
         <button
@@ -54,8 +54,8 @@ export default function CodeBlock({ language, code }: CodeBlockProps) {
       </div>
 
       {/* Code */}
-      <div className="overflow-x-auto px-4 pb-4">
-        <pre className="text-[14px] leading-[1.75]">
+      <div className="overflow-x-auto px-5 pb-5">
+        <pre className="text-[14px] leading-[1.8]">
           <code
             className={`hljs language-${language}`}
             dangerouslySetInnerHTML={{ __html: highlightedHtml }}

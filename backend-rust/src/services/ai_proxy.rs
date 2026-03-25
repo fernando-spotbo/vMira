@@ -894,7 +894,7 @@ pub fn stream_ai_response(
                                     "wind_gusts": weather.wind_gusts.map(|g| format!("{} км/ч", g.round())),
                                     "feels_like": format!("{}°C", weather.feels_like.round()),
                                     "humidity": weather.humidity.map(|h| format!("{}%", h.round())),
-                                    "uv_index": weather.uv_index.map(|u| u.round()),
+                                    "uv_index": weather.uv_index.map(|u| (u * 10.0).round() / 10.0),
                                     "precip_prob": weather.precipitation_probability.map(|p| format!("{}%", p.round())),
                                     "precip_sum": weather.precipitation_sum.map(|p| format!("{} мм", p)),
                                     "sunrise": weather.sunrise,

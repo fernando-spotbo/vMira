@@ -1,12 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Clock, CheckCircle2, Sparkles, Repeat, Trash2, Bell, Mail, Send, ChevronRight, Globe } from "lucide-react";
+import {
+  Clock, CheckCircle2, Sparkles, Repeat, Trash2,
+  Bell, Mail, ChevronRight, Settings2, X,
+} from "lucide-react";
 import { t } from "@/lib/i18n";
-import { getAccessToken, getReminders, deleteReminder, getTelegramStatus, getNotificationSettings, updateNotificationSettings, ReminderItem } from "@/lib/api-client";
+import {
+  getAccessToken, getReminders, deleteReminder,
+  getTelegramStatus, getNotificationSettings, updateNotificationSettings,
+  ReminderItem,
+} from "@/lib/api-client";
 import EditReminderModal from "./EditReminderModal";
 import TelegramLinkModal from "./TelegramLinkModal";
+
+// ── Helpers ──────────────────────────────────────────────────────────────
 
 function formatTime(remindAt: string): string {
   try {
@@ -17,8 +26,8 @@ function formatTime(remindAt: string): string {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const isTomorrow = d.toDateString() === tomorrow.toDateString();
     const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", hour12: false });
-    if (isToday) return `${t("reminders.today")} ${time}`;
-    if (isTomorrow) return `${t("reminders.tomorrow")} ${time}`;
+    if (isToday) return time;
+    if (isTomorrow) return `${t("reminders.tomorrow")}, ${time}`;
     return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) + ` ${time}`;
   } catch { return remindAt; }
 }
@@ -28,8 +37,7 @@ function formatRelativeDate(dateStr: string): string {
     const d = new Date(dateStr);
     const now = new Date();
     if (d.toDateString() === now.toDateString()) return t("reminders.today");
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
     if (d.toDateString() === yesterday.toDateString()) return t("reminders.yesterday");
     return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
   } catch { return dateStr; }
@@ -58,16 +66,91 @@ function TelegramIcon({ size = 14, className }: { size?: number; className?: str
   );
 }
 
-function ChannelBadges({ channels }: { channels?: string[] }) {
-  if (!channels || channels.length === 0) return null;
+function ChannelDots({ channels }: { channels?: string[] }) {
+  if (!channels || channels.length <= 1) return null;
   return (
-    <div className="flex items-center gap-1.5">
-      {channels.includes("in_app") && <Bell size={11} strokeWidth={1.8} className="text-white/20" />}
-      {channels.includes("telegram") && <TelegramIcon size={11} className="text-white/20" />}
-      {channels.includes("email") && <Mail size={11} strokeWidth={1.8} className="text-white/20" />}
+    <div className="flex items-center gap-1">
+      {channels.includes("telegram") && <TelegramIcon size={10} className="text-white/20" />}
+      {channels.includes("email") && <Mail size={10} strokeWidth={1.8} className="text-white/20" />}
     </div>
   );
 }
+
+// ── Delivery settings popover ────────────────────────────────────────────
+
+function DeliveryPopover({
+  open, onClose, onOpenTelegram,
+  tgLinked, tgUsername, tgEnabled, emailEnabled,
+  onToggleTg, onToggleEmail,
+}: {
+  open: boolean; onClose: () => void; onOpenTelegram: () => void;
+  tgLinked: boolean; tgUsername: string | null;
+  tgEnabled: boolean; emailEnabled: boolean;
+  onToggleTg: () => void; onToggleEmail: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const timer = setTimeout(() => document.addEventListener("mousedown", handler), 10);
+    return () => { clearTimeout(timer); document.removeEventListener("mousedown", handler); };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-white/[0.08] bg-[#1a1a1a] py-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+    >
+      <p className="px-3.5 pt-1 pb-2 text-[11px] text-white/25 uppercase tracking-wider">{t("delivery.label")}</p>
+
+      {/* In-app */}
+      <div className="flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-white/30">
+        <Bell size={14} strokeWidth={1.8} />
+        <span className="flex-1">{t("delivery.inApp")}</span>
+        <span className="text-[11px] text-white/15">{t("delivery.alwaysOn")}</span>
+      </div>
+
+      {/* Telegram */}
+      <button
+        onClick={tgLinked ? onToggleTg : () => { onClose(); onOpenTelegram(); }}
+        className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[13px] text-white/70 hover:bg-white/[0.04] transition-colors"
+      >
+        <TelegramIcon size={14} className={tgEnabled && tgLinked ? "text-white/60" : "text-white/25"} />
+        <span className="flex-1 text-left">Telegram</span>
+        {tgLinked ? (
+          <div className={`h-5 w-9 rounded-full transition-colors relative ${tgEnabled ? "bg-white/25" : "bg-white/[0.08]"}`}>
+            <div className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${tgEnabled ? "translate-x-4" : ""}`} />
+          </div>
+        ) : (
+          <span className="text-[11px] text-white/20">{t("settings.telegramConnect.btn")}</span>
+        )}
+      </button>
+
+      {/* Email */}
+      <button
+        onClick={onToggleEmail}
+        className="flex w-full items-center gap-2.5 px-3.5 py-2 text-[13px] text-white/70 hover:bg-white/[0.04] transition-colors"
+      >
+        <Mail size={14} strokeWidth={1.8} className={emailEnabled ? "text-white/60" : "text-white/25"} />
+        <span className="flex-1 text-left">Email</span>
+        <div className={`h-5 w-9 rounded-full transition-colors relative ${emailEnabled ? "bg-white/25" : "bg-white/[0.08]"}`}>
+          <div className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${emailEnabled ? "translate-x-4" : ""}`} />
+        </div>
+      </button>
+
+      {tgLinked && tgUsername && (
+        <p className="px-3.5 pt-1.5 pb-1 text-[11px] text-white/15">@{tgUsername}</p>
+      )}
+    </div>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────
 
 interface RemindersPageProps {
   onBack: () => void;
@@ -78,13 +161,12 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
   const [loading, setLoading] = useState(true);
   const [editingReminder, setEditingReminder] = useState<ReminderItem | null>(null);
   const [tgModalOpen, setTgModalOpen] = useState(false);
+  const [deliveryOpen, setDeliveryOpen] = useState(false);
 
-  // Delivery settings
   const [tgLinked, setTgLinked] = useState(false);
   const [tgUsername, setTgUsername] = useState<string | null>(null);
   const [tgEnabled, setTgEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(false);
-  const [timezone, setTimezone] = useState("Europe/Moscow");
 
   const fetchReminders = useCallback(async () => {
     if (!getAccessToken()) { setLoading(false); return; }
@@ -99,212 +181,178 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
         getTelegramStatus(),
         getNotificationSettings(),
       ]);
-      if (tgStatus.ok) {
-        setTgLinked(tgStatus.data.linked);
-        setTgUsername(tgStatus.data.username);
-      }
-      if (settings.ok) {
-        setTgEnabled(settings.data.telegram_enabled);
-        setEmailEnabled(settings.data.email_enabled);
-        setTimezone(settings.data.timezone || "Europe/Moscow");
-      }
+      if (tgStatus.ok) { setTgLinked(tgStatus.data.linked); setTgUsername(tgStatus.data.username); }
+      if (settings.ok) { setTgEnabled(settings.data.telegram_enabled); setEmailEnabled(settings.data.email_enabled); }
     } catch {}
   }, []);
 
   useEffect(() => { fetchReminders(); fetchSettings(); }, [fetchReminders, fetchSettings]);
 
-  const scheduledContent = reminders.filter((r) => r.type === "scheduled_content" && (r.status === "pending" || r.status === "snoozed"));
-  const pending = reminders.filter((r) => r.type !== "scheduled_content" && (r.status === "pending" || r.status === "snoozed"));
-  const recent = reminders.filter((r) => r.status === "fired" || r.status === "cancelled").slice(0, 20);
+  const scheduledContent = reminders.filter(r => r.type === "scheduled_content" && (r.status === "pending" || r.status === "snoozed"));
+  const pending = reminders.filter(r => r.type !== "scheduled_content" && (r.status === "pending" || r.status === "snoozed"));
+  const recent = reminders.filter(r => r.status === "fired" || r.status === "cancelled").slice(0, 20);
+  const hasContent = scheduledContent.length > 0 || pending.length > 0 || recent.length > 0;
 
-  const handleDeleteReminder = async (id: string) => {
-    await deleteReminder(id);
-    fetchReminders();
-  };
-
-  const toggleTgEnabled = async () => {
+  const toggleTg = async () => {
     if (!tgLinked) { setTgModalOpen(true); return; }
-    const next = !tgEnabled;
-    setTgEnabled(next);
+    const next = !tgEnabled; setTgEnabled(next);
     await updateNotificationSettings({ telegram_enabled: next });
   };
 
-  const toggleEmailEnabled = async () => {
-    const next = !emailEnabled;
-    setEmailEnabled(next);
+  const toggleEmail = async () => {
+    const next = !emailEnabled; setEmailEnabled(next);
     await updateNotificationSettings({ email_enabled: next });
   };
 
+  // Active channel summary for header badge
+  const activeChannels = [
+    "app",
+    ...(tgEnabled && tgLinked ? ["tg"] : []),
+    ...(emailEnabled ? ["email"] : []),
+  ];
+
   return (
     <div className="flex h-full flex-col bg-[#161616]">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="px-5 pt-[env(safe-area-inset-top)] shrink-0">
         <div className="flex items-center justify-between h-14">
-          <h1 className="text-[18px] font-semibold text-white">{t("reminders.title")}</h1>
+          <h1 className="text-[17px] font-semibold text-white tracking-tight">{t("reminders.title")}</h1>
+          <div className="relative">
+            <button
+              onClick={() => setDeliveryOpen(!deliveryOpen)}
+              className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-white/40 hover:text-white/60 hover:bg-white/[0.04] transition-colors"
+            >
+              {/* Small channel indicators */}
+              <div className="flex items-center gap-0.5">
+                <Bell size={12} strokeWidth={1.8} className="text-white/30" />
+                {tgEnabled && tgLinked && <TelegramIcon size={10} className="text-white/30" />}
+                {emailEnabled && <Mail size={10} strokeWidth={1.8} className="text-white/30" />}
+              </div>
+              <Settings2 size={14} strokeWidth={1.8} />
+            </button>
+            <DeliveryPopover
+              open={deliveryOpen}
+              onClose={() => setDeliveryOpen(false)}
+              onOpenTelegram={() => setTgModalOpen(true)}
+              tgLinked={tgLinked}
+              tgUsername={tgUsername}
+              tgEnabled={tgEnabled}
+              emailEnabled={emailEnabled}
+              onToggleTg={toggleTg}
+              onToggleEmail={toggleEmail}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Content */}
+      {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-5 pb-10">
-
-          {/* ── Delivery channels card ── */}
-          <div className="mb-8 rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/[0.04]">
-              <p className="text-[13px] text-white/40 uppercase tracking-wider font-medium">{t("delivery.label")}</p>
-            </div>
-
-            {/* In-app — always on */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.04]">
-              <Bell size={16} strokeWidth={1.8} className="text-white/40 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[14px] text-white">{t("delivery.inApp")}</p>
-              </div>
-              <span className="text-[12px] text-white/20">{t("delivery.alwaysOn")}</span>
-            </div>
-
-            {/* Telegram */}
-            <button
-              onClick={tgLinked ? toggleTgEnabled : () => setTgModalOpen(true)}
-              className="flex w-full items-center gap-3 px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors text-left"
-            >
-              <TelegramIcon size={16} className={tgEnabled && tgLinked ? "text-white/60" : "text-white/20"} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] text-white">Telegram</p>
-                <p className="text-[12px] text-white/30">
-                  {tgLinked
-                    ? (tgUsername ? `@${tgUsername}` : t("telegram.connected"))
-                    : t("delivery.notConnected")
-                  }
-                </p>
-              </div>
-              {tgLinked ? (
-                <div className={`h-6 w-11 rounded-full transition-colors relative ${tgEnabled ? "bg-white/30" : "bg-white/[0.08]"}`}>
-                  <div className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${tgEnabled ? "translate-x-5" : "translate-x-0"}`} />
-                </div>
-              ) : (
-                <ChevronRight size={16} className="text-white/20" />
-              )}
-            </button>
-
-            {/* Email */}
-            <button
-              onClick={toggleEmailEnabled}
-              className="flex w-full items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
-            >
-              <Mail size={16} strokeWidth={1.8} className={emailEnabled ? "text-white/60" : "text-white/20"} />
-              <div className="flex-1">
-                <p className="text-[14px] text-white">Email</p>
-                <p className="text-[12px] text-white/30">{t("delivery.emailDesc")}</p>
-              </div>
-              <div className={`h-6 w-11 rounded-full transition-colors relative ${emailEnabled ? "bg-white/30" : "bg-white/[0.08]"}`}>
-                <div className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${emailEnabled ? "translate-x-5" : "translate-x-0"}`} />
-              </div>
-            </button>
-          </div>
+        <div className="max-w-xl mx-auto px-5 pb-10">
 
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="h-5 w-5 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
+            <div className="flex items-center justify-center py-20">
+              <div className="h-5 w-5 rounded-full border-2 border-white/10 border-t-white/40 animate-spin" />
             </div>
-          ) : reminders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <Clock size={32} strokeWidth={1.2} className="text-white/10 mb-3" />
-              <p className="text-[15px] text-white/30">{t("reminders.noReminders")}</p>
-              <p className="text-[13px] text-white/15 mt-1">{t("reminders.noRemindersHint")}</p>
+          ) : !hasContent ? (
+            <div className="flex flex-col items-center justify-center py-24">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.03] mb-4">
+                <Clock size={22} strokeWidth={1.4} className="text-white/15" />
+              </div>
+              <p className="text-[15px] text-white/25">{t("reminders.noReminders")}</p>
+              <p className="text-[13px] text-white/12 mt-1.5">{t("reminders.noRemindersHint")}</p>
             </div>
           ) : (
             <>
-              {/* ── Subscriptions (scheduled content) ── */}
+              {/* ── Subscriptions ── */}
               {scheduledContent.length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-[13px] text-white/30 uppercase tracking-wider font-medium mb-3 flex items-center gap-2">
-                    <Sparkles size={13} strokeWidth={1.8} />
-                    {t("reminders.subscriptions")}
-                  </h2>
-                  <div className="space-y-1">
-                    {scheduledContent.map((sc) => (
-                      <div key={sc.id} className="flex items-center gap-3 py-2.5 px-3 -mx-3 rounded-lg group hover:bg-white/[0.02] transition-colors">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
-                          <Sparkles size={14} strokeWidth={1.8} className="text-white/30" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[14px] text-white truncate">{sc.title}</p>
-                          <p className="text-[12px] text-white/25 flex items-center gap-1">
-                            <Repeat size={10} strokeWidth={1.8} />
-                            {formatRrule(sc.rrule)}
-                          </p>
-                        </div>
-                        <ChannelBadges channels={sc.channels} />
-                        <button
-                          onClick={() => handleDeleteReminder(sc.id)}
-                          className="shrink-0 opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-lg text-white/15 hover:text-red-400 hover:bg-white/[0.06] transition-all"
-                        >
-                          <Trash2 size={13} strokeWidth={1.8} />
-                        </button>
-                      </div>
-                    ))}
+                <section className="mb-7">
+                  <div className="flex items-center gap-2 mb-2.5 px-1">
+                    <Sparkles size={12} strokeWidth={2} className="text-white/20" />
+                    <span className="text-[11px] text-white/20 uppercase tracking-widest font-medium">{t("reminders.subscriptions")}</span>
                   </div>
-                </div>
-              )}
-
-              {/* ── Active reminders ── */}
-              {pending.length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-[13px] text-white/30 uppercase tracking-wider font-medium mb-3">
-                    {t("reminders.scheduled")} · {pending.length}
-                  </h2>
-                  <div className="space-y-0.5">
-                    {pending.map((reminder) => (
+                  {scheduledContent.map((sc) => (
+                    <div key={sc.id} className="flex items-center gap-3 py-3 px-1 group">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.03]">
+                        <Sparkles size={15} strokeWidth={1.6} className="text-white/20" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] text-white/80 truncate leading-tight">{sc.title}</p>
+                        <p className="text-[12px] text-white/20 mt-0.5 flex items-center gap-1">
+                          <Repeat size={9} strokeWidth={2} />
+                          {formatRrule(sc.rrule)}
+                        </p>
+                      </div>
+                      <ChannelDots channels={sc.channels} />
                       <button
-                        key={reminder.id}
-                        onClick={() => setEditingReminder(reminder)}
-                        className="flex w-full items-center gap-3 py-2.5 px-3 -mx-3 rounded-lg hover:bg-white/[0.02] transition-colors text-left group"
+                        onClick={() => deleteReminder(sc.id).then(fetchReminders)}
+                        className="opacity-0 group-hover:opacity-100 flex h-7 w-7 items-center justify-center rounded-lg text-white/10 hover:text-red-400/70 transition-all"
                       >
-                        <Clock size={15} strokeWidth={1.8} className="text-white/25 shrink-0" />
-                        <span className="flex-1 text-[14px] text-white truncate">{reminder.title}</span>
-                        <ChannelBadges channels={reminder.channels} />
-                        <span className="text-[12px] text-white/20 shrink-0">{formatTime(reminder.remind_at)}</span>
+                        <Trash2 size={13} strokeWidth={1.8} />
                       </button>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  ))}
+                </section>
               )}
 
-              {/* ── Recent (fired/cancelled) ── */}
-              {recent.length > 0 && (
-                <div>
-                  <h2 className="text-[13px] text-white/30 uppercase tracking-wider font-medium mb-3">
-                    {t("reminders.recent")}
-                  </h2>
-                  <div className="space-y-0.5">
-                    {recent.map((reminder) => (
-                      <div
-                        key={reminder.id}
-                        className="flex items-center gap-3 py-2.5 px-3 -mx-3 rounded-lg"
-                      >
-                        <CheckCircle2 size={15} strokeWidth={1.8} className="text-white/15 shrink-0" />
-                        <span className="flex-1 text-[14px] text-white/35 truncate">{reminder.title}</span>
-                        <span className="text-[12px] text-white/15 shrink-0">{formatRelativeDate(reminder.created_at)}</span>
-                      </div>
-                    ))}
+              {/* ── Active ── */}
+              {pending.length > 0 && (
+                <section className="mb-7">
+                  <div className="flex items-center gap-2 mb-2.5 px-1">
+                    <span className="text-[11px] text-white/20 uppercase tracking-widest font-medium">{t("reminders.scheduled")}</span>
+                    <span className="text-[11px] text-white/12">{pending.length}</span>
                   </div>
-                </div>
+                  {pending.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setEditingReminder(r)}
+                      className="flex w-full items-center gap-3 py-3 px-1 rounded-lg hover:bg-white/[0.02] transition-colors text-left"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.03]">
+                        <Clock size={15} strokeWidth={1.6} className="text-white/20" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] text-white/80 truncate leading-tight">{r.title}</p>
+                        {r.rrule && (
+                          <p className="text-[12px] text-white/20 mt-0.5 flex items-center gap-1">
+                            <Repeat size={9} strokeWidth={2} />
+                            {formatRrule(r.rrule)}
+                          </p>
+                        )}
+                      </div>
+                      <ChannelDots channels={r.channels} />
+                      <span className="text-[12px] text-white/20 shrink-0 tabular-nums">{formatTime(r.remind_at)}</span>
+                    </button>
+                  ))}
+                </section>
+              )}
+
+              {/* ── Recent ── */}
+              {recent.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-2 mb-2.5 px-1">
+                    <span className="text-[11px] text-white/15 uppercase tracking-widest font-medium">{t("reminders.recent")}</span>
+                  </div>
+                  {recent.map((r) => (
+                    <div key={r.id} className="flex items-center gap-3 py-2.5 px-1">
+                      <CheckCircle2 size={14} strokeWidth={1.6} className="text-white/10 shrink-0" />
+                      <span className="flex-1 text-[13px] text-white/20 truncate">{r.title}</span>
+                      <span className="text-[11px] text-white/10 shrink-0">{formatRelativeDate(r.created_at)}</span>
+                    </div>
+                  ))}
+                </section>
               )}
             </>
           )}
         </div>
       </div>
 
-      {/* Telegram link modal */}
+      {/* ── Modals ── */}
       {tgModalOpen && (
         <TelegramLinkModal
           onClose={() => { setTgModalOpen(false); fetchSettings(); }}
           onLinked={() => { setTgLinked(true); setTgEnabled(true); fetchSettings(); }}
         />
       )}
-
-      {/* Edit modal */}
       {editingReminder && createPortal(
         <EditReminderModal
           reminder={editingReminder}
@@ -312,7 +360,7 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
           onUpdated={() => { setEditingReminder(null); fetchReminders(); }}
           onDeleted={() => { setEditingReminder(null); fetchReminders(); }}
         />,
-        document.body
+        document.body,
       )}
     </div>
   );

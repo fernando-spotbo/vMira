@@ -298,11 +298,11 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 
         {/* ═══ CODE ═══ */}
         {actionType === "create_code" && (
-          <div className="overflow-hidden rounded-b-xl bg-[#0f0f0f]">
+          <div className="overflow-hidden rounded-b-xl bg-[#1e1e1e]">
             {title && <p className="text-[14px] text-white/50 px-4 pt-3 pb-1">{title}</p>}
             <Expandable maxH={320}>
               <div className="overflow-x-auto px-4 pb-4 pt-2">
-                <pre className="text-[14px] leading-[1.7]">
+                <pre className="text-[14px] leading-[1.75]">
                   <code
                     className={`hljs language-${codeLang} font-mono`}
                     dangerouslySetInnerHTML={{ __html: highlighted }}

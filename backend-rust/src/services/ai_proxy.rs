@@ -281,7 +281,7 @@ fn propose_action_tool() -> serde_json::Value {
                 - 'translate': show translation. Payload: {target_text: 'translated text only', source_lang: 'auto-detected', target_lang: 'target language code'}. Do NOT include source_text — the frontend already has it from the user's message.\n\
                 - 'set_timer': set a countdown timer. Payload: {seconds: 300, label: 'Timer label'}\n\
                 - 'create_code': generate code. Payload: {language: 'python', title: 'Description', code: 'full code here'}\n\
-                - 'show_weather': show weather card. Payload: {city: 'Moscow', summary: '☀️ +15°C, ясно', forecast: [{day:'Сегодня',temp:'+15°C',icon:'☀️'},{day:'Завтра',temp:'+12°C',icon:'🌤️'}]}. Generate the forecast yourself based on your knowledge — do NOT say you can't check weather.\n\
+                - 'show_weather': show real-time weather card. Payload: {city: 'city name'}. The backend fetches real data from Open-Meteo. Just pass the city name.\n\
                 - 'calculate': show calculation/conversion result. Payload: {expression: '15% of 48000', result: '7200', details: 'optional explanation'}. For currency: {expression: '150 USD to RUB', result: '~13 500 ₽', details: 'по курсу ~90 ₽/$ '}\n\
                 - 'create_event': show calendar event card. Payload: {title: 'Meeting', date: '2026-03-28', time: '15:00', end_time: '16:00', location: 'Office', description: 'optional'}\n\
                 - 'save_memory': save a fact about the user. Payload: {key: 'city', value: 'Moscow'}. Use when user shares personal info (name, city, job, preferences). Say what you saved briefly.\n\
@@ -289,7 +289,7 @@ fn propose_action_tool() -> serde_json::Value {
                 Use create_code when user asks to: write code (напиши код), create a script, function, program, algorithm, snippet.\n\
                 Use translate when user explicitly asks to translate text.\n\
                 Use set_timer for timers (таймер, timer, засеки).\n\
-                Use show_weather for weather queries. Для погоды: СНАЧАЛА вызови web_search чтобы получить актуальные данные, ПОТОМ вызови show_weather с реальными данными из поиска.\n\
+                Use show_weather for weather queries (погода, weather). Просто передай название города — бэкенд получит реальные данные. НЕ используй web_search для погоды.\n\
                 Use calculate for math, percentages, currency conversion (посчитай, сколько будет, convert).\n\
                 Use create_event for calendar/scheduling (встреча, meeting, event, schedule).\n\
                 Use save_memory when user says: меня зовут, я живу в, мне нравится, запомни что, remember that.\n\
@@ -867,6 +867,60 @@ pub fn stream_ai_response(
                                 tool_result_content = format!("Memory saved: {} = {}. Confirm briefly to the user.", key, value);
                             } else {
                                 tool_result_content = "Empty value, nothing saved.".to_string();
+                            }
+                        } else if args.action_type == "show_weather" {
+                            // Fetch real weather data from Open-Meteo
+                            let city = args.payload.get("city")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Moscow");
+
+                            match crate::services::weather::get_weather(city).await {
+                                Ok(weather) => {
+                                    let forecast_json: Vec<serde_json::Value> = weather.forecast.iter().map(|f| {
+                                        json!({"day": f.day, "temp": format!("{}°/{}", f.temp_max.round(), f.temp_min.round()), "icon": f.icon})
+                                    }).collect();
+
+                                    let weather_payload = json!({
+                                        "city": weather.city,
+                                        "summary": format!("{}°C, {}", weather.temperature.round(), weather.description),
+                                        "forecast": forecast_json,
+                                        "description": args.description,
+                                        "wind": format!("{} км/ч", weather.wind_speed),
+                                        "feels_like": format!("{}°C", weather.feels_like.round()),
+                                        "humidity": weather.humidity.map(|h| format!("{}%", h.round())),
+                                    });
+
+                                    let result = sqlx::query_scalar::<_, uuid::Uuid>(
+                                        "INSERT INTO actions (user_id, type, payload, status)
+                                         VALUES ($1, 'show_weather', $2, 'executed')
+                                         RETURNING id"
+                                    )
+                                    .bind(uid)
+                                    .bind(&weather_payload)
+                                    .fetch_one(pool)
+                                    .await;
+
+                                    match result {
+                                        Ok(id) => {
+                                            let _ = tx.send(AiEvent::ActionProposed {
+                                                id: id.to_string(),
+                                                action_type: "show_weather".to_string(),
+                                                payload: weather_payload,
+                                            }).await;
+                                            tool_result_content = format!(
+                                                "Weather card shown. Current: {}°C, {}. Respond briefly mentioning the weather.",
+                                                weather.temperature.round(), weather.description
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tool_result_content = format!("Failed to create weather card: {e}");
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!(error = %e, "Weather fetch failed");
+                                    tool_result_content = format!("Weather fetch failed: {e}. Tell user the weather service is temporarily unavailable.");
+                                }
                             }
                         } else {
                             // Store full payload with description

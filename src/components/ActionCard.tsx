@@ -191,6 +191,9 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
   const weatherCity = String(payload.city || "");
   const weatherSummary = String(payload.summary || "");
   const weatherForecast = (payload.forecast as Array<{ day: string; temp: string; icon: string }>) || [];
+  const weatherWind = String(payload.wind || "");
+  const weatherFeelsLike = String(payload.feels_like || "");
+  const weatherHumidity = String(payload.humidity || "");
 
   // Calculator
   const calcExpression = String(payload.expression || "");
@@ -365,7 +368,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
         {actionType === "show_weather" && (
           <div className="px-4 pb-4">
             {/* Current conditions */}
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex items-start justify-between mb-3">
               <div>
                 {weatherCity && <p className="text-[14px] text-white/40 mb-1">{weatherCity}</p>}
                 <p className="text-[36px] text-white font-light leading-none tracking-tight">{weatherSummary.match(/[+-]?\d+°C?/)?.[0] || weatherSummary}</p>
@@ -373,6 +376,16 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
               </div>
               <span className="text-[48px] leading-none">{weatherForecast[0]?.icon || "🌤️"}</span>
             </div>
+
+            {/* Details row */}
+            {(weatherFeelsLike || weatherWind || weatherHumidity) && (
+              <div className="flex gap-4 mb-4 text-[13px] text-white/35">
+                {weatherFeelsLike && <span>Ощущается {weatherFeelsLike}</span>}
+                {weatherWind && <span>Ветер {weatherWind}</span>}
+                {weatherHumidity && <span>Влажность {weatherHumidity}</span>}
+              </div>
+            )}
+
             {/* Forecast row */}
             {weatherForecast.length > 1 && (
               <div className="flex gap-2 overflow-x-auto">
@@ -380,7 +393,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
                   <div key={i} className="flex flex-col items-center gap-1.5 min-w-[72px] rounded-xl bg-white/[0.03] px-3 py-3">
                     <span className="text-[13px] text-white/40">{day.day}</span>
                     <span className="text-[22px] leading-none">{day.icon}</span>
-                    <span className="text-[15px] text-white font-medium">{day.temp}</span>
+                    <span className="text-[14px] text-white">{day.temp}</span>
                   </div>
                 ))}
               </div>

@@ -41,7 +41,7 @@ export default function ChatArea() {
     isProgrammaticScroll.current = true;
     const cRect = container.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
-    const topOffset = cRect.height * 0.05;
+    const topOffset = cRect.height * 0.08;
     const target = container.scrollTop + (eRect.top - cRect.top) - topOffset;
     container.scrollTo({ top: Math.max(0, target), behavior: "instant" });
 
@@ -223,7 +223,7 @@ export default function ChatArea() {
       {showScrollDown && (
         <button
           onClick={() => { scrollToBottom(true); setShowScrollDown(false); mode.current = "idle"; }}
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-[#2a2a2a] border border-white/[0.1] text-white/50 hover:text-white hover:bg-[#333] shadow-lg transition-all"
+          className="fixed bottom-32 left-1/2 -translate-x-1/2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-[#252525] border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-[#303030] shadow-lg transition-all"
         >
           <ChevronDown size={18} strokeWidth={2} />
         </button>

@@ -176,7 +176,11 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
         {/* ═══ Header bar ═══ */}
         <div className="flex items-center gap-2.5 px-4 h-10">
           <TypeIcon type={actionType} />
-          <span className="text-[14px] text-white/35 flex-1">{typeLabel(actionType)}</span>
+          {actionType === "create_code" ? (
+            <span className="text-[14px] text-white/70 font-medium flex-1">{codeLang.charAt(0).toUpperCase() + codeLang.slice(1)}</span>
+          ) : (
+            <span className="text-[14px] text-white/35 flex-1">{typeLabel(actionType)}</span>
+          )}
 
           {/* Status indicators */}
           {status === "executed" && actionType === "send_telegram" && (
@@ -294,23 +298,18 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 
         {/* ═══ CODE ═══ */}
         {actionType === "create_code" && (
-          <div className="overflow-hidden">
-            {title && <p className="text-[15px] text-white font-medium px-4 mb-2">{title}</p>}
-            <div className="bg-[#0d0d0d] border-t border-white/[0.04]">
-              {/* Lang badge row */}
-              <div className="flex items-center px-3.5 h-8">
-                <span className="text-[12px] text-white/25 font-mono">{codeLang}</span>
-              </div>
-              {/* Code */}
-              <Expandable maxH={320}>
-                <pre className="px-3.5 pb-3.5 overflow-x-auto">
+          <div className="overflow-hidden rounded-b-xl bg-[#0f0f0f]">
+            {title && <p className="text-[14px] text-white/50 px-4 pt-3 pb-1">{title}</p>}
+            <Expandable maxH={320}>
+              <div className="overflow-x-auto px-4 pb-4 pt-2">
+                <pre className="text-[14px] leading-[1.7]">
                   <code
-                    className={`hljs language-${codeLang} text-[13px] leading-[1.65] font-mono`}
+                    className={`hljs language-${codeLang} font-mono`}
                     dangerouslySetInnerHTML={{ __html: highlighted }}
                   />
                 </pre>
-              </Expandable>
-            </div>
+              </div>
+            </Expandable>
           </div>
         )}
 

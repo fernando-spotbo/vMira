@@ -800,9 +800,15 @@ pub fn stream_ai_response(
                                 if sc_count >= 5 {
                                     tool_result_content = "Maximum 5 active scheduled content items. User should cancel one before creating a new one.".to_string();
                                 } else {
+                                    // Auto-include telegram if user has it linked
+                                    let has_tg: bool = sqlx::query_scalar(
+                                        "SELECT EXISTS(SELECT 1 FROM telegram_links WHERE user_id = $1 AND is_active = true)"
+                                    ).bind(uid).fetch_one(pool).await.unwrap_or(false);
+                                    let channels = if has_tg { "{in_app,telegram}" } else { "{in_app}" };
+
                                     let result = sqlx::query_scalar::<_, uuid::Uuid>(
                                         "INSERT INTO reminders (user_id, type, title, prompt, remind_at, user_timezone, rrule, channels)
-                                         VALUES ($1, 'scheduled_content', $2, $3, $4, $5, $6, '{in_app}')
+                                         VALUES ($1, 'scheduled_content', $2, $3, $4, $5, $6, $7)
                                          RETURNING id"
                                     )
                                     .bind(uid)
@@ -811,6 +817,7 @@ pub fn stream_ai_response(
                                     .bind(dt)
                                     .bind(&tz)
                                     .bind(&args.recurrence)
+                                    .bind(channels)
                                     .fetch_one(pool)
                                     .await;
 

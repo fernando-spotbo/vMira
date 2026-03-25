@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Check, Loader2 } from "lucide-react";
+import QRCode from "qrcode";
 import { t } from "@/lib/i18n";
 import { generateTelegramLinkToken, getTelegramStatus, unlinkTelegram } from "@/lib/api-client";
 
@@ -22,6 +23,7 @@ function TelegramIcon({ size = 20 }: { size?: number }) {
 export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkModalProps) {
   const [step, setStep] = useState<"loading" | "link" | "linked" | "error">("loading");
   const [deepLink, setDeepLink] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
   const [username, setUsername] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -50,6 +52,15 @@ export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkMod
       const result = await generateTelegramLinkToken();
       if (result.ok) {
         setDeepLink(result.data.deep_link);
+        // Generate QR code
+        try {
+          const url = await QRCode.toDataURL(result.data.deep_link, {
+            width: 200,
+            margin: 2,
+            color: { dark: "#ffffff", light: "#00000000" },
+          });
+          setQrDataUrl(url);
+        } catch {}
         setStep("link");
 
         // Poll for link status every 3s
@@ -114,13 +125,24 @@ export default function TelegramLinkModal({ onClose, onLinked }: TelegramLinkMod
               <p className="text-[14px] text-white/50 mb-4">
                 {t("telegram.linkDesc")}
               </p>
+
+              {/* QR code */}
+              {qrDataUrl && (
+                <div className="flex justify-center mb-4">
+                  <div className="rounded-xl bg-white/[0.06] border border-white/[0.06] p-3">
+                    <img src={qrDataUrl} alt="QR" width={180} height={180} className="block" />
+                  </div>
+                </div>
+              )}
+
+              {/* Link button (secondary) */}
               <a
                 href={deepLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full rounded-xl bg-white/[0.08] border border-white/[0.08] px-4 py-3 text-[14px] text-white hover:bg-white/[0.12] transition-colors"
+                className="flex items-center justify-center gap-2 w-full rounded-xl bg-white/[0.06] border border-white/[0.06] px-4 py-2.5 text-[13px] text-white/60 hover:bg-white/[0.1] hover:text-white transition-colors"
               >
-                <TelegramIcon size={16} />
+                <TelegramIcon size={14} />
                 {t("telegram.openInTelegram")}
               </a>
               <p className="text-[12px] text-white/20 mt-3 text-center">

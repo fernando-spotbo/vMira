@@ -880,15 +880,27 @@ pub fn stream_ai_response(
                                         json!({"day": f.day, "temp": format!("{}°/{}", f.temp_max.round(), f.temp_min.round()), "icon": f.icon})
                                     }).collect();
 
-                                    let weather_payload = json!({
-                                        "city": weather.city,
-                                        "summary": format!("{}°C, {}", weather.temperature.round(), weather.description),
-                                        "forecast": forecast_json,
-                                        "description": args.description,
-                                        "wind": format!("{} км/ч", weather.wind_speed),
-                                        "feels_like": format!("{}°C", weather.feels_like.round()),
-                                        "humidity": weather.humidity.map(|h| format!("{}%", h.round())),
-                                    });
+                                    let hourly_json: Vec<serde_json::Value> = weather.hourly.iter().map(|h| {
+                                    json!({"time": h.time, "temp": h.temp.round(), "icon": h.icon, "precip": h.precip_prob})
+                                }).collect();
+
+                                let weather_payload = json!({
+                                    "city": weather.city,
+                                    "summary": format!("{}°C, {}", weather.temperature.round(), weather.description),
+                                    "forecast": forecast_json,
+                                    "hourly": hourly_json,
+                                    "description": args.description,
+                                    "wind": format!("{} км/ч", weather.wind_speed),
+                                    "wind_gusts": weather.wind_gusts.map(|g| format!("{} км/ч", g.round())),
+                                    "feels_like": format!("{}°C", weather.feels_like.round()),
+                                    "humidity": weather.humidity.map(|h| format!("{}%", h.round())),
+                                    "uv_index": weather.uv_index.map(|u| u.round()),
+                                    "precip_prob": weather.precipitation_probability.map(|p| format!("{}%", p.round())),
+                                    "precip_sum": weather.precipitation_sum.map(|p| format!("{} мм", p)),
+                                    "sunrise": weather.sunrise,
+                                    "sunset": weather.sunset,
+                                    "is_day": weather.is_day,
+                                });
 
                                     let result = sqlx::query_scalar::<_, uuid::Uuid>(
                                         "INSERT INTO actions (user_id, type, payload, status)

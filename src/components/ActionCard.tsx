@@ -190,10 +190,17 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
   // Weather
   const weatherCity = String(payload.city || "");
   const weatherSummary = String(payload.summary || "");
-  const weatherForecast = (payload.forecast as Array<{ day: string; temp: string; icon: string }>) || [];
+  const weatherForecast = (payload.forecast as Array<{ day: string; temp: string; icon: string; temp_max?: number; temp_min?: number; precip_prob?: number; precip_sum?: number; wind_max?: number; uv_max?: number }>) || [];
+  const weatherHourly = (payload.hourly as Array<{ time: string; temp: number; icon: string; precip?: number | null }>) || [];
   const weatherWind = String(payload.wind || "");
+  const weatherWindGusts = payload.wind_gusts ? String(payload.wind_gusts) : "";
   const weatherFeelsLike = String(payload.feels_like || "");
   const weatherHumidity = String(payload.humidity || "");
+  const weatherUv = payload.uv_index != null ? Number(payload.uv_index) : null;
+  const weatherPrecipProb = payload.precip_prob ? String(payload.precip_prob) : "";
+  const weatherPrecipSum = payload.precip_sum ? String(payload.precip_sum) : "";
+  const weatherSunrise = payload.sunrise ? String(payload.sunrise) : "";
+  const weatherSunset = payload.sunset ? String(payload.sunset) : "";
 
   // Calculator
   const calcExpression = String(payload.expression || "");
@@ -371,69 +378,89 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           const conditions = weatherSummary.replace(/[+-]?\d+°C?,?\s*/, "").trim();
           const mainIcon = weatherForecast[0]?.icon || "🌤️";
           const todayHiLo = weatherForecast[0]?.temp || "";
+          const uvLabel = weatherUv != null ? (weatherUv <= 2 ? "Низкий" : weatherUv <= 5 ? "Умеренный" : weatherUv <= 7 ? "Высокий" : "Очень высокий") : "";
 
           return (
             <div className="px-5 pb-5 pt-1">
-              {/* ── Hero: temp + icon ── */}
+              {/* ── Hero ── */}
               <div className="flex items-start justify-between">
                 <div>
-                  {weatherCity && (
-                    <p className="text-[14px] text-white/40 mb-0.5">{weatherCity}</p>
-                  )}
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[48px] font-extralight text-white leading-none tracking-tighter">{currentTemp}</span>
-                  </div>
+                  {weatherCity && <p className="text-[14px] text-white/40 mb-0.5">{weatherCity}</p>}
+                  <span className="text-[48px] font-extralight text-white leading-none tracking-tighter">{currentTemp}</span>
                   <p className="text-[15px] text-white/50 mt-1">{conditions}</p>
-                  {todayHiLo && (
-                    <p className="text-[13px] text-white/30 mt-0.5">{todayHiLo}</p>
-                  )}
+                  {todayHiLo && <p className="text-[13px] text-white/30 mt-0.5">{todayHiLo}</p>}
                 </div>
-                <span className="text-[56px] leading-none mt-1 select-none">{mainIcon}</span>
+                <span className="text-[52px] leading-none mt-1 select-none">{mainIcon}</span>
               </div>
 
-              {/* ── Detail pills ── */}
-              {(weatherFeelsLike || weatherWind || weatherHumidity) && (
-                <div className="flex gap-2 mt-4 overflow-x-auto">
-                  {weatherFeelsLike && (
-                    <div className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-1.5 shrink-0">
-                      <span className="text-[12px] text-white/30">Ощущается</span>
-                      <span className="text-[13px] text-white/70 font-medium">{weatherFeelsLike}</span>
-                    </div>
-                  )}
-                  {weatherWind && (
-                    <div className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-1.5 shrink-0">
-                      <span className="text-[12px] text-white/30">Ветер</span>
-                      <span className="text-[13px] text-white/70 font-medium">{weatherWind}</span>
-                    </div>
-                  )}
-                  {weatherHumidity && (
-                    <div className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-1.5 shrink-0">
-                      <span className="text-[12px] text-white/30">Влажность</span>
-                      <span className="text-[13px] text-white/70 font-medium">{weatherHumidity}</span>
-                    </div>
-                  )}
+              {/* ── Detail grid ── */}
+              <div className="grid grid-cols-3 gap-px mt-4 rounded-xl overflow-hidden bg-white/[0.04]">
+                {[
+                  weatherFeelsLike && { label: "Ощущается", value: weatherFeelsLike },
+                  weatherWind && { label: "Ветер", value: weatherWind },
+                  weatherHumidity && { label: "Влажность", value: weatherHumidity },
+                  weatherPrecipProb && { label: "Осадки", value: weatherPrecipProb },
+                  weatherUv != null && { label: "УФ-индекс", value: `${weatherUv} · ${uvLabel}` },
+                  weatherSunrise && weatherSunset && { label: "Восход / Закат", value: `${weatherSunrise} / ${weatherSunset}` },
+                ].filter(Boolean).map((item, i) => (
+                  <div key={i} className="bg-[#161616] px-3 py-2.5">
+                    <p className="text-[11px] text-white/25 mb-0.5">{(item as {label:string;value:string}).label}</p>
+                    <p className="text-[14px] text-white/80">{(item as {label:string;value:string}).value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Hourly (next 12h) ── */}
+              {weatherHourly.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-white/[0.06]">
+                  <p className="text-[12px] text-white/25 mb-2.5 uppercase tracking-wider font-medium">Почасовой</p>
+                  <div className="flex gap-0 overflow-x-auto -mx-1 px-1">
+                    {weatherHourly.map((h, i) => (
+                      <div key={i} className="flex flex-col items-center min-w-[52px] py-1.5">
+                        <span className="text-[12px] text-white/30">{h.time}</span>
+                        <span className="text-[18px] leading-none my-1.5 select-none">{h.icon}</span>
+                        <span className="text-[14px] text-white">{h.temp}°</span>
+                        {h.precip != null && h.precip > 0 && (
+                          <span className="text-[10px] text-white/25 mt-0.5">{h.precip}%</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* ── 5-day forecast ── */}
               {weatherForecast.length > 1 && (
-                <div className="mt-4 pt-4 border-t border-white/[0.06]">
-                  <div className="flex gap-1 overflow-x-auto -mx-1 px-1">
+                <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                  <p className="text-[12px] text-white/25 mb-2.5 uppercase tracking-wider font-medium">Прогноз</p>
+                  <div className="space-y-0">
                     {weatherForecast.map((day, i) => (
-                      <div
-                        key={i}
-                        className={`flex flex-col items-center flex-1 min-w-[68px] rounded-xl py-3 px-2 transition-colors ${
-                          i === 0 ? "bg-white/[0.06]" : "bg-white/[0.02] hover:bg-white/[0.04]"
-                        }`}
-                      >
-                        <span className={`text-[13px] mb-2 ${i === 0 ? "text-white/70 font-medium" : "text-white/35"}`}>
-                          {day.day}
-                        </span>
-                        <span className="text-[24px] leading-none mb-2 select-none">{day.icon}</span>
-                        <span className="text-[14px] text-white font-medium">{day.temp.split("/")[0]}</span>
-                        {day.temp.includes("/") && (
-                          <span className="text-[12px] text-white/30 mt-0.5">{day.temp.split("/")[1]}</span>
+                      <div key={i} className="flex items-center gap-3 py-2 px-1 -mx-1 rounded-lg hover:bg-white/[0.02] transition-colors">
+                        <span className={`text-[14px] w-16 shrink-0 ${i === 0 ? "text-white font-medium" : "text-white/40"}`}>{day.day}</span>
+                        <span className="text-[18px] leading-none shrink-0 select-none">{day.icon}</span>
+                        {day.precip_prob != null && day.precip_prob > 0 && (
+                          <span className="text-[12px] text-white/20 w-8 shrink-0">{day.precip_prob}%</span>
                         )}
+                        {(day.precip_prob == null || day.precip_prob === 0) && <span className="w-8 shrink-0" />}
+                        <div className="flex-1 flex items-center gap-2 justify-end">
+                          {day.temp_min != null && day.temp_max != null ? (
+                          <>
+                            <span className="text-[14px] text-white/30 w-8 text-right">{Math.round(day.temp_min)}°</span>
+                            <div className="w-20 h-[3px] rounded-full bg-white/[0.06] overflow-hidden relative">
+                              <div
+                                className="absolute h-full rounded-full bg-white/20"
+                                style={{
+                                  left: `${Math.max(0, ((day.temp_min + 20) / 60) * 100)}%`,
+                                  right: `${Math.max(0, 100 - ((day.temp_max + 20) / 60) * 100)}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-[14px] text-white w-8">{Math.round(day.temp_max)}°</span>
+                          </>
+                        ) : (
+                          <span className="text-[14px] text-white">{day.temp}</span>
+                        )}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -50,6 +50,39 @@ function buildMailtoLink(to: string, subject: string, body: string): string {
   return `mailto:${encodeURIComponent(to)}${query ? `?${query}` : ""}`;
 }
 
+interface EmailProvider {
+  name: string;
+  icon: string;
+  buildUrl: (to: string, subject: string, body: string) => string;
+}
+
+const EMAIL_PROVIDERS: EmailProvider[] = [
+  {
+    name: "Gmail",
+    icon: "G",
+    buildUrl: (to, subject, body) =>
+      `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+  },
+  {
+    name: "Yandex",
+    icon: "Я",
+    buildUrl: (to, subject, body) =>
+      `https://mail.yandex.ru/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+  },
+  {
+    name: "Mail.ru",
+    icon: "@",
+    buildUrl: (to, subject, body) =>
+      `https://e.mail.ru/compose/?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+  },
+  {
+    name: "Outlook",
+    icon: "O",
+    buildUrl: (to, subject, body) =>
+      `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+  },
+];
+
 // ── Timer hook ───────────────────────────────────────────────────────────
 
 function useTimer(seconds: number, active: boolean) {
@@ -173,42 +206,52 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           </div>
         )}
 
-        {/* ── Email — rich draft with mailto ── */}
+        {/* ── Email — draft with provider links ── */}
         {actionType === "send_email" && (
-          <div className="px-4 pb-3 space-y-2">
+          <div className="px-4 pb-3">
             {/* Email header fields */}
-            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] px-3 py-2.5 space-y-1.5">
+            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] px-3.5 py-2.5 space-y-1.5 mb-2">
               {to && (
                 <div className="flex items-baseline gap-2">
-                  <span className="text-[13px] text-white/25 w-12 shrink-0">{t("action.emailTo")}</span>
-                  <span className="text-[14px] text-white/70">{to}</span>
+                  <span className="text-[13px] text-white/25 w-14 shrink-0">{t("action.emailTo")}</span>
+                  <span className="text-[15px] text-white/70">{to}</span>
                 </div>
               )}
               {subject && (
                 <div className="flex items-baseline gap-2">
-                  <span className="text-[13px] text-white/25 w-12 shrink-0">{t("action.emailSubject")}</span>
-                  <span className="text-[14px] text-white/70">{subject}</span>
+                  <span className="text-[13px] text-white/25 w-14 shrink-0">{t("action.emailSubject")}</span>
+                  <span className="text-[15px] text-white/70">{subject}</span>
                 </div>
               )}
             </div>
+
             {/* Email body */}
             {message && (
-              <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5">
-                <p className="text-[15px] text-white/75 leading-relaxed whitespace-pre-wrap">{message}</p>
+              <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 mb-3 max-h-[300px] overflow-y-auto">
+                <p className="text-[15px] text-white/70 leading-[1.7] whitespace-pre-wrap">{message}</p>
               </div>
             )}
-            {/* Actions row */}
-            <div className="flex items-center gap-4 pt-1">
-              {to && (
+
+            {/* Provider buttons */}
+            <p className="text-[13px] text-white/25 mb-2">{t("action.openWith")}</p>
+            <div className="flex flex-wrap gap-2">
+              {EMAIL_PROVIDERS.map((provider) => (
                 <a
-                  href={buildMailtoLink(to, subject, message)}
-                  className="flex items-center gap-1.5 text-[14px] text-white/40 hover:text-white/60 transition-colors"
+                  key={provider.name}
+                  href={provider.buildUrl(to, subject, message)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[14px] text-white/50 hover:text-white/70 hover:bg-white/[0.06] hover:border-white/[0.1] transition-colors"
                 >
-                  <ExternalLink size={14} strokeWidth={1.8} />
-                  {t("action.openInEmail")}
+                  <span className="flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold text-white/40 bg-white/[0.06]">{provider.icon}</span>
+                  {provider.name}
                 </a>
-              )}
-              <CopyButton text={message} />
+              ))}
+            </div>
+
+            {/* Copy fallback */}
+            <div className="flex items-center gap-4 mt-3">
+              <CopyButton text={`${subject ? `${subject}\n\n` : ""}${message}`} />
             </div>
           </div>
         )}

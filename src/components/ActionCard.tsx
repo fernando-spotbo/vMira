@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages, Timer, ExternalLink, Send } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages, Timer, ExternalLink, Send, Code } from "lucide-react";
+import hljs from "highlight.js";
 import { t } from "@/lib/i18n";
 import { executeAction, cancelAction } from "@/lib/api-client";
 
@@ -27,6 +28,7 @@ function ActionIcon({ type }: { type: string }) {
     case "create_draft": return <FileText size={16} strokeWidth={1.8} className={cls} />;
     case "translate": return <Languages size={16} strokeWidth={1.8} className={cls} />;
     case "set_timer": return <Timer size={16} strokeWidth={1.8} className={cls} />;
+    case "create_code": return <Code size={16} strokeWidth={1.8} className={cls} />;
     default: return <FileText size={16} strokeWidth={1.8} className={cls} />;
   }
 }
@@ -38,6 +40,7 @@ function actionLabel(type: string): string {
     case "create_draft": return t("action.draft");
     case "translate": return t("action.translate");
     case "set_timer": return t("action.timer");
+    case "create_code": return t("action.code");
     default: return type;
   }
 }
@@ -159,6 +162,19 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
   const timerSeconds = Number(payload.seconds || 0);
   const timerLabel = String(payload.label || description);
   const timer = useTimer(timerSeconds, actionType === "set_timer");
+  const codeContent = String(payload.code || message);
+  const codeLang = String(payload.language || "text");
+
+  // Syntax highlighting for code
+  const highlightedCode = useMemo(() => {
+    if (actionType !== "create_code" || !codeContent) return "";
+    try {
+      const lang = hljs.getLanguage(codeLang) ? codeLang : "plaintext";
+      return hljs.highlight(codeContent, { language: lang }).value;
+    } catch {
+      return codeContent.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+  }, [actionType, codeContent, codeLang]);
 
   const handleConfirm = async () => {
     setStatus("executing");
@@ -180,7 +196,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           <ActionIcon type={actionType} />
           <span className="text-[15px] text-white/40 flex-1">{actionLabel(actionType)}</span>
           {status === "executed" && actionType !== "set_timer" && actionType !== "send_telegram" && (
-            <CopyButton text={actionType === "translate" ? targetText : message} />
+            <CopyButton text={actionType === "translate" ? targetText : actionType === "create_code" ? codeContent : message} />
           )}
           {status === "executed" && actionType === "send_telegram" && (
             <span className="flex items-center gap-1.5 text-[13px] text-white/25">
@@ -304,6 +320,26 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
               {timer.done && (
                 <p className="text-[15px] text-white/40 mt-3">{t("action.timerDone")}</p>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Code ── */}
+        {actionType === "create_code" && (
+          <div className="px-4 pb-3">
+            {title && <p className="text-[15px] text-white font-medium mb-2">{title}</p>}
+            <div className="rounded-lg bg-[#0d0d0d] border border-white/[0.06] overflow-hidden">
+              {/* Language badge */}
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/[0.04]">
+                <span className="text-[12px] text-white/25 font-mono">{codeLang}</span>
+              </div>
+              {/* Code with highlighting */}
+              <pre className="p-3.5 overflow-x-auto max-h-[400px] overflow-y-auto">
+                <code
+                  className={`hljs language-${codeLang} text-[13px] leading-[1.6] font-mono`}
+                  dangerouslySetInnerHTML={{ __html: highlightedCode }}
+                />
+              </pre>
             </div>
           </div>
         )}

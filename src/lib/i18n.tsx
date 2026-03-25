@@ -239,6 +239,7 @@ const translations: Record<string, Record<Locale, string>> = {
   "action.emailSubject": { ru: "Тема:", en: "Subject:" },
   "action.openInEmail": { ru: "Открыть в почте", en: "Open in email" },
   "action.openWith": { ru: "Открыть в:", en: "Open with:" },
+  "action.code": { ru: "Код", en: "Code" },
 
   "scheduled.everyDay": { ru: "Каждый день", en: "Every day" },
   "scheduled.everyWeek": { ru: "Каждую неделю", en: "Every week" },

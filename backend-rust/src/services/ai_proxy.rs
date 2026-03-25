@@ -272,7 +272,9 @@ fn propose_action_tool() -> serde_json::Value {
                 - 'create_draft': create an editable text draft (letter, post, message, code). Payload: {title: 'Draft title', content: 'full text', format: 'text'|'markdown'}\n\
                 - 'translate': show translation. Payload: {source_text: 'original', source_lang: 'ru', target_text: 'translated', target_lang: 'en'}\n\
                 - 'set_timer': set a countdown timer. Payload: {seconds: 300, label: 'Timer label'}\n\
+                - 'create_code': generate code. Payload: {language: 'python', title: 'Description', code: 'full code here'}\n\
                 Use create_draft when user asks to: compose (составь), write (напиши), draft (черновик), prepare (подготовь) any text content.\n\
+                Use create_code when user asks to: write code (напиши код), create a script, function, program, algorithm, snippet.\n\
                 Use translate when user explicitly asks to translate text.\n\
                 Use set_timer for timers (таймер, timer, засеки).\n\
                 ALWAYS call this immediately — do NOT ask follow-up questions.",
@@ -281,7 +283,7 @@ fn propose_action_tool() -> serde_json::Value {
                 "properties": {
                     "action_type": {
                         "type": "string",
-                        "enum": ["send_telegram", "send_email", "create_draft", "translate", "set_timer"],
+                        "enum": ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code"],
                         "description": "Type of action"
                     },
                     "description": {
@@ -807,7 +809,7 @@ pub fn stream_ai_response(
 
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
                         // Validate action type
-                        let valid_types = ["send_telegram", "send_email", "create_draft", "translate", "set_timer"];
+                        let valid_types = ["send_telegram", "send_email", "create_draft", "translate", "set_timer", "create_code"];
                         if !valid_types.contains(&args.action_type.as_str()) {
                             tool_result_content = format!("Unsupported action type: {}", args.action_type);
                         } else {

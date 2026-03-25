@@ -203,6 +203,12 @@ const translations: Record<string, Record<Locale, string>> = {
   "reminders.noRemindersHint": { ru: "Попросите Миру создать одно в чате", en: "Ask Mira to create one in chat" },
   "reminders.allReminders": { ru: "Напоминания", en: "Reminders" },
   "reminders.cancel": { ru: "Отменить", en: "Cancel" },
+  "reminders.today": { ru: "Сегодня", en: "Today" },
+  "reminders.tomorrow": { ru: "Завтра", en: "Tomorrow" },
+  "reminders.yesterday": { ru: "Вчера", en: "Yesterday" },
+  "delivery.alwaysOn": { ru: "Всегда", en: "Always on" },
+  "delivery.notConnected": { ru: "Не подключен", en: "Not connected" },
+  "delivery.emailDesc": { ru: "Уведомления на почту", en: "Notifications to email" },
 
   // ---- Telegram link modal ----
   "telegram.title": { ru: "Telegram", en: "Telegram" },

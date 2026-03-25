@@ -21,27 +21,58 @@ export function getAccessToken(): string | null {
 
 // ---- API call helper (client-side, goes through Next.js proxy for HMAC) ----
 
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function doRefresh(): Promise<boolean> {
+  const res = await fetch(`${PROXY_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+    credentials: "include",
+  });
+  if (res.ok) {
+    const data = await res.json();
+    if (data.access_token) { setAccessToken(data.access_token); return true; }
+  }
+  return false;
+}
+
 export async function apiCall<T = unknown>(
   path: string,
   options: RequestInit = {},
 ): Promise<{ data: T; ok: boolean; status: number }> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-Requested-With": "XMLHttpRequest", // CSRF defense
-    ...(options.headers as Record<string, string>),
+  const makeRequest = async () => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+      ...(options.headers as Record<string, string>),
+    };
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+    const proxyPath = path.startsWith("/") ? path.slice(1) : path;
+    return fetch(`${PROXY_URL}/${proxyPath}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
   };
 
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
-  }
+  let res = await makeRequest();
 
-  // Route through Next.js proxy: /api/proxy/auth/login → backend /api/v1/auth/login
-  const proxyPath = path.startsWith("/") ? path.slice(1) : path;
-  const res = await fetch(`${PROXY_URL}/${proxyPath}`, {
-    ...options,
-    headers,
-    credentials: "include", // Send cookies (refresh token)
-  });
+  // Auto-refresh on 401 (skip for auth endpoints to avoid loops)
+  if (res.status === 401 && !path.includes("/auth/")) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = doRefresh();
+    }
+    const refreshed = await refreshPromise;
+    isRefreshing = false;
+    refreshPromise = null;
+
+    if (refreshed) {
+      res = await makeRequest();
+    }
+  }
 
   let data: T;
   try {

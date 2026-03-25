@@ -277,10 +277,8 @@ function NotificationsTab() {
 function CalendarTab() {
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
   const [feedActive, setFeedActive] = useState(false);
-  const [feedLoading, setFeedLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     import("@/lib/api-client").then(({ getCalendarFeedStatus, getGoogleCalendarStatus }) => {
@@ -289,15 +287,44 @@ function CalendarTab() {
     });
   }, []);
 
-  const handleGenerateFeed = async () => {
-    setFeedLoading(true);
-    const { generateCalendarFeedToken } = await import("@/lib/api-client");
-    const r = await generateCalendarFeedToken();
-    if (r.ok) {
-      setFeedUrl(r.data.url);
-      setFeedActive(true);
+  // Get or create feed URL, then open in the target calendar app
+  const openInCalendar = async (app: "google" | "apple" | "outlook" | "yandex") => {
+    setLoading(app);
+    let url = feedUrl;
+    if (!url) {
+      const { generateCalendarFeedToken } = await import("@/lib/api-client");
+      const r = await generateCalendarFeedToken();
+      if (r.ok) {
+        url = r.data.url;
+        setFeedUrl(url);
+        setFeedActive(true);
+      }
     }
-    setFeedLoading(false);
+    if (!url) { setLoading(null); return; }
+
+    // webcal:// protocol for native calendar apps
+    const webcalUrl = url.replace(/^https?:\/\//, "webcal://");
+    const encodedUrl = encodeURIComponent(url);
+
+    switch (app) {
+      case "google":
+        // Google Calendar "Add by URL" page
+        window.open(`https://calendar.google.com/calendar/r/settings/addbyurl?cid=${encodedUrl}`, "_blank");
+        break;
+      case "apple":
+        // webcal:// opens Apple Calendar directly on macOS/iOS
+        window.location.href = webcalUrl;
+        break;
+      case "outlook":
+        // Outlook web "subscribe" flow
+        window.open(`https://outlook.live.com/calendar/0/addfromweb?url=${encodedUrl}&name=Mira`, "_blank");
+        break;
+      case "yandex":
+        // Yandex Calendar subscribe
+        window.open(`https://calendar.yandex.ru/?ics=${encodedUrl}`, "_blank");
+        break;
+    }
+    setLoading(null);
   };
 
   const handleRevokeFeed = async () => {
@@ -307,16 +334,8 @@ function CalendarTab() {
     setFeedActive(false);
   };
 
-  const handleCopyFeed = () => {
-    if (feedUrl) {
-      navigator.clipboard.writeText(feedUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleGoogleConnect = async () => {
-    setGoogleLoading(true);
+  const handleGoogleOAuth = async () => {
+    setLoading("google_oauth");
     const { getGoogleCalendarAuthUrl } = await import("@/lib/api-client");
     const r = await getGoogleCalendarAuthUrl();
     if (r.ok && r.data.url) {
@@ -324,16 +343,15 @@ function CalendarTab() {
       const handler = (e: MessageEvent) => {
         if (e.data?.type === "google_calendar_connected") {
           setGoogleConnected(true);
-          setGoogleLoading(false);
+          setLoading(null);
           window.removeEventListener("message", handler);
           popup?.close();
         }
       };
       window.addEventListener("message", handler);
-      // Fallback timeout
-      setTimeout(() => { setGoogleLoading(false); window.removeEventListener("message", handler); }, 120000);
+      setTimeout(() => { setLoading(null); window.removeEventListener("message", handler); }, 120000);
     } else {
-      setGoogleLoading(false);
+      setLoading(null);
     }
   };
 
@@ -343,89 +361,69 @@ function CalendarTab() {
     setGoogleConnected(false);
   };
 
+  const calApps = [
+    { id: "google" as const, name: "Google Calendar", icon: "📅" },
+    { id: "apple" as const, name: "Apple Calendar", icon: "🍎" },
+    { id: "outlook" as const, name: "Outlook", icon: "📬" },
+    { id: "yandex" as const, name: t("settings.yandexCalendar"), icon: "📆" },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* ICS Feed */}
+      {/* Sync reminders to calendar — one-click per app */}
       <div>
         <h4 className="text-[15px] font-medium text-white mb-1">{t("settings.calendarFeed")}</h4>
         <p className="text-[13px] text-white/40 mb-3">{t("settings.calendarFeedDesc")}</p>
 
-        {feedUrl ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                readOnly
-                value={feedUrl}
-                className="flex-1 rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2 text-[13px] text-white/60 font-mono truncate focus:outline-none"
-              />
-              <button
-                onClick={handleCopyFeed}
-                className="shrink-0 flex items-center gap-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2 text-[13px] text-white/60 hover:text-white hover:bg-white/[0.1] transition-colors"
-              >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? t("settings.feedUrlCopied") : "Copy"}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handleGenerateFeed} className="text-[13px] text-white/40 hover:text-white/60 transition-colors">
-                {t("settings.regenerateFeedUrl")}
-              </button>
-              <button onClick={handleRevokeFeed} className="text-[13px] text-red-400/60 hover:text-red-400 transition-colors">
-                {t("settings.revokeFeedUrl")}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-2">
+          {calApps.map(app => (
             <button
-              onClick={handleGenerateFeed}
-              disabled={feedLoading}
-              className="rounded-lg bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[14px] text-white hover:bg-white/[0.1] transition-colors disabled:opacity-40"
+              key={app.id}
+              onClick={() => openInCalendar(app.id)}
+              disabled={loading === app.id}
+              className="flex items-center gap-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-3 text-[14px] text-white hover:bg-white/[0.08] hover:border-white/[0.1] transition-all disabled:opacity-40"
             >
-              {feedLoading ? "..." : feedActive ? t("settings.regenerateFeedUrl") : t("settings.generateFeedUrl")}
+              <span className="text-[18px] select-none">{app.icon}</span>
+              <span>{loading === app.id ? "..." : app.name}</span>
             </button>
-            {feedActive && !feedUrl && (
-              <span className="text-[13px] text-white/30">{t("settings.googleConnected")}</span>
-            )}
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
 
-      <div className="border-t border-white/[0.06]" />
-
-      {/* Google Calendar */}
-      <div>
-        <h4 className="text-[15px] font-medium text-white mb-1">{t("settings.googleCalendar")}</h4>
-        {googleConnected ? (
-          <div className="flex items-center gap-3">
-            <span className="text-[13px] text-green-400/70">{t("settings.googleConnected")}</span>
-            <button
-              onClick={handleGoogleDisconnect}
-              className="text-[13px] text-red-400/60 hover:text-red-400 transition-colors"
-            >
-              {t("settings.googleDisconnect")}
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleGoogleConnect}
-            disabled={googleLoading}
-            className="flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[14px] text-white hover:bg-white/[0.1] transition-colors disabled:opacity-40"
-          >
-            <ExternalLink size={14} strokeWidth={1.8} />
-            {googleLoading ? "..." : t("settings.googleConnect")}
+        {feedActive && (
+          <button onClick={handleRevokeFeed} className="mt-2 text-[12px] text-white/20 hover:text-white/40 transition-colors">
+            {t("settings.revokeFeedUrl")}
           </button>
         )}
       </div>
 
       <div className="border-t border-white/[0.06]" />
 
-      {/* Yandex Calendar (placeholder) */}
+      {/* Google Calendar OAuth — two-way sync */}
       <div>
-        <div className="flex items-center gap-2">
-          <h4 className="text-[15px] font-medium text-white/40">{t("settings.yandexCalendar")}</h4>
-          <span className="rounded-md bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/25">{t("settings.comingSoon")}</span>
-        </div>
+        <h4 className="text-[15px] font-medium text-white mb-1">{t("settings.googleCalendar")}</h4>
+        <p className="text-[13px] text-white/40 mb-2">{t("settings.googleSyncDesc")}</p>
+        {googleConnected ? (
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-[13px] text-green-400/70">
+              <Check size={14} /> {t("settings.googleConnected")}
+            </span>
+            <button
+              onClick={handleGoogleDisconnect}
+              className="text-[13px] text-white/30 hover:text-red-400/70 transition-colors"
+            >
+              {t("settings.googleDisconnect")}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleGoogleOAuth}
+            disabled={loading === "google_oauth"}
+            className="flex items-center gap-2 rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-2.5 text-[14px] text-white hover:bg-white/[0.08] hover:border-white/[0.1] transition-all disabled:opacity-40"
+          >
+            <ExternalLink size={14} strokeWidth={1.8} />
+            {loading === "google_oauth" ? "..." : t("settings.googleConnect")}
+          </button>
+        )}
       </div>
     </div>
   );

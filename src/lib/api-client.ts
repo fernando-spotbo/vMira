@@ -377,3 +377,29 @@ export async function cancelAction(id: string) {
 export async function getActionStatus(id: string) {
   return apiCall<{ id: string; status: string }>(`/actions/${id}`);
 }
+
+// ── Calendar ──────────────────────────────────────────────────────────────
+
+export async function generateCalendarFeedToken() {
+  return apiCall<{ url: string }>("/calendar/feed-token", { method: "POST" });
+}
+
+export async function getCalendarFeedStatus() {
+  return apiCall<{ active: boolean; created_at: string | null; last_fetched_at: string | null }>("/calendar/feed-token/status");
+}
+
+export async function revokeCalendarFeedToken() {
+  return apiCall("/calendar/feed-token", { method: "DELETE" });
+}
+
+export async function getGoogleCalendarAuthUrl() {
+  return apiCall<{ url: string }>("/calendar/google/auth");
+}
+
+export async function getGoogleCalendarStatus() {
+  return apiCall<{ connected: boolean; last_synced_at: string | null }>("/calendar/google/status");
+}
+
+export async function disconnectGoogleCalendar() {
+  return apiCall("/calendar/google/disconnect", { method: "DELETE" });
+}

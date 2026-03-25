@@ -34,7 +34,7 @@ const MAX_TIMESTAMP_DRIFT_SECONDS: i64 = 300;
 const GENERIC_ERROR: &str = "Forbidden";
 
 /// Paths that are exempt from HMAC verification.
-const EXEMPT_PATHS: &[&str] = &["/health", "/v1/chat/completions", "/api/v1/telegram/webhook"];
+const EXEMPT_PATHS: &[&str] = &["/health", "/v1/chat/completions", "/api/v1/telegram/webhook", "/api/v1/calendar/feed"];
 
 /// Tower middleware function for HMAC verification.
 ///

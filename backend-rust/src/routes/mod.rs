@@ -6,6 +6,7 @@ pub mod api_keys;
 pub mod attachments;
 pub mod auth;
 pub mod billing;
+pub mod calendar;
 pub mod chat;
 pub mod completions;
 pub mod feedback;
@@ -42,6 +43,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1", notifications::notification_routes())
         .nest("/api/v1", telegram::telegram_routes())
         .nest("/api/v1", actions::action_routes())
+        .nest("/api/v1", calendar::calendar_routes())
         .nest(
             "/api/v1/voice",
             voice::voice_routes()

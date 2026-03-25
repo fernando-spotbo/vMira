@@ -42,6 +42,7 @@ pub struct Config {
     pub yandex_client_id: String,
     pub yandex_client_secret: String,
     pub google_client_id: String,
+    pub google_client_secret: String,
 
     // ── GPU queue ──────────────────────────────────────────────
     pub gpu_max_concurrent: i32,
@@ -170,6 +171,7 @@ impl Config {
             yandex_client_id: env_or("YANDEX_CLIENT_ID", ""),
             yandex_client_secret: env_or("YANDEX_CLIENT_SECRET", ""),
             google_client_id: env_or("GOOGLE_CLIENT_ID", ""),
+            google_client_secret: env_or("GOOGLE_CLIENT_SECRET", ""),
 
             gpu_max_concurrent: env_or("GPU_MAX_CONCURRENT", "4")
                 .parse()

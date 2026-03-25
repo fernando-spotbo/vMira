@@ -291,6 +291,24 @@ fn propose_action_tool() -> serde_json::Value {
     })
 }
 
+fn read_calendar_tool() -> serde_json::Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": "read_calendar",
+            "description": "Read the user's calendar events and reminders for a date range. Use when the user asks: what do I have today, am I free at, what's on my calendar, show my schedule, что у меня на сегодня, мои дела на завтра, свободен ли я.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "start_date": { "type": "string", "description": "Start date ISO 8601 (YYYY-MM-DD)" },
+                    "end_date": { "type": "string", "description": "End date ISO 8601 (YYYY-MM-DD)" }
+                },
+                "required": ["start_date", "end_date"]
+            }
+        }
+    })
+}
+
 // ── Thinking parser ─────────────────────────────────────────────────────────
 
 pub fn parse_thinking(content: &str) -> (Option<String>, String) {
@@ -504,6 +522,42 @@ pub fn stream_ai_response(
                     }
                 }
             }
+
+            // Inject upcoming events (next 3 days) into system prompt
+            let upcoming_start = chrono::Utc::now();
+            let upcoming_end = upcoming_start + chrono::Duration::days(3);
+            let upcoming_reminders: Vec<(String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+                "SELECT title, remind_at FROM reminders
+                 WHERE user_id = $1 AND status = 'pending' AND remind_at >= $2 AND remind_at <= $3
+                 ORDER BY remind_at LIMIT 10"
+            )
+            .bind(uid).bind(upcoming_start).bind(upcoming_end)
+            .fetch_all(pool).await.unwrap_or_default();
+
+            let upcoming_events: Vec<(String, chrono::DateTime<chrono::Utc>, Option<String>)> = sqlx::query_as(
+                "SELECT title, start_at, location FROM calendar_events
+                 WHERE user_id = $1 AND start_at >= $2 AND start_at <= $3
+                 ORDER BY start_at LIMIT 10"
+            )
+            .bind(uid).bind(upcoming_start).bind(upcoming_end)
+            .fetch_all(pool).await.unwrap_or_default();
+
+            if !upcoming_reminders.is_empty() || !upcoming_events.is_empty() {
+                let mut items = Vec::new();
+                for (title, at) in &upcoming_reminders {
+                    items.push(format!("- [{}] {}", at.format("%m-%d %H:%M"), title));
+                }
+                for (title, at, loc) in &upcoming_events {
+                    let loc_str = loc.as_deref().map(|l| format!(" @ {}", l)).unwrap_or_default();
+                    items.push(format!("- [{}] {}{}", at.format("%m-%d %H:%M"), title, loc_str));
+                }
+                let cal_str = format!("\n\nUpcoming (next 3 days):\n{}", items.join("\n"));
+                if let Some(sys) = full_messages.first_mut() {
+                    if let Some(content) = sys.get_mut("content") {
+                        *content = json!(format!("{}{}", content.as_str().unwrap_or(""), cal_str));
+                    }
+                }
+            }
         }
 
         let client = reqwest::Client::builder()
@@ -521,7 +575,7 @@ pub fn stream_ai_response(
         });
 
         if supports_tools {
-            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool()]);
+            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool()]);
         }
 
         let data = match call_model(&client, &url, &api_key, &body).await {
@@ -929,6 +983,44 @@ pub fn stream_ai_response(
                             match result {
                                 Ok(id) => {
                                     tracing::info!(action_id = %id, action_type = %args.action_type, "Action proposed via AI tool");
+
+                                    // Persist create_event to calendar_events table
+                                    if args.action_type == "create_event" {
+                                        if let Some(obj) = full_payload.as_object() {
+                                            let title = obj.get("title").and_then(|v| v.as_str()).unwrap_or("Event");
+                                            let date = obj.get("date").and_then(|v| v.as_str()).unwrap_or("");
+                                            let time = obj.get("time").and_then(|v| v.as_str()).unwrap_or("12:00");
+                                            let end_time = obj.get("end_time").and_then(|v| v.as_str());
+                                            let location = obj.get("location").and_then(|v| v.as_str());
+                                            let desc = obj.get("description").and_then(|v| v.as_str());
+
+                                            if let Ok(start) = chrono::NaiveDateTime::parse_from_str(
+                                                &format!("{}T{}:00", date, time), "%Y-%m-%dT%H:%M:%S"
+                                            ) {
+                                                let start_utc = start.and_utc();
+                                                let end_utc = end_time.and_then(|et| {
+                                                    chrono::NaiveDateTime::parse_from_str(
+                                                        &format!("{}T{}:00", date, et), "%Y-%m-%dT%H:%M:%S"
+                                                    ).ok()
+                                                }).map(|e| e.and_utc());
+
+                                                let _ = sqlx::query(
+                                                    "INSERT INTO calendar_events (user_id, action_id, title, description, location, start_at, end_at, source)
+                                                     VALUES ($1, $2, $3, $4, $5, $6, $7, 'mira')"
+                                                )
+                                                .bind(uid)
+                                                .bind(id)
+                                                .bind(title)
+                                                .bind(desc)
+                                                .bind(location)
+                                                .bind(start_utc)
+                                                .bind(end_utc)
+                                                .execute(pool)
+                                                .await;
+                                            }
+                                        }
+                                    }
+
                                     let _ = tx.send(AiEvent::ActionProposed {
                                         id: id.to_string(),
                                         action_type: args.action_type.clone(),
@@ -948,6 +1040,62 @@ pub fn stream_ai_response(
                         }
                     } else {
                         tool_result_content = "Actions are not available for guest users.".to_string();
+                    }
+                } else if tc.function.name == "read_calendar" {
+                    #[derive(serde::Deserialize)]
+                    struct CalArgs { start_date: String, end_date: String }
+
+                    if let Ok(args) = serde_json::from_str::<CalArgs>(&tc.function.arguments) {
+                        if let (Some(uid), Some(ref pool)) = (user_id, &db) {
+                            let start = chrono::NaiveDate::parse_from_str(&args.start_date, "%Y-%m-%d")
+                                .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc());
+                            let end = chrono::NaiveDate::parse_from_str(&args.end_date, "%Y-%m-%d")
+                                .map(|d| d.and_hms_opt(23, 59, 59).unwrap().and_utc());
+
+                            if let (Ok(start), Ok(end)) = (start, end) {
+                                // Fetch reminders
+                                let reminders = sqlx::query_as::<_, (String, chrono::DateTime<chrono::Utc>, Option<String>)>(
+                                    "SELECT title, remind_at, body FROM reminders
+                                     WHERE user_id = $1 AND status = 'pending' AND remind_at >= $2 AND remind_at <= $3
+                                     ORDER BY remind_at LIMIT 50"
+                                )
+                                .bind(uid).bind(start).bind(end)
+                                .fetch_all(pool).await.unwrap_or_default();
+
+                                // Fetch calendar events
+                                let events = sqlx::query_as::<_, (String, chrono::DateTime<chrono::Utc>, Option<chrono::DateTime<chrono::Utc>>, Option<String>)>(
+                                    "SELECT title, start_at, end_at, location FROM calendar_events
+                                     WHERE user_id = $1 AND start_at >= $2 AND start_at <= $3
+                                     ORDER BY start_at LIMIT 50"
+                                )
+                                .bind(uid).bind(start).bind(end)
+                                .fetch_all(pool).await.unwrap_or_default();
+
+                                let mut items = Vec::new();
+                                for (title, at, body) in &reminders {
+                                    let line = format!("- [{}] Reminder: {}{}", at.format("%m-%d %H:%M"), title,
+                                        body.as_deref().map(|b| format!(" ({})", b)).unwrap_or_default());
+                                    items.push(line);
+                                }
+                                for (title, start, end, loc) in &events {
+                                    let end_str = end.map(|e| format!(" - {}", e.format("%H:%M"))).unwrap_or_default();
+                                    let loc_str = loc.as_deref().map(|l| format!(" @ {}", l)).unwrap_or_default();
+                                    items.push(format!("- [{}{}] {}{}", start.format("%m-%d %H:%M"), end_str, title, loc_str));
+                                }
+
+                                if items.is_empty() {
+                                    tool_result_content = format!("No events or reminders found between {} and {}.", args.start_date, args.end_date);
+                                } else {
+                                    tool_result_content = format!("Calendar for {} to {}:\n{}", args.start_date, args.end_date, items.join("\n"));
+                                }
+                            } else {
+                                tool_result_content = "Invalid date format. Use YYYY-MM-DD.".to_string();
+                            }
+                        } else {
+                            tool_result_content = "Calendar is not available for guest users.".to_string();
+                        }
+                    } else {
+                        tool_result_content = "Invalid arguments for read_calendar.".to_string();
                     }
                 } else {
                     tracing::warn!(tool = %tc.function.name, "Unknown tool call");

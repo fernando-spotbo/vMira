@@ -53,6 +53,8 @@ async fn execute_action(
     let result = match action.type_.as_str() {
         "send_telegram" => execute_send_telegram(&state, &action).await,
         "send_email" => Ok(serde_json::json!({"status": "email_not_configured", "message": "Email sending is not yet configured"})),
+        // Client-side actions — mark as executed immediately
+        "create_draft" | "translate" | "set_timer" => Ok(serde_json::json!({"status": "ok"})),
         _ => Err(format!("Unsupported action type: {}", action.type_)),
     };
 

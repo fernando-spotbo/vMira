@@ -31,11 +31,13 @@ pub const MIRA_SYSTEM_PROMPT: &str = "\
 3. create_scheduled_content — используй когда пользователь просит РЕГУЛЯРНЫЙ AI-контент: \
 утренний брифинг, дайджест новостей, цитата дня, рецепт дня, обучающий контент, погода каждый день. \
 Отличие от напоминания: напоминание = фиксированный текст, рассылка = AI генерирует свежий контент каждый раз.\n\
-4. propose_action — используй когда пользователь просит ВЫПОЛНИТЬ действие: \
-отправь сообщение, напиши в телеграм, отправь письмо, send a message, send email. \
-ВСЕГДА сразу вызывай propose_action, НЕ спрашивай уточнений. Пользователь подтвердит или отменит через карточку. \
-Для send_telegram: сообщение отправляется в привязанный Telegram пользователя. Поле 'to' = 'me' или имя если указано. \
-Никогда не говори что не можешь — предложи действие.\n\n\
+4. propose_action — используй для ДЕЙСТВИЙ и интерактивных карточек:\n\
+  - send_telegram: 'отправь в телеграм', 'send to telegram'\n\
+  - send_email: 'отправь письмо', 'email'\n\
+  - create_draft: 'составь письмо', 'напиши текст', 'подготовь', 'черновик', 'compose', 'draft'\n\
+  - translate: 'переведи', 'translate'\n\
+  - set_timer: 'таймер', 'засеки', 'timer'\n\
+ВСЕГДА сразу вызывай propose_action. НЕ спрашивай уточнений. Создай контент сам.\n\n\
 При ответе на основе результатов поиска ставь номера источников [1], [2], [3] после каждого факта.\n\
 Пример: «Население Москвы составляет 13 млн человек [1]. Город основан в 1147 году [3].»";
 
@@ -263,26 +265,32 @@ fn propose_action_tool() -> serde_json::Value {
         "type": "function",
         "function": {
             "name": "propose_action",
-            "description": "Propose an action for the user to confirm before executing. Use when the user asks you to DO something external: \
-                send a message (отправь сообщение, напиши, send), send email (отправь письмо, email), \
-                make a call, book something, etc. \
-                IMPORTANT: Always PROPOSE the action first and wait for confirmation. Never say you can't do it — propose it. \
-                Supported action types: 'send_telegram' (send a Telegram message to a contact via bot).",
+            "description": "Propose an action card for the user. Use when the user asks to DO something or when a rich interactive card is better than plain text. \
+                Action types:\n\
+                - 'send_telegram': send a message to user's Telegram. Payload: {message: 'text'}\n\
+                - 'send_email': compose an email. Payload: {to: 'email', subject: 'subject', body: 'text'}\n\
+                - 'create_draft': create an editable text draft (letter, post, message, code). Payload: {title: 'Draft title', content: 'full text', format: 'text'|'markdown'}\n\
+                - 'translate': show translation. Payload: {source_text: 'original', source_lang: 'ru', target_text: 'translated', target_lang: 'en'}\n\
+                - 'set_timer': set a countdown timer. Payload: {seconds: 300, label: 'Timer label'}\n\
+                Use create_draft when user asks to: compose (составь), write (напиши), draft (черновик), prepare (подготовь) any text content.\n\
+                Use translate when user explicitly asks to translate text.\n\
+                Use set_timer for timers (таймер, timer, засеки).\n\
+                ALWAYS call this immediately — do NOT ask follow-up questions.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action_type": {
                         "type": "string",
-                        "enum": ["send_telegram", "send_email"],
-                        "description": "Type of action to execute"
+                        "enum": ["send_telegram", "send_email", "create_draft", "translate", "set_timer"],
+                        "description": "Type of action"
                     },
                     "description": {
                         "type": "string",
-                        "description": "Human-readable description of what this action will do, in the user's language"
+                        "description": "Brief human-readable description in the user's language"
                     },
                     "payload": {
                         "type": "object",
-                        "description": "Action-specific data. For send_telegram: {to: 'contact name', message: 'text'}. For send_email: {to: 'email', subject: 'subject', body: 'text'}."
+                        "description": "Action-specific data (see type descriptions above)"
                     }
                 },
                 "required": ["action_type", "description", "payload"]
@@ -799,7 +807,7 @@ pub fn stream_ai_response(
 
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
                         // Validate action type
-                        let valid_types = ["send_telegram", "send_email"];
+                        let valid_types = ["send_telegram", "send_email", "create_draft", "translate", "set_timer"];
                         if !valid_types.contains(&args.action_type.as_str()) {
                             tool_result_content = format!("Unsupported action type: {}", args.action_type);
                         } else {

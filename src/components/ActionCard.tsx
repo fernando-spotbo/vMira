@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Send, Mail, Check, X, Loader2, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Send, Mail, Check, X, Loader2, AlertCircle, Copy, FileText, Languages, Timer, Play } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { executeAction, cancelAction } from "@/lib/api-client";
 
@@ -19,38 +19,101 @@ function TelegramIcon({ size = 16, className }: { size?: number; className?: str
   );
 }
 
+// ── Type-specific icons ──────────────────────────────────────────────────
+
 function ActionIcon({ type }: { type: string }) {
+  const cls = "text-white/40";
   switch (type) {
-    case "send_telegram": return <TelegramIcon size={16} className="text-white/50" />;
-    case "send_email": return <Mail size={16} strokeWidth={1.8} className="text-white/50" />;
-    default: return <Send size={16} strokeWidth={1.8} className="text-white/50" />;
+    case "send_telegram": return <TelegramIcon size={16} className={cls} />;
+    case "send_email": return <Mail size={16} strokeWidth={1.8} className={cls} />;
+    case "create_draft": return <FileText size={16} strokeWidth={1.8} className={cls} />;
+    case "translate": return <Languages size={16} strokeWidth={1.8} className={cls} />;
+    case "set_timer": return <Timer size={16} strokeWidth={1.8} className={cls} />;
+    default: return <Send size={16} strokeWidth={1.8} className={cls} />;
   }
 }
 
-function ActionLabel({ type }: { type: string }) {
+function actionLabel(type: string): string {
   switch (type) {
     case "send_telegram": return "Telegram";
     case "send_email": return "Email";
+    case "create_draft": return t("action.draft");
+    case "translate": return t("action.translate");
+    case "set_timer": return t("action.timer");
     default: return type;
   }
 }
 
+// ── Needs confirmation? ──────────────────────────────────────────────────
+
+function needsConfirmation(type: string): boolean {
+  return type === "send_telegram" || type === "send_email";
+}
+
+// ── Timer countdown hook ─────────────────────────────────────────────────
+
+function useTimer(seconds: number, active: boolean) {
+  const [remaining, setRemaining] = useState(seconds);
+  const [done, setDone] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    setRemaining(seconds);
+    intervalRef.current = setInterval(() => {
+      setRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current!);
+          setDone(true);
+          // Browser notification
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("Mira", { body: "Timer done!" });
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [seconds, active]);
+
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const display = mins > 0 ? `${mins}:${String(secs).padStart(2, "0")}` : `${secs}s`;
+
+  return { remaining, display, done };
+}
+
+// ── Main component ───────────────────────────────────────────────────────
+
 export default function ActionCard({ id, actionType, payload }: ActionCardProps) {
-  const [status, setStatus] = useState<"proposed" | "executing" | "executed" | "cancelled" | "failed">("proposed");
+  const [status, setStatus] = useState<"proposed" | "executing" | "executed" | "cancelled" | "failed">(
+    needsConfirmation(actionType) ? "proposed" : "executed"
+  );
+  const [copied, setCopied] = useState(false);
+  const [timerActive, setTimerActive] = useState(actionType === "set_timer");
 
   const description = String(payload.description || "");
+  const message = String(payload.message || payload.body || payload.content || "");
   const to = String(payload.to || "");
-  const message = String(payload.message || payload.body || "");
   const subject = String(payload.subject || "");
+  const title = String(payload.title || "");
+
+  // Translation
+  const sourceText = String(payload.source_text || "");
+  const targetText = String(payload.target_text || "");
+  const sourceLang = String(payload.source_lang || "");
+  const targetLang = String(payload.target_lang || "");
+
+  // Timer
+  const timerSeconds = Number(payload.seconds || 0);
+  const timerLabel = String(payload.label || "");
+  const timer = useTimer(timerSeconds, timerActive);
 
   const handleConfirm = async () => {
     setStatus("executing");
     const result = await executeAction(id);
-    if (result.ok) {
-      setStatus(result.data.status as typeof status);
-    } else {
-      setStatus("failed");
-    }
+    setStatus(result.ok ? (result.data.status as typeof status) : "failed");
   };
 
   const handleCancel = async () => {
@@ -58,33 +121,91 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
     await cancelAction(id);
   };
 
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // ── Render by type ─────────────────────────────────────────────────────
+
   return (
-    <div className="my-3 max-w-[480px]">
+    <div className="my-3 max-w-[520px]">
       <div className="rounded-xl border border-white/[0.08] overflow-hidden">
+
         {/* Header */}
-        <div className="flex items-center gap-2.5 px-4 py-3 bg-white/[0.02]">
+        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.06]">
           <ActionIcon type={actionType} />
-          <span className="text-[14px] text-white/50"><ActionLabel type={actionType} /></span>
-          {status === "executed" && <Check size={14} strokeWidth={2} className="text-white/40 ml-auto" />}
-          {status === "failed" && <AlertCircle size={14} strokeWidth={1.8} className="text-red-400/60 ml-auto" />}
-          {status === "cancelled" && <X size={14} strokeWidth={1.8} className="text-white/20 ml-auto" />}
+          <span className="text-[14px] text-white/40 flex-1">{actionLabel(actionType)}</span>
+          {status === "executed" && actionType !== "set_timer" && <Check size={14} strokeWidth={2} className="text-white/30" />}
+          {status === "failed" && <AlertCircle size={14} strokeWidth={1.8} className="text-red-400/60" />}
+          {status === "cancelled" && <X size={14} strokeWidth={1.8} className="text-white/20" />}
         </div>
 
-        {/* Content preview */}
-        <div className="px-4 py-3">
-          {to && (
-            <p className="text-[13px] text-white/40 mb-1">{to}{subject ? ` · ${subject}` : ""}</p>
-          )}
-          {message && (
-            <p className="text-[15px] text-white/80 leading-relaxed whitespace-pre-wrap">{message}</p>
-          )}
-          {!message && description && (
-            <p className="text-[15px] text-white/80 leading-relaxed">{description}</p>
-          )}
-        </div>
+        {/* ── Send Telegram / Email ── */}
+        {(actionType === "send_telegram" || actionType === "send_email") && (
+          <div className="px-4 py-3">
+            {to && <p className="text-[13px] text-white/30 mb-1">{to}{subject ? ` · ${subject}` : ""}</p>}
+            <p className="text-[15px] text-white/80 leading-relaxed whitespace-pre-wrap">{message || description}</p>
+          </div>
+        )}
 
-        {/* Actions */}
-        {status === "proposed" && (
+        {/* ── Draft ── */}
+        {actionType === "create_draft" && (
+          <div className="px-4 py-3">
+            {title && <p className="text-[13px] text-white/40 mb-2 font-medium">{title}</p>}
+            <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3 max-h-[300px] overflow-y-auto">
+              <p className="text-[15px] text-white/75 leading-relaxed whitespace-pre-wrap">{message}</p>
+            </div>
+            <button
+              onClick={() => handleCopy(message)}
+              className="flex items-center gap-2 mt-2.5 text-[13px] text-white/40 hover:text-white/60 transition-colors"
+            >
+              {copied ? <Check size={13} strokeWidth={1.8} /> : <Copy size={13} strokeWidth={1.8} />}
+              {copied ? t("action.copied") : t("action.copy")}
+            </button>
+          </div>
+        )}
+
+        {/* ── Translate ── */}
+        {actionType === "translate" && (
+          <div className="px-4 py-3">
+            <div className="space-y-3">
+              <div>
+                <p className="text-[11px] text-white/25 uppercase tracking-wider mb-1">{sourceLang || "Original"}</p>
+                <p className="text-[14px] text-white/50 leading-relaxed">{sourceText}</p>
+              </div>
+              <div className="border-t border-white/[0.04]" />
+              <div>
+                <p className="text-[11px] text-white/25 uppercase tracking-wider mb-1">{targetLang || "Translation"}</p>
+                <p className="text-[15px] text-white/80 leading-relaxed">{targetText}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleCopy(targetText)}
+              className="flex items-center gap-2 mt-2.5 text-[13px] text-white/40 hover:text-white/60 transition-colors"
+            >
+              {copied ? <Check size={13} strokeWidth={1.8} /> : <Copy size={13} strokeWidth={1.8} />}
+              {copied ? t("action.copied") : t("action.copy")}
+            </button>
+          </div>
+        )}
+
+        {/* ── Timer ── */}
+        {actionType === "set_timer" && (
+          <div className="px-4 py-4 flex flex-col items-center">
+            {timerLabel && <p className="text-[13px] text-white/40 mb-2">{timerLabel}</p>}
+            <p className={`text-[32px] font-light tabular-nums tracking-tight ${timer.done ? "text-white/50" : "text-white/80"}`}>
+              {timer.display}
+            </p>
+            {timer.done && (
+              <p className="text-[14px] text-white/40 mt-1">{t("action.timerDone")}</p>
+            )}
+          </div>
+        )}
+
+        {/* ── Footer: Confirm/Cancel for external actions ── */}
+        {needsConfirmation(actionType) && status === "proposed" && (
           <div className="flex border-t border-white/[0.06]">
             <button
               onClick={handleCancel}
@@ -95,7 +216,7 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
             <div className="w-px bg-white/[0.06]" />
             <button
               onClick={handleConfirm}
-              className="flex-1 flex items-center justify-center gap-2 py-3 text-[14px] text-white hover:bg-white/[0.04] transition-colors font-medium"
+              className="flex-1 flex items-center justify-center gap-2 py-3 text-[14px] text-white font-medium hover:bg-white/[0.04] transition-colors"
             >
               {t("action.confirm")}
             </button>
@@ -109,20 +230,20 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           </div>
         )}
 
-        {status === "executed" && (
-          <div className="flex items-center justify-center gap-2 py-2.5 border-t border-white/[0.06]">
+        {needsConfirmation(actionType) && status === "executed" && (
+          <div className="flex items-center justify-center py-2.5 border-t border-white/[0.06]">
             <span className="text-[13px] text-white/25">{t("action.done")}</span>
           </div>
         )}
 
         {status === "cancelled" && (
-          <div className="flex items-center justify-center gap-2 py-2.5 border-t border-white/[0.06]">
+          <div className="flex items-center justify-center py-2.5 border-t border-white/[0.06]">
             <span className="text-[13px] text-white/20">{t("action.cancelled")}</span>
           </div>
         )}
 
         {status === "failed" && (
-          <div className="flex items-center justify-center gap-2 py-2.5 border-t border-white/[0.06]">
+          <div className="flex items-center justify-center py-2.5 border-t border-white/[0.06]">
             <span className="text-[13px] text-red-400/60">{t("action.failed")}</span>
           </div>
         )}

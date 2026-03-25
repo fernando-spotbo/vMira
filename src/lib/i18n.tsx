@@ -229,6 +229,12 @@ const translations: Record<string, Record<Locale, string>> = {
   "action.done": { ru: "Выполнено", en: "Done" },
   "action.cancelled": { ru: "Отменено", en: "Cancelled" },
   "action.failed": { ru: "Ошибка", en: "Failed" },
+  "action.draft": { ru: "Черновик", en: "Draft" },
+  "action.translate": { ru: "Перевод", en: "Translation" },
+  "action.timer": { ru: "Таймер", en: "Timer" },
+  "action.copy": { ru: "Копировать", en: "Copy" },
+  "action.copied": { ru: "Скопировано", en: "Copied" },
+  "action.timerDone": { ru: "Время вышло", en: "Time's up" },
 
   "scheduled.everyDay": { ru: "Каждый день", en: "Every day" },
   "scheduled.everyWeek": { ru: "Каждую неделю", en: "Every week" },

@@ -239,8 +239,8 @@ async fn webhook(
         })
         .unwrap_or_else(|| "unknown".to_string());
 
-    // In production, verify the source IP
-    if !state.config.debug && !payment::verify_webhook_ip(&client_ip) {
+    // ALWAYS verify webhook source IP (never skip, even in debug — money is involved)
+    if !payment::verify_webhook_ip(&client_ip) {
         tracing::warn!(
             client_ip = %client_ip,
             "YooKassa webhook rejected: untrusted IP"

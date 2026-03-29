@@ -135,24 +135,26 @@ async fn ics_feed(
         None => return Err(StatusCode::NOT_FOUND),
     };
 
-    // Fetch pending reminders
+    // Fetch pending reminders (cap at 500 to prevent unbounded memory)
     let reminders = sqlx::query_as::<_, IcsReminder>(
         "SELECT id, title, body, remind_at, rrule, user_timezone
          FROM reminders
          WHERE user_id = $1 AND status = 'pending'
-         ORDER BY remind_at"
+         ORDER BY remind_at
+         LIMIT 500"
     )
     .bind(user_id)
     .fetch_all(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Fetch calendar events
+    // Fetch calendar events (cap at 1000)
     let events = sqlx::query_as::<_, IcsEvent>(
         "SELECT id, title, description, location, start_at, end_at, all_day, rrule, user_timezone
          FROM calendar_events
          WHERE user_id = $1
-         ORDER BY start_at"
+         ORDER BY start_at
+         LIMIT 1000"
     )
     .bind(user_id)
     .fetch_all(&state.db)
@@ -353,6 +355,18 @@ async fn create_event(
     AuthUser(user): AuthUser,
     Json(body): Json<CreateEventBody>,
 ) -> Result<(StatusCode, Json<CalendarEventRow>), AppError> {
+    // Limit events per user
+    let event_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM calendar_events WHERE user_id = $1"
+    )
+    .bind(user.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if event_count >= 2000 {
+        return Err(AppError::BadRequest("Maximum 2000 calendar events reached".to_string()));
+    }
+
     let start = chrono::DateTime::parse_from_rfc3339(&body.start_at)
         .map_err(|_| AppError::BadRequest("Invalid start_at date".into()))?
         .with_timezone(&Utc);

@@ -141,7 +141,7 @@ impl Config {
             api_prefix: env_or("API_PREFIX", "/api/v1"),
 
             database_url,
-            db_pool_size: env_or("DB_POOL_SIZE", "10").parse().unwrap_or(10),
+            db_pool_size: env_or("DB_POOL_SIZE", "30").parse().unwrap_or(30),
             db_max_overflow: env_or("DB_MAX_OVERFLOW", "5").parse().unwrap_or(5),
 
             redis_url: env_or("REDIS_URL", "redis://127.0.0.1:6379"),

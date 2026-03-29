@@ -17,6 +17,7 @@ use axum::http::{header, HeaderName, HeaderValue, Method, Request};
 use axum::middleware as axum_mw;
 use axum::response::Response;
 use axum::Router;
+use tower::limit::ConcurrencyLimitLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -46,6 +47,12 @@ async fn main() {
         .init();
 
     let config = Config::from_env();
+
+    // CRITICAL: Ensure debug mode is never enabled in production
+    if config.debug && config.secret_key.len() > 20 {
+        panic!("DEBUG=true with a non-default SECRET_KEY — refusing to start. Debug mode disables HMAC and webhook verification.");
+    }
+
     tracing::info!(app = %config.app_name, debug = config.debug, "Starting Mira API");
 
     let pg_pool = create_pg_pool(&config).await;
@@ -64,11 +71,11 @@ async fn main() {
 
     let app = build_router(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:8000")
         .await
-        .expect("Failed to bind to 0.0.0.0:8000");
+        .expect("Failed to bind to 127.0.0.1:8000");
 
-    tracing::info!("Listening on 0.0.0.0:8000");
+    tracing::info!("Listening on 127.0.0.1:8000");
 
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())
@@ -123,6 +130,7 @@ fn build_router(state: AppState) -> Router {
         ))
         .layer(CompressionLayer::new())
         .layer(RequestBodyLimitLayer::new(12 * 1024 * 1024)) // 12 MiB (allows 10MB uploads + multipart overhead; route-level DefaultBodyLimit further restricts non-upload routes)
+        .layer(ConcurrencyLimitLayer::new(5000)) // Max 5000 concurrent requests to prevent resource exhaustion
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
         .layer(TraceLayer::new_for_http())
         .layer(cors)

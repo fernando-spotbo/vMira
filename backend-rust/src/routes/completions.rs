@@ -159,9 +159,9 @@ async fn chat_completions(
                     .invoke_async::<i32>(&mut conn)
                     .await
                     .map(|v| v == 1)
-                    .unwrap_or(true)
+                    .unwrap_or(false) // fail CLOSED
             }
-            Err(_) => true,
+            Err(_) => false, // fail CLOSED
         }
     };
 

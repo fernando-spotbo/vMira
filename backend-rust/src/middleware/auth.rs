@@ -64,10 +64,10 @@ where
             .parse()
             .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
 
-        // 4. Check token revocation
+        // 4. Check token revocation (fail CLOSED — if Redis is down, reject)
         let revoked = token_revocation::is_user_revoked(&app_state.redis, &user_id.to_string())
             .await
-            .unwrap_or(false);
+            .unwrap_or(true);
         if revoked {
             return Err(AppError::Unauthorized("Session expired".to_string()));
         }

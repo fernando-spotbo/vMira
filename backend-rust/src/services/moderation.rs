@@ -109,7 +109,8 @@ pub fn normalize_text(text: &str) -> String {
         Regex::new(r"(?P<a>[\p{Cyrillic}])[.\-_*!@#$%^&()]+(?P<b>[\p{Cyrillic}])").unwrap()
     });
     // Apply repeatedly because the regex consumes one pair at a time.
-    loop {
+    // Cap iterations to prevent pathological input from looping excessively.
+    for _ in 0..50 {
         let next = RE_PUNCT_BETWEEN.replace_all(&s, "${a}${b}").to_string();
         if next == s {
             break;

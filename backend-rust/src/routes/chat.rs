@@ -495,9 +495,9 @@ async fn send_message(
                     .invoke_async::<i32>(&mut conn)
                     .await
                     .map(|v| v == 1)
-                    .unwrap_or(true) // fail open if Redis is down
+                    .unwrap_or(false) // fail CLOSED if Redis is down
             }
-            Err(_) => true, // fail open
+            Err(_) => false, // fail CLOSED
         }
     };
 
@@ -1305,9 +1305,18 @@ async fn anonymous_stream(
 
         tokio::pin!(ai_stream);
 
+        let mut total_bytes: usize = 0;
+        const ANON_MAX_RESPONSE: usize = 64 * 1024; // 64 KB cap for anonymous streams
+
         loop {
             match ai_stream.next().await {
                 Some(ai_proxy::AiEvent::Token(chunk)) => {
+                    total_bytes += chunk.len();
+                    if total_bytes > ANON_MAX_RESPONSE {
+                        let err = serde_json::json!({"type": "error", "message": "Response size limit reached"});
+                        yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&err).unwrap_or_default()));
+                        break;
+                    }
                     let clean = sanitize::sanitize_output(&chunk);
                     let data = serde_json::json!({"type": "token", "content": clean});
                     yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));

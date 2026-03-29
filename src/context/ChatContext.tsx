@@ -47,6 +47,8 @@ interface ChatContextType {
   cancelMessage: () => void;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
+  showProjects: boolean;
+  setShowProjects: (show: boolean) => void;
   // Projects
   projects: Project[];
   createProject: (name: string, emoji?: string) => Promise<Project | null>;
@@ -67,6 +69,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
   const [selectedModel, setSelectedModel] = useState("Mira");
   const [showReminders, setShowReminders] = useState(false);
+  const [showProjects, setShowProjects] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -916,6 +919,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         queuePosition,
         showReminders,
         setShowReminders,
+        showProjects,
+        setShowProjects,
         projects,
         createProject: createProjectCb,
         renameProject,

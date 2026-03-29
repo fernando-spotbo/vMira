@@ -87,8 +87,15 @@ async function proxyRequest(
     }
   }
 
-  // Sign the request — multipart uses a placeholder instead of the binary body
-  const signBody = isMultipart ? "<multipart>" : bodyText;
+  // Sign the request — multipart uses SHA-256 hash of the binary body
+  let signBody: string;
+  if (isMultipart && bodyBinary) {
+    const { createHash } = await import("crypto");
+    const hash = createHash("sha256").update(Buffer.from(bodyBinary)).digest("hex");
+    signBody = `<multipart:${hash}>`;
+  } else {
+    signBody = bodyText;
+  }
   const { timestamp, nonce, signature } = signRequest(method, backendPath, signBody);
 
   // Build headers — forward auth and cookies

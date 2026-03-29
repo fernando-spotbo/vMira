@@ -455,7 +455,7 @@ async fn chat_completions(
                                 input_tokens,
                                 output_tokens_count,
                             ).await {
-                                tracing::warn!(error = %e, user_id = %user_id, "billing charge failed (non-fatal)");
+                                tracing::error!(error = %e, user_id = %user_id, cost = charge, "BILLING CHARGE FAILED — user received unpaid response");
                             }
                         }
                     }

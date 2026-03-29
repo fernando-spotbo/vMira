@@ -619,6 +619,9 @@ async fn send_message(
     .await?;
 
     // Link uploaded attachments to this message (only ones belonging to this conversation+user)
+    if body.attachment_ids.len() > 20 {
+        return Err(AppError::BadRequest("Too many attachments (max 20)".to_string()));
+    }
     if !body.attachment_ids.is_empty() {
         sqlx::query(
             "UPDATE attachments SET message_id = $1
@@ -639,7 +642,7 @@ async fn send_message(
         .await?;
 
     if msg_count <= 1 {
-        let title = &content[..content.len().min(80)];
+        let title: String = content.chars().take(80).collect();
         sqlx::query("UPDATE conversations SET title = $1 WHERE id = $2")
             .bind(title)
             .bind(conv.id)
@@ -1087,7 +1090,7 @@ async fn send_message(
                             input_tokens,
                             output_tokens,
                         ).await {
-                            tracing::warn!(error = %e, user_id = %user_id, "billing charge failed (non-fatal)");
+                            tracing::error!(error = %e, user_id = %user_id, cost = charge_kopecks, "BILLING CHARGE FAILED — user received unpaid response");
                         }
                     }
                 }
@@ -1227,17 +1230,20 @@ async fn anonymous_stream(
         return Err(AppError::BadRequest("Message too short or too long".into()));
     }
 
-    // Device ID validation
+    // Device ID validation — only allow safe characters
     let device_id = body.device_id.trim();
     if device_id.is_empty() || device_id.len() > 64 {
         return Err(AppError::BadRequest("Invalid device ID".into()));
+    }
+    if !device_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err(AppError::BadRequest("Invalid device ID format".into()));
     }
 
     // Extract client IP
     let client_ip = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.rsplit(',').next()) // rightmost = IP added by trusted proxy
         .unwrap_or("unknown")
         .trim()
         .to_string();

@@ -44,10 +44,14 @@ pub async fn hmac_verify(
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    // Skip in debug mode
+    // Skip in debug mode — only for local development
     if state.config.debug {
+        tracing::debug!("HMAC verification skipped (debug mode)");
         return next.run(request).await;
     }
+
+    // Safety: ensure debug mode cannot be active with production-length secrets
+    debug_assert!(!state.config.debug, "HMAC bypass must not be active in production");
 
     // Skip OPTIONS requests (CORS preflight)
     if request.method() == Method::OPTIONS {
@@ -167,10 +171,11 @@ pub async fn hmac_verify(
         }
     };
 
-    // For multipart uploads, the body is binary — use a fixed placeholder
-    // so the frontend can sign without reading the file into a string.
+    // For multipart uploads, use SHA-256 hash of the body so the frontend
+    // can compute the same hash without converting binary to string.
     let body_for_sig = if is_multipart {
-        "<multipart>".to_string()
+        use sha2::{Digest, Sha256};
+        format!("<multipart:{:x}>", Sha256::digest(&body_bytes))
     } else {
         String::from_utf8_lossy(&body_bytes).to_string()
     };

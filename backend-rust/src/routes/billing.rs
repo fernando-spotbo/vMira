@@ -186,7 +186,14 @@ async fn create_topup(
         return Err(AppError::BadRequest("Invalid return URL".to_string()));
     }
 
-    let amount_kopecks = (body.amount_rubles * 100.0).round() as i64;
+    // Use string formatting to avoid f64 precision loss in monetary conversion
+    let amount_kopecks = {
+        let s = format!("{:.2}", body.amount_rubles);
+        let parts: Vec<&str> = s.split('.').collect();
+        let rubles: i64 = parts[0].parse().unwrap_or(0);
+        let kopecks: i64 = parts.get(1).unwrap_or(&"00").parse().unwrap_or(0);
+        rubles * 100 + kopecks
+    };
 
     // User needs an email for fiscal receipts (54-FZ)
     let user_email = user.email.as_deref().unwrap_or_default();

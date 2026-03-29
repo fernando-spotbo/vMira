@@ -272,6 +272,14 @@ async fn create_reminder(
         if rrule.len() > 200 {
             return Err(AppError::BadRequest("RRULE too long".to_string()));
         }
+        // Whitelist known RRULE properties to prevent malformed rules
+        let valid_props = ["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "BYMONTH", "BYHOUR", "BYMINUTE", "WKST"];
+        for part in rrule.split(';') {
+            let key = part.split('=').next().unwrap_or("");
+            if !valid_props.contains(&key) {
+                return Err(AppError::BadRequest(format!("Invalid RRULE property: {key}")));
+            }
+        }
     }
 
     // M2: Atomic insert with count check (avoids TOCTOU race)

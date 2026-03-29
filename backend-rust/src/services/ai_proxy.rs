@@ -372,8 +372,12 @@ fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
         return Err("URL модели не содержит хост".to_string());
     }
 
+    // If no allowlist is configured, only allow local addresses
     if allowed_hosts.is_empty() {
-        return Ok(());
+        if is_local {
+            return Ok(());
+        }
+        return Err("AI_MODEL_ALLOWED_HOSTS не настроен — внешние хосты запрещены".to_string());
     }
 
     if allowed_hosts.iter().any(|h| h == host) {
@@ -653,8 +657,8 @@ pub fn stream_ai_response(
                     // Try to create the reminder in the database
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
                         // Validate title length and rrule
-                        let title = if args.title.len() > 200 {
-                            args.title[..200].to_string()
+                        let title = if args.title.chars().count() > 200 {
+                            args.title.chars().take(200).collect::<String>()
                         } else {
                             args.title.clone()
                         };
@@ -768,8 +772,8 @@ pub fn stream_ai_response(
                     };
 
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
-                        let title = if args.title.len() > 200 { args.title[..200].to_string() } else { args.title.clone() };
-                        let prompt = if args.prompt.len() > 2000 { args.prompt[..2000].to_string() } else { args.prompt.clone() };
+                        let title = if args.title.chars().count() > 200 { args.title.chars().take(200).collect::<String>() } else { args.title.clone() };
+                        let prompt = if args.prompt.chars().count() > 2000 { args.prompt.chars().take(2000).collect::<String>() } else { args.prompt.clone() };
 
                         // Validate RRULE
                         if args.recurrence.len() > 200 || args.recurrence.contains("INTERVAL=0") {

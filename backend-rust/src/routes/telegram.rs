@@ -59,7 +59,7 @@ async fn check_telegram_rate_limit(
             }
             count <= limit
         }
-        Err(_) => true, // fail open on Redis error
+        Err(_) => false, // fail CLOSED on Redis error
     }
 }
 

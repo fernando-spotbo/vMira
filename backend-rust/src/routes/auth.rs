@@ -810,9 +810,12 @@ async fn reset_password(
         .execute(&state.db)
         .await?;
 
-    // Revoke all access tokens
+    // Revoke all access tokens — fail if Redis is down to prevent stale tokens
     let ttl = (state.config.access_token_expire_minutes * 60) as u64;
-    let _ = token_revocation::revoke_user_tokens(&state.redis, &user.id.to_string(), ttl).await;
+    if let Err(e) = token_revocation::revoke_user_tokens(&state.redis, &user.id.to_string(), ttl).await {
+        tracing::error!(error = %e, user_id = %user.id, "Failed to revoke tokens after password reset");
+        return Err(AppError::Internal("Password updated but session revocation failed — please log out manually".to_string()));
+    }
 
     log_auth_event(
         "password_reset",

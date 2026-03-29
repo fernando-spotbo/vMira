@@ -293,8 +293,15 @@ fn parse_weekday(s: &str) -> Option<Weekday> {
     }
 }
 
+/// Concurrency limiter for AI content generation to prevent resource exhaustion.
+static AI_SEMAPHORE: std::sync::LazyLock<tokio::sync::Semaphore> =
+    std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(5));
+
 /// Generate AI content from a prompt (for scheduled_content type).
 async fn generate_ai_content(state: &AppState, prompt: &str) -> Result<String, String> {
+    let _permit = AI_SEMAPHORE.acquire().await
+        .map_err(|_| "AI concurrency limit reached".to_string())?;
+
     let url = &state.config.ai_model_url;
     let api_key = &state.config.ai_model_api_key;
 

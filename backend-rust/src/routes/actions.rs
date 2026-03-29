@@ -163,9 +163,15 @@ async fn execute_send_telegram(state: &AppState, action: &Action) -> Result<serd
     // Send the message to the user's own Telegram chat
     // (In a full implementation, we'd resolve contact names to chat IDs.
     //  For now, we send to the user's linked chat as a "sent on your behalf" message.)
+    let desc_line = if description.is_empty() {
+        String::new()
+    } else {
+        format!("\n{}", html_escape(description))
+    };
     let text = format!(
-        "📤 <b>Действие выполнено</b>\n\n{}\n\n<i>Кому: {}</i>",
+        "📤 <b>Действие выполнено</b>\n\n{}{}\n\n<i>Кому: {}</i>",
         html_escape(message),
+        desc_line,
         html_escape(to),
     );
 

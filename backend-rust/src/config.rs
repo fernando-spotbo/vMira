@@ -75,6 +75,7 @@ pub struct Config {
 
     // ── Voice TTS (local piper) ───────────────────────────
     pub piper_url: String,
+    pub piper_api_key: String,
 
     // ── Telegram bot ────────────────────────────────────
     pub telegram_bot_token: String,
@@ -111,8 +112,14 @@ impl Config {
             if secret_key == "CHANGE-ME-IN-PRODUCTION" {
                 panic!("SECRET_KEY must be changed from the default value in production");
             }
+            if secret_key.len() < 32 {
+                panic!("SECRET_KEY must be at least 32 bytes for secure HMAC signing");
+            }
             if hmac_secret == "CHANGE-ME-IN-PRODUCTION" {
                 panic!("HMAC_SECRET must be changed from the default value in production");
+            }
+            if hmac_secret.len() < 32 {
+                panic!("HMAC_SECRET must be at least 32 bytes");
             }
             if database_url.contains("mira:mira@") {
                 panic!("DATABASE_URL must not use default credentials (mira:mira@) in production");
@@ -209,6 +216,7 @@ impl Config {
             whisper_url: env_or("WHISPER_URL", "http://127.0.0.1:8787"),
 
             piper_url: env_or("PIPER_URL", "http://127.0.0.1:5100"),
+            piper_api_key: env_or("PIPER_API_KEY", "sk-mira-tts"),
 
             telegram_bot_token,
             telegram_webhook_secret,

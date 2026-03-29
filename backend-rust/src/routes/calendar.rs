@@ -595,16 +595,27 @@ struct OAuthTokenResponse {
     expires_in: Option<i64>,
 }
 
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
+}
+
 fn callback_html(provider: &str, message: &str) -> Response {
+    let safe_msg = html_escape(message);
+    // JSON-serialize for safe embedding in JavaScript context
+    let js_provider = serde_json::to_string(provider).unwrap_or_else(|_| "\"unknown\"".to_string());
     let html = format!(
         r#"<!DOCTYPE html><html><head><title>Mira</title></head>
         <body style="background:#161616;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
         <div style="text-align:center">
-            <p style="font-size:18px">{message}</p>
+            <p style="font-size:18px">{safe_msg}</p>
             <p style="color:#666;font-size:14px">This window will close automatically</p>
         </div>
         <script>
-            window.opener && window.opener.postMessage({{ type: "calendar_connected", provider: "{provider}" }}, "*");
+            window.opener && window.opener.postMessage({{ type: "calendar_connected", provider: {js_provider} }}, window.location.origin);
             setTimeout(() => window.close(), 2000);
         </script>
         </body></html>"#

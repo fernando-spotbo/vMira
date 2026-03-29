@@ -10,6 +10,26 @@ use crate::config::Config;
 use crate::error::AppError;
 use crate::services::billing;
 
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+/// Parse a ruble string like "123.45" directly to kopecks (12345) without f64 precision loss.
+fn parse_rubles_to_kopecks(s: &str) -> Result<i64, String> {
+    let s = s.trim();
+    let (rubles_str, kopecks_str) = if let Some(dot) = s.find('.') {
+        (&s[..dot], &s[dot + 1..])
+    } else {
+        (s, "00")
+    };
+    let rubles: i64 = rubles_str.parse().map_err(|e| format!("bad rubles: {e}"))?;
+    // Pad or truncate to exactly 2 digits
+    let kop = match kopecks_str.len() {
+        0 => 0i64,
+        1 => kopecks_str.parse::<i64>().map_err(|e| format!("bad kopecks: {e}"))? * 10,
+        _ => kopecks_str[..2].parse::<i64>().map_err(|e| format!("bad kopecks: {e}"))?,
+    };
+    Ok(rubles * 100 + kop)
+}
+
 // ── Public DTOs ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
@@ -270,21 +290,37 @@ async fn handle_payment_succeeded(
     pool: &PgPool,
     payment: &YooKassaWebhookObject,
 ) -> Result<(), AppError> {
-    // Check for duplicate payment (idempotency)
-    let existing: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM transactions WHERE payment_id = $1 AND type = 'topup' LIMIT 1",
-    )
-    .bind(&payment.id)
-    .fetch_optional(pool)
-    .await?;
+    // Session-level advisory lock on payment_id hash to serialize concurrent webhooks.
+    // This prevents the TOCTOU race between duplicate-check and topup_user's INSERT.
+    let lock_key = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        payment.id.hash(&mut h);
+        h.finish() as i64
+    };
 
-    if existing.is_some() {
-        tracing::info!(
-            payment_id = %payment.id,
-            "Duplicate payment webhook, skipping"
-        );
-        return Ok(());
-    }
+    // Acquire session-level lock (blocks until available, released explicitly below)
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(lock_key)
+        .execute(pool)
+        .await?;
+
+    // Ensure lock is always released, even on error
+    let result = async {
+        let existing: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT id FROM transactions WHERE payment_id = $1 AND type = 'topup' LIMIT 1",
+        )
+        .bind(&payment.id)
+        .fetch_optional(pool)
+        .await?;
+
+        if existing.is_some() {
+            tracing::info!(
+                payment_id = %payment.id,
+                "Duplicate payment webhook, skipping"
+            );
+            return Ok(());
+        }
 
     // Extract user_id from metadata
     let user_id_str = payment
@@ -302,38 +338,46 @@ async fn handle_payment_succeeded(
         AppError::BadRequest("Invalid user_id in payment metadata".to_string())
     })?;
 
-    // Parse amount (YooKassa sends "123.45" as a string)
-    let rubles: f64 = payment.amount.value.parse().map_err(|_| {
-        tracing::error!(payment_id = %payment.id, value = %payment.amount.value, "Invalid amount");
-        AppError::BadRequest("Invalid payment amount".to_string())
-    })?;
+        // Parse amount directly from string to avoid f64 precision loss
+        // YooKassa sends "123.45" as a string
+        let amount_kopecks = parse_rubles_to_kopecks(&payment.amount.value).map_err(|_| {
+            tracing::error!(payment_id = %payment.id, value = %payment.amount.value, "Invalid amount");
+            AppError::BadRequest("Invalid payment amount".to_string())
+        })?;
 
-    let amount_kopecks = (rubles * 100.0).round() as i64;
+        if amount_kopecks <= 0 {
+            tracing::error!(payment_id = %payment.id, amount = %amount_kopecks, "Non-positive payment amount");
+            return Err(AppError::BadRequest("Invalid payment amount".to_string()));
+        }
 
-    if amount_kopecks <= 0 {
-        tracing::error!(payment_id = %payment.id, amount = %amount_kopecks, "Non-positive payment amount");
-        return Err(AppError::BadRequest("Invalid payment amount".to_string()));
-    }
+        // Determine payment method
+        let payment_method = payment
+            .payment_method
+            .as_ref()
+            .map(|pm| pm.method_type.clone())
+            .unwrap_or_else(|| "unknown".to_string());
 
-    // Determine payment method
-    let payment_method = payment
-        .payment_method
-        .as_ref()
-        .map(|pm| pm.method_type.clone())
-        .unwrap_or_else(|| "unknown".to_string());
+        // Credit the user's balance
+        billing::topup_user(pool, user_id, amount_kopecks, &payment.id, &payment_method).await?;
 
-    // Credit the user's balance
-    billing::topup_user(pool, user_id, amount_kopecks, &payment.id, &payment_method).await?;
+        tracing::info!(
+            payment_id = %payment.id,
+            user_id = %user_id,
+            amount_kopecks = %amount_kopecks,
+            payment_method = %payment_method,
+            "Balance topped up successfully"
+        );
 
-    tracing::info!(
-        payment_id = %payment.id,
-        user_id = %user_id,
-        amount_kopecks = %amount_kopecks,
-        payment_method = %payment_method,
-        "Balance topped up successfully"
-    );
+        Ok(())
+    }.await;
 
-    Ok(())
+    // Always release the session-level advisory lock
+    let _ = sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(lock_key)
+        .execute(pool)
+        .await;
+
+    result
 }
 
 /// Verify YooKassa webhook authenticity via IP whitelist.

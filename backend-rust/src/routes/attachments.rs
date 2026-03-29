@@ -282,10 +282,23 @@ async fn serve_attachment(
     .await?
     .ok_or_else(|| AppError::NotFound("Attachment not found".to_string()))?;
 
-    // Read file
+    // Read file — validate path is within upload directory to prevent path traversal
     let path = PathBuf::from(&attachment.storage_path);
-    let data = fs::read(&path).await.map_err(|e| {
-        tracing::error!(error = %e, path = %path.display(), "Failed to read attachment");
+    let canonical = path.canonicalize().map_err(|e| {
+        tracing::error!(error = %e, path = %path.display(), "Failed to canonicalize attachment path");
+        AppError::NotFound("Attachment not found".to_string())
+    })?;
+    let upload_dir = PathBuf::from(&state.config.upload_dir).canonicalize().map_err(|e| {
+        tracing::error!(error = %e, "Upload directory not accessible");
+        AppError::Internal("Storage configuration error".to_string())
+    })?;
+    if !canonical.starts_with(&upload_dir) {
+        tracing::error!(path = %canonical.display(), upload_dir = %upload_dir.display(), "Path traversal attempt");
+        return Err(AppError::NotFound("Attachment not found".to_string()));
+    }
+
+    let data = fs::read(&canonical).await.map_err(|e| {
+        tracing::error!(error = %e, path = %canonical.display(), "Failed to read attachment");
         AppError::Internal("Storage read error".to_string())
     })?;
 

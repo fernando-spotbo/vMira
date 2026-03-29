@@ -63,18 +63,20 @@ pub async fn get_all_pricing(pool: &PgPool) -> Result<Vec<ModelPricing>, AppErro
 ///
 /// The thinking surcharge is applied to output tokens for reasoning models.
 pub fn calculate_charge(pricing: &ModelPricing, input_tokens: i32, output_tokens: i32) -> i64 {
-    let input_cost =
-        (input_tokens as i64 * pricing.input_price_per_1k_kopecks as i64) / 1000;
+    let input_cost = (input_tokens as i64)
+        .saturating_mul(pricing.input_price_per_1k_kopecks as i64) / 1000;
 
-    let mut output_cost =
-        (output_tokens as i64 * pricing.output_price_per_1k_kopecks as i64) / 1000;
+    let mut output_cost = (output_tokens as i64)
+        .saturating_mul(pricing.output_price_per_1k_kopecks as i64) / 1000;
 
     // Apply thinking surcharge if applicable
     if pricing.thinking_surcharge_percent > 0 {
-        output_cost += (output_cost * pricing.thinking_surcharge_percent as i64) / 100;
+        output_cost = output_cost.saturating_add(
+            output_cost.saturating_mul(pricing.thinking_surcharge_percent as i64) / 100
+        );
     }
 
-    input_cost + output_cost
+    input_cost.saturating_add(output_cost)
 }
 
 // ── Balance operations ───────────────────────────────────────────────────
@@ -174,7 +176,8 @@ pub async fn topup_user(
     .await
     .map_err(|_| AppError::NotFound("User not found".to_string()))?;
 
-    let new_balance = balance.0 + amount_kopecks;
+    let new_balance = balance.0.checked_add(amount_kopecks)
+        .ok_or_else(|| AppError::Internal("Balance overflow".to_string()))?;
 
     // Update user balance and totals
     sqlx::query(
@@ -370,21 +373,28 @@ pub async fn get_spending_summary(
 }
 
 /// Refund a specific charge transaction, restoring the user's balance.
+/// `owner_user_id` ensures only the transaction owner can trigger refunds.
 pub async fn refund_charge(
     pool: &PgPool,
     transaction_id: Uuid,
+    owner_user_id: Uuid,
 ) -> Result<Transaction, AppError> {
     let mut tx = pool.begin().await?;
 
-    // Find the original charge
+    // Find the original charge — must belong to the specified user
     let original = sqlx::query_as::<_, Transaction>(
-        "SELECT * FROM transactions WHERE id = $1 AND type = 'charge'",
+        "SELECT * FROM transactions WHERE id = $1 AND type = 'charge' AND user_id = $2",
     )
     .bind(transaction_id)
+    .bind(owner_user_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Charge transaction not found".to_string()))?;
 
+    // Validate charge has negative amount (debit) before computing refund
+    if original.amount_kopecks >= 0 {
+        return Err(AppError::BadRequest("Transaction is not a charge".to_string()));
+    }
     let refund_amount = original.amount_kopecks.unsigned_abs() as i64;
 
     // Lock user row

@@ -23,7 +23,7 @@ pub async fn synthesize(
     let client = reqwest::Client::new();
     let res = client
         .post(&url)
-        .header("Authorization", "Bearer sk-mira-tts")
+        .header("Authorization", format!("Bearer {}", config.piper_api_key))
         .json(&json!({
             "model": "tts-1",
             "voice": voice,

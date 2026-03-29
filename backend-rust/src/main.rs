@@ -71,11 +71,12 @@ async fn main() {
 
     let app = build_router(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8000")
+    // Bind to all interfaces but protect with UFW (only Docker + localhost can reach 8000)
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000")
         .await
-        .expect("Failed to bind to 127.0.0.1:8000");
+        .expect("Failed to bind to 0.0.0.0:8000");
 
-    tracing::info!("Listening on 127.0.0.1:8000");
+    tracing::info!("Listening on 0.0.0.0:8000 (protected by UFW — only Docker/localhost)");
 
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())

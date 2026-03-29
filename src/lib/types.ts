@@ -87,12 +87,22 @@ export interface Message {
   suggestions?: string[];
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  emoji?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Conversation {
   id: string;
   title: string;
   messages: Message[];
   createdAt: string;
   starred?: boolean;
+  projectId?: string | null;
   totalMessages?: number;
   hasMore?: boolean;
   loadingMore?: boolean;

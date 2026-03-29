@@ -12,6 +12,7 @@ pub mod completions;
 pub mod feedback;
 pub mod health;
 pub mod notifications;
+pub mod projects;
 pub mod sessions;
 pub mod telegram;
 pub mod voice;
@@ -29,6 +30,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(health::health_check))
         .nest("/api/v1/auth", auth::auth_routes())
         .nest("/api/v1/chat", chat::chat_routes())
+        .nest("/api/v1/chat/projects", projects::project_routes())
         .nest(
             "/api/v1/chat/conversations/{conv_id}/attachments",
             attachments::upload_routes()

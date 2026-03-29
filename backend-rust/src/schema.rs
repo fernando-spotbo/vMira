@@ -171,6 +171,8 @@ pub struct ConversationCreate {
 
     #[serde(default = "default_model")]
     pub model: String,
+
+    pub project_id: Option<Uuid>,
 }
 
 fn default_title() -> String {
@@ -183,6 +185,8 @@ pub struct ConversationUpdate {
     pub title: Option<String>,
     pub starred: Option<bool>,
     pub archived: Option<bool>,
+    /// Set to a project UUID to assign, or null to unassign.
+    pub project_id: Option<Option<Uuid>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -222,6 +226,8 @@ pub struct ConversationResponse {
     pub model: String,
     pub starred: bool,
     pub archived: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -233,11 +239,47 @@ pub struct ConversationWithMessages {
     pub model: String,
     pub starred: bool,
     pub archived: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub messages: Vec<MessageResponse>,
     pub total_messages: i64,
     pub has_more: bool,
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Project DTOs
+// ═══════════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ProjectCreate {
+    #[validate(length(min = 1, max = 128))]
+    pub name: String,
+
+    #[validate(length(max = 16))]
+    pub emoji: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct ProjectUpdate {
+    #[validate(length(min = 1, max = 128))]
+    pub name: Option<String>,
+
+    #[validate(length(max = 16))]
+    pub emoji: Option<String>,
+
+    pub sort_order: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProjectResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub emoji: Option<String>,
+    pub sort_order: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 // ═══════════════════════════════════════════════════════════════

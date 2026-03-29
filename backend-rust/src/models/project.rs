@@ -4,14 +4,12 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct Conversation {
+pub struct Project {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub title: String,
-    pub model: String,
-    pub starred: bool,
-    pub archived: bool,
-    pub project_id: Option<Uuid>,
+    pub name: String,
+    pub emoji: Option<String>,
+    pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

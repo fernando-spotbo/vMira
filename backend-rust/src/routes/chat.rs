@@ -73,6 +73,7 @@ fn conv_response(c: &Conversation) -> ConversationResponse {
         model: c.model.clone(),
         starred: c.starred,
         archived: c.archived,
+        project_id: c.project_id,
         created_at: c.created_at,
         updated_at: c.updated_at,
     }
@@ -216,14 +217,15 @@ async fn create_conversation(
 
     let now = Utc::now();
     let conv = sqlx::query_as::<_, Conversation>(
-        "INSERT INTO conversations (id, user_id, title, model, starred, archived, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, false, false, $5, $5)
+        "INSERT INTO conversations (id, user_id, title, model, starred, archived, project_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, false, false, $5, $6, $6)
          RETURNING *"
     )
     .bind(Uuid::new_v4())
     .bind(user.id)
     .bind(&body.title)
     .bind(&body.model)
+    .bind(body.project_id)
     .bind(now)
     .fetch_one(&state.db)
     .await?;
@@ -325,6 +327,7 @@ async fn get_conversation(
         model: conv.model,
         starred: conv.starred,
         archived: conv.archived,
+        project_id: conv.project_id,
         created_at: conv.created_at,
         updated_at: conv.updated_at,
         messages: msg_responses,
@@ -357,15 +360,20 @@ async fn update_conversation(
     let title = body.title.as_deref().unwrap_or(&conv.title);
     let starred = body.starred.unwrap_or(conv.starred);
     let archived = body.archived.unwrap_or(conv.archived);
+    let project_id = match &body.project_id {
+        Some(pid) => *pid,       // explicitly set (Some(uuid) or None/null)
+        None => conv.project_id, // not provided — keep current
+    };
 
     let updated = sqlx::query_as::<_, Conversation>(
-        "UPDATE conversations SET title = $1, starred = $2, archived = $3, updated_at = $4
-         WHERE id = $5
+        "UPDATE conversations SET title = $1, starred = $2, archived = $3, project_id = $4, updated_at = $5
+         WHERE id = $6
          RETURNING *"
     )
     .bind(title)
     .bind(starred)
     .bind(archived)
+    .bind(project_id)
     .bind(Utc::now())
     .bind(conv_id)
     .fetch_one(&state.db)

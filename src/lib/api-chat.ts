@@ -12,6 +12,16 @@ export interface ApiConversation {
   model: string;
   starred: boolean;
   archived: boolean;
+  project_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiProject {
+  id: string;
+  name: string;
+  emoji?: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -65,7 +75,7 @@ export async function fetchConversation(
   return { conversation, messages, totalMessages: total_messages, hasMore: has_more };
 }
 
-export async function updateConversation(id: string, data: { title?: string; starred?: boolean; archived?: boolean }): Promise<boolean> {
+export async function updateConversation(id: string, data: { title?: string; starred?: boolean; archived?: boolean; project_id?: string | null }): Promise<boolean> {
   const result = await apiCall(`/chat/conversations/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
@@ -225,6 +235,34 @@ export async function* streamMessage(
   } finally {
     clearInterval(timeoutChecker);
   }
+}
+
+// ---- Projects ----
+
+export async function fetchProjects(): Promise<ApiProject[]> {
+  const result = await apiCall<ApiProject[]>("/chat/projects");
+  return result.ok ? result.data : [];
+}
+
+export async function createProject(name: string, emoji?: string): Promise<ApiProject | null> {
+  const result = await apiCall<ApiProject>("/chat/projects", {
+    method: "POST",
+    body: JSON.stringify({ name, emoji: emoji || undefined }),
+  });
+  return result.ok ? result.data : null;
+}
+
+export async function updateProject(id: string, data: { name?: string; emoji?: string; sort_order?: number }): Promise<boolean> {
+  const result = await apiCall(`/chat/projects/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  return result.ok;
+}
+
+export async function deleteProject(id: string): Promise<boolean> {
+  const result = await apiCall(`/chat/projects/${id}`, { method: "DELETE" });
+  return result.ok;
 }
 
 // ── Anonymous streaming (no auth, no storage) ──

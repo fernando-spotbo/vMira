@@ -24,6 +24,15 @@ const translations: Record<string, Record<Locale, string>> = {
   "sidebar.recents": { ru: "Недавние", en: "Recents" },
   "sidebar.collapse": { ru: "Свернуть", en: "Collapse" },
 
+  // ---- Проекты ----
+  "sidebar.projects": { ru: "Проекты", en: "Projects" },
+  "sidebar.ungrouped": { ru: "Без проекта", en: "Ungrouped" },
+  "project.new": { ru: "Новый проект", en: "New project" },
+  "project.rename": { ru: "Переименовать", en: "Rename" },
+  "project.delete": { ru: "Удалить проект", en: "Delete project" },
+  "menu.moveToProject": { ru: "В проект", en: "Move to project" },
+  "menu.removeFromProject": { ru: "Убрать из проекта", en: "Remove from project" },
+
   // ---- Контекстное меню чата ----
   "menu.star": { ru: "В избранное", en: "Star" },
   "menu.unstar": { ru: "Убрать", en: "Unstar" },

@@ -10,7 +10,7 @@ import {
   useRef,
   ReactNode,
 } from "react";
-import { Conversation, Message, Attachment, MessageStep, MessageError, SearchQuery } from "@/lib/types";
+import { Conversation, Message, Attachment, MessageStep, MessageError, SearchQuery, Project } from "@/lib/types";
 import { t } from "@/lib/i18n";
 import * as chatApi from "@/lib/api-chat";
 import { getAccessToken, uploadFile } from "@/lib/api-client";
@@ -47,6 +47,13 @@ interface ChatContextType {
   cancelMessage: () => void;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
+  // Projects
+  projects: Project[];
+  createProject: (name: string, emoji?: string) => Promise<Project | null>;
+  renameProject: (id: string, name: string) => Promise<void>;
+  updateProjectEmoji: (id: string, emoji: string) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+  moveConversationToProject: (conversationId: string, projectId: string | null) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -65,17 +72,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
     [conversations, activeConversationId]
   );
 
-  // Load conversations from API on mount
+  // Load conversations and projects from API on mount
   useEffect(() => {
     if (!getAccessToken()) return;
     (async () => {
-      const convs = await chatApi.fetchConversations();
+      const [convs, projs] = await Promise.all([
+        chatApi.fetchConversations(),
+        chatApi.fetchProjects(),
+      ]);
       setConversations(
         convs.map((c) => ({
           id: c.id,
@@ -83,6 +94,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           messages: [],
           createdAt: c.created_at.split("T")[0],
           starred: c.starred,
+          projectId: c.project_id ?? null,
+        }))
+      );
+      setProjects(
+        projs.map((p) => ({
+          id: p.id,
+          name: p.name,
+          emoji: p.emoji,
+          sortOrder: p.sort_order,
+          createdAt: p.created_at,
+          updatedAt: p.updated_at,
         }))
       );
     })();
@@ -344,6 +366,42 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     },
     [conversations]
   );
+
+  // ── Project CRUD ──
+
+  const createProjectCb = useCallback(async (name: string, emoji?: string): Promise<Project | null> => {
+    const p = await chatApi.createProject(name, emoji);
+    if (!p) return null;
+    const project: Project = { id: p.id, name: p.name, emoji: p.emoji, sortOrder: p.sort_order, createdAt: p.created_at, updatedAt: p.updated_at };
+    setProjects((prev) => [...prev, project]);
+    return project;
+  }, []);
+
+  const renameProject = useCallback(async (id: string, name: string) => {
+    await chatApi.updateProject(id, { name });
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, name } : p));
+  }, []);
+
+  const updateProjectEmoji = useCallback(async (id: string, emoji: string) => {
+    await chatApi.updateProject(id, { emoji });
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, emoji } : p));
+  }, []);
+
+  const deleteProjectCb = useCallback(async (id: string) => {
+    await chatApi.deleteProject(id);
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    // Unassign all conversations from this project locally
+    setConversations((prev) => prev.map((c) => c.projectId === id ? { ...c, projectId: null } : c));
+  }, []);
+
+  const moveConversationToProject = useCallback(async (conversationId: string, projectId: string | null) => {
+    if (getAccessToken()) {
+      await chatApi.updateConversation(conversationId, { project_id: projectId });
+    }
+    setConversations((prev) =>
+      prev.map((c) => c.id === conversationId ? { ...c, projectId } : c)
+    );
+  }, []);
 
   // Cancel current streaming request
   const cancelMessage = useCallback(() => {
@@ -858,6 +916,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         queuePosition,
         showReminders,
         setShowReminders,
+        projects,
+        createProject: createProjectCb,
+        renameProject,
+        updateProjectEmoji,
+        deleteProject: deleteProjectCb,
+        moveConversationToProject,
       }}
     >
       {children}

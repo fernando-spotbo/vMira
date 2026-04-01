@@ -397,51 +397,34 @@ export default function BillingPage() {
         <div className="divide-y divide-white/[0.03]">
           {mockTransactions.slice(0, visibleCount).map((tx) => {
             const isTopup = tx.type === "topup";
-            const isRefund = tx.type === "refund";
             const isCharge = tx.type === "charge";
 
             return (
               <div
                 key={tx.id}
-                className="flex items-center gap-4 px-6 py-4 hover:bg-white/[0.02] transition-colors"
+                className="flex items-center gap-4 px-6 py-3.5 hover:bg-white/[0.02] transition-colors"
               >
-                {/* Icon */}
-                <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                    isTopup
-                      ? "bg-emerald-500/10"
-                      : isRefund
-                      ? "bg-blue-500/10"
-                      : "bg-red-500/10"
-                  }`}
-                >
-                  {isTopup && <ArrowDownLeft size={16} className="text-emerald-400" />}
-                  {isRefund && <RotateCcw size={16} className="text-blue-400" />}
-                  {isCharge && <ArrowUpRight size={16} className="text-red-400" />}
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
+                  {isTopup && <ArrowDownLeft size={15} className="text-white/50" />}
+                  {tx.type === "refund" && <RotateCcw size={15} className="text-white/50" />}
+                  {isCharge && <ArrowUpRight size={15} className="text-white/40" />}
                 </div>
 
-                {/* Description */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[14px] text-white/80 truncate">{tx.description}</p>
-                  <p className="text-[12px] text-white/30 mt-0.5">{formatDate(tx.created_at)}</p>
+                  <p className="text-[14px] text-white/70 truncate">{tx.description}</p>
+                  <p className="text-[12px] text-white/25 mt-0.5">{formatDate(tx.created_at)}</p>
                 </div>
 
-                {/* Tokens (if charge) */}
                 {tx.input_tokens !== undefined && (
                   <div className="hidden sm:block text-right mr-2">
-                    <p className="text-[11px] text-white/25 font-mono">
+                    <p className="text-[11px] text-white/20 font-mono">
                       {formatTokens(tx.input_tokens)} / {formatTokens(tx.output_tokens!)}
                     </p>
                   </div>
                 )}
 
-                {/* Amount */}
-                <div className="text-right shrink-0">
-                  <p
-                    className={`text-[14px] font-medium tabular-nums ${
-                      isCharge ? "text-red-400/80" : isRefund ? "text-blue-400/80" : "text-emerald-400/80"
-                    }`}
-                  >
+                <div className="text-right shrink-0 w-[90px]">
+                  <p className={`text-[14px] font-medium tabular-nums ${isCharge ? "text-white/40" : "text-white/80"}`}>
                     {tx.amount_rubles} &#8381;
                   </p>
                 </div>

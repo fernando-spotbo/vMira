@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import AuthModal from "@/components/AuthModal";
+import { getAccessToken } from "@/lib/api-client";
 
 function MiraLogo({ size = 32 }: { size?: number }) {
   return (
@@ -89,11 +90,13 @@ export default function AuthorizePage() {
     setErrorMsg("");
 
     try {
+      const token = getAccessToken();
       const res = await fetch("/api/proxy/auth/device/approve", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Requested-With": "XMLHttpRequest",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
         },
         credentials: "include",
         body: JSON.stringify({ user_code: formattedCode }),

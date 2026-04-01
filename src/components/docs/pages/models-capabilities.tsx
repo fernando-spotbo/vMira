@@ -313,21 +313,21 @@ function PricingPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Стоимость по моделям" : "Per-model pricing"}</H2>
       <P>
         {isRu
-          ? "Цены указаны за 1 000 токенов. Тарификация потокенная, не за запрос — вы платите только за фактически обработанные и сгенерированные токены."
-          : "Prices are per 1,000 tokens. Billing is per-token, not per-request — you only pay for tokens actually processed and generated."}
+          ? "Цены указаны за 1 миллион токенов в рублях. Тарификация потокенная, не за запрос — вы платите только за фактически обработанные и сгенерированные токены."
+          : "Prices are per 1 million tokens in rubles (₽). Billing is per-token, not per-request — you only pay for tokens actually processed and generated."}
       </P>
       <Table
         headers={[
           isRu ? "Модель" : "Model",
-          isRu ? "Ввод (за 1K)" : "Input (per 1K)",
-          isRu ? "Вывод (за 1K)" : "Output (per 1K)",
+          isRu ? "Ввод (1M токенов)" : "Input (1M tokens)",
+          isRu ? "Вывод (1M токенов)" : "Output (1M tokens)",
           isRu ? "Контекст" : "Context",
         ]}
         rows={[
-          ["mira", "0,10 ₽", "0,30 ₽", "32K"],
-          ["mira-thinking", "0,15 ₽", "0,50 ₽", "32K"],
-          ["mira-pro", "0,30 ₽", "0,90 ₽", "64K"],
-          ["mira-max", "1,50 ₽", "6,00 ₽", "128K"],
+          ["mira", "100 ₽", "300 ₽", "32K"],
+          ["mira-thinking", "150 ₽", "500 ₽", "32K"],
+          ["mira-pro", "300 ₽", "900 ₽", "64K"],
+          ["mira-max", "1 500 ₽", "6 000 ₽", "128K"],
         ]}
       />
       <Note type="info">
@@ -370,8 +370,8 @@ function PricingPage({ locale }: { locale: Locale }) {
           { label: isRu ? "Вывод" : "Output", calc: isRu ? "1 000 × 200 × 30" : "1,000 × 200 × 30", result: isRu ? "6M токенов/мес" : "6M tokens/mo" },
         ]}
         costs={[
-          { label: isRu ? "Ввод" : "Input", calc: "15 000K × 0,10 ₽", result: "1 500 ₽" },
-          { label: isRu ? "Вывод" : "Output", calc: "6 000K × 0,30 ₽", result: "1 800 ₽" },
+          { label: isRu ? "Ввод" : "Input", calc: "15M × 100 ₽/1M", result: "1 500 ₽" },
+          { label: isRu ? "Вывод" : "Output", calc: "6M × 300 ₽/1M", result: "1 800 ₽" },
         ]}
         total={isRu ? "3 300 ₽/мес" : "3,300 ₽/mo"}
       />
@@ -387,8 +387,8 @@ function PricingPage({ locale }: { locale: Locale }) {
           { label: isRu ? "Вывод" : "Output", calc: isRu ? "50 × 2 000 × 30" : "50 × 2,000 × 30", result: isRu ? "3M токенов/мес" : "3M tokens/mo" },
         ]}
         costs={[
-          { label: isRu ? "Ввод" : "Input", calc: "12 000K × 0,30 ₽", result: "3 600 ₽" },
-          { label: isRu ? "Вывод" : "Output", calc: "3 000K × 0,90 ₽", result: "2 700 ₽" },
+          { label: isRu ? "Ввод" : "Input", calc: "12M × 300 ₽/1M", result: "3 600 ₽" },
+          { label: isRu ? "Вывод" : "Output", calc: "3M × 900 ₽/1M", result: "2 700 ₽" },
         ]}
         total={isRu ? "6 300 ₽/мес" : "6,300 ₽/mo"}
       />
@@ -396,29 +396,29 @@ function PricingPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Сравнение с другими провайдерами" : "Comparison with other providers"}</H2>
       <P>
         {isRu
-          ? "Mira предлагает конкурентоспособные цены при высоком качестве моделей. Вот сравнение стоимости для моделей аналогичного класса (Mira — ₽/1K, конкуренты — $/1M):"
-          : "Mira offers competitive pricing with high model quality. Here's a comparison for models of similar class (Mira in ₽/1K, competitors in $/1M):"}
+          ? "Сравнение стоимости моделей аналогичного класса. Все цены указаны за 1M токенов."
+          : "Cost comparison for models of similar class. All prices are per 1M tokens."}
       </P>
       <Table
         headers={[
           isRu ? "Провайдер" : "Provider",
           isRu ? "Модель" : "Model",
-          isRu ? "Ввод" : "Input",
-          isRu ? "Вывод" : "Output",
+          isRu ? "Ввод / 1M" : "Input / 1M",
+          isRu ? "Вывод / 1M" : "Output / 1M",
         ]}
         rows={[
-          ["Mira", "mira", "0,10 ₽ / 1K", "0,30 ₽ / 1K"],
-          ["OpenAI", "GPT-4o mini", "$0.15 / 1M", "$0.60 / 1M"],
-          ["Mira", "mira-pro", "0,30 ₽ / 1K", "0,90 ₽ / 1K"],
-          ["OpenAI", "GPT-4o", "$2.50 / 1M", "$10.00 / 1M"],
-          ["Mira", "mira-max", "1,50 ₽ / 1K", "6,00 ₽ / 1K"],
-          ["Anthropic", "Claude Opus", "$15.00 / 1M", "$75.00 / 1M"],
+          ["Mira", "mira", "100 ₽", "300 ₽"],
+          ["OpenAI", "GPT-4o mini", "$0.15", "$0.60"],
+          ["Mira", "mira-pro", "300 ₽", "900 ₽"],
+          ["OpenAI", "GPT-4o", "$2.50", "$10.00"],
+          ["Mira", "mira-max", "1 500 ₽", "6 000 ₽"],
+          ["Anthropic", "Claude Opus", "$15.00", "$75.00"],
         ]}
       />
-      <Note type="tip">
+      <Note type="info">
         {isRu
-          ? "Mira предлагает до 5x экономию по сравнению с моделями аналогичного класса у ведущих провайдеров, сохраняя сопоставимое качество."
-          : "Mira offers up to 5x savings compared to similar-class models from leading providers while maintaining comparable quality."}
+          ? "Mira предлагает нативную оплату в рублях, размещение данных в России (152-ФЗ), а также API, совместимый с OpenAI — миграция в одну строку."
+          : "Mira offers native ruble billing, data residency in Russia (152-FZ compliance), and an OpenAI-compatible API — migrate in one line."}
       </Note>
 
       <H2>{isRu ? "Управление расходами" : "Managing costs"}</H2>
@@ -591,8 +591,8 @@ Computation steps:
       <H2>{isRu ? "Стоимость токенов мышления" : "Thinking token costs"}</H2>
       <P>
         {isRu
-          ? "Токены мышления тарифицируются по ставке выходных токенов (0,50 ₽ / 1K). Типичный запрос с мышлением использует от 200 до 2000 дополнительных токенов для цепочки рассуждений. Для простых задач стоимость мышления может превысить стоимость самого ответа, поэтому используйте mira-thinking только когда точность критически важна."
-          : "Thinking tokens are billed at the output token rate (0.50 ₽ / 1K). A typical thinking request uses between 200 and 2,000 additional tokens for the reasoning chain. For simple tasks, the thinking cost can exceed the response cost, so use mira-thinking only when accuracy is critical."}
+          ? "Токены мышления тарифицируются по ставке выходных токенов (500 ₽ / 1M). Типичный запрос с мышлением использует от 200 до 2 000 дополнительных токенов для цепочки рассуждений. Для простых задач стоимость мышления может превысить стоимость самого ответа, поэтому используйте mira-thinking только когда точность критически важна."
+          : "Thinking tokens are billed at the output token rate (500 ₽ / 1M). A typical thinking request uses between 200 and 2,000 additional tokens for the reasoning chain. For simple tasks, the thinking cost can exceed the response cost, so use mira-thinking only when accuracy is critical."}
       </P>
       <Note type="warning">
         {isRu

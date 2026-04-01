@@ -290,12 +290,12 @@ function ModelsPage({ locale }: { locale: Locale }) {
 
       <H2>{isRu ? "Цены" : "Pricing"}</H2>
       <Table
-        headers={[isRu ? "Модель" : "Model", isRu ? "Ввод (1K токенов)" : "Input (1K tokens)", isRu ? "Вывод (1K токенов)" : "Output (1K tokens)"]}
+        headers={[isRu ? "Модель" : "Model", isRu ? "Ввод (1M токенов)" : "Input (1M tokens)", isRu ? "Вывод (1M токенов)" : "Output (1M tokens)"]}
         rows={[
-          ["mira", "0,10 ₽", "0,30 ₽"],
-          ["mira-thinking", "0,15 ₽", "0,50 ₽"],
-          ["mira-pro", "0,30 ₽", "0,90 ₽"],
-          ["mira-max", "1,50 ₽", "6,00 ₽"],
+          ["mira", "100 ₽", "300 ₽"],
+          ["mira-thinking", "150 ₽", "500 ₽"],
+          ["mira-pro", "300 ₽", "900 ₽"],
+          ["mira-max", "1 500 ₽", "6 000 ₽"],
         ]}
       />
 

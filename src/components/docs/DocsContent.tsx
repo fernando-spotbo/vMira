@@ -2,98 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Copy, Check, ChevronRight, AlertTriangle, Info, Lightbulb } from "lucide-react";
+import { CodeBlock, Note, H1, H2, H3, P, DocLink, NavCards, UL, Table, InlineCode } from "./shared";
+import { buildFeaturesContent } from "./pages/build-features";
+import { buildAdvancedContent } from "./pages/build-advanced";
+import { modelsCapabilitiesContent } from "./pages/models-capabilities";
+import { apiReferenceContent } from "./pages/api-reference";
+import { miraCodeContent } from "./pages/mira-code";
+import { resourcesContent } from "./pages/resources";
 import type { Locale } from "@/lib/i18n";
 
-// ── Reusable components ─────────────────────────────────────
-
-function CodeBlock({ title, code, language }: { title?: string; code: string; language?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
-      {title && (
-        <div className="flex items-center justify-between px-5 py-3 bg-white/[0.03] border-b border-white/[0.04]">
-          <span className="text-[13px] font-medium text-white/50">{title}</span>
-          <button
-            onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className="text-white/20 hover:text-white/50 transition-colors"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </button>
-        </div>
-      )}
-      <pre className="px-5 py-4 bg-[#0f0f0f] text-[13px] font-mono text-white/70 leading-7 overflow-x-auto">
-        {code}
-      </pre>
-    </div>
-  );
-}
-
-function Note({ children, type = "info" }: { children: React.ReactNode; type?: "info" | "warning" | "tip" }) {
-  const config = {
-    info: { icon: <Info size={16} />, border: "border-blue-500/20", bg: "bg-blue-500/5", text: "text-blue-400" },
-    warning: { icon: <AlertTriangle size={16} />, border: "border-amber-500/20", bg: "bg-amber-500/5", text: "text-amber-400" },
-    tip: { icon: <Lightbulb size={16} />, border: "border-emerald-500/20", bg: "bg-emerald-500/5", text: "text-emerald-400" },
-  }[type];
-
-  return (
-    <div className={`rounded-xl border ${config.border} ${config.bg} p-4 mb-6 flex gap-3`}>
-      <span className={`${config.text} shrink-0 mt-0.5`}>{config.icon}</span>
-      <div className="text-[14px] text-white/70 leading-relaxed">{children}</div>
-    </div>
-  );
-}
-
-function ParamTable({ params }: { params: { name: string; type: string; required: boolean; desc: string }[] }) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
-      {params.map((p, i) => (
-        <div
-          key={p.name}
-          className={`grid grid-cols-[150px_80px_80px_1fr] gap-4 px-5 py-3 text-[13px] ${
-            i < params.length - 1 ? "border-b border-white/[0.03]" : ""
-          }`}
-        >
-          <code className="font-mono font-medium text-white">{p.name}</code>
-          <span className="text-white/40">{p.type}</span>
-          <span className={p.required ? "text-white" : "text-white/30"}>
-            {p.required ? "Required" : "Optional"}
-          </span>
-          <span className="text-white/50">{p.desc}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function H1({ children }: { children: React.ReactNode }) {
-  return <h1 className="text-[28px] font-bold text-white mb-3">{children}</h1>;
-}
-function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-[20px] font-bold text-white mb-4 mt-10">{children}</h2>;
-}
-function H3({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-[16px] font-semibold text-white mb-3 mt-6">{children}</h3>;
-}
-function P({ children }: { children: React.ReactNode }) {
-  return <p className="text-[15px] text-white/80 leading-[1.8] mb-4">{children}</p>;
-}
-function InlineCode({ children }: { children: React.ReactNode }) {
-  return (
-    <code className="bg-white/[0.06] border border-white/[0.06] px-1.5 py-0.5 rounded text-[13px] font-mono">
-      {children}
-    </code>
-  );
-}
-function DocLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="text-white underline underline-offset-2 decoration-white/30 hover:decoration-white/60 transition-colors">
-      {children}
-    </Link>
-  );
-}
-
-// ── Content pages ───────────────────────────────────────────
+// ── Existing content pages ──────────────────────────────────
 
 function IntroductionPage({ locale }: { locale: Locale }) {
   if (locale === "ru") {
@@ -110,28 +28,20 @@ function IntroductionPage({ locale }: { locale: Locale }) {
           Мира обучена понимать контекст, следовать сложным инструкциям и генерировать
           полезные, точные ответы. Вот основные возможности:
         </P>
-        <ul className="list-disc pl-6 mb-6 space-y-2 text-[15px] text-white/80 leading-relaxed">
-          <li><strong className="text-white">Генерация и анализ кода</strong> — написание, отладка, рефакторинг на множестве языков программирования</li>
-          <li><strong className="text-white">Мультиязычность</strong> — свободное общение на русском, английском и других языках</li>
-          <li><strong className="text-white">Анализ изображений</strong> — понимание и описание визуального контента</li>
-          <li><strong className="text-white">Расширенное мышление</strong> — пошаговое решение сложных задач с цепочкой рассуждений</li>
-          <li><strong className="text-white">Использование инструментов</strong> — вызов функций и интеграция с внешними сервисами</li>
-          <li><strong className="text-white">Длинный контекст</strong> — обработка объёмных документов и кодовых баз</li>
-        </ul>
+        <UL items={[
+          { bold: "Генерация и анализ кода", text: "написание, отладка, рефакторинг на множестве языков программирования" },
+          { bold: "Мультиязычность", text: "свободное общение на русском, английском и других языках" },
+          { bold: "Анализ изображений", text: "понимание и описание визуального контента" },
+          { bold: "Расширенное мышление", text: "пошаговое решение сложных задач с цепочкой рассуждений" },
+          { bold: "Использование инструментов", text: "вызов функций и интеграция с внешними сервисами" },
+          { bold: "Длинный контекст", text: "обработка объёмных документов и кодовых баз" },
+        ]} />
         <H2>Начало работы</H2>
-        <P>
-          Готовы начать? Выберите подходящий путь:
-        </P>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <Link href="/docs/quickstart" className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all">
-            <h3 className="text-[15px] font-medium text-white mb-1">Быстрый старт API</h3>
-            <p className="text-[13px] text-white/40">Сделайте первый запрос за минуты</p>
-          </Link>
-          <Link href="/docs/mira-code/getting-started" className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all">
-            <h3 className="text-[15px] font-medium text-white mb-1">Mira Code CLI</h3>
-            <p className="text-[13px] text-white/40">Кодирование с ИИ в терминале</p>
-          </Link>
-        </div>
+        <P>Готовы начать? Выберите подходящий путь:</P>
+        <NavCards cards={[
+          { href: "/docs/quickstart", title: "Быстрый старт API", desc: "Сделайте первый запрос за минуты" },
+          { href: "/docs/mira-code/getting-started", title: "Mira Code CLI", desc: "Кодирование с ИИ в терминале" },
+        ]} />
       </>
     );
   }
@@ -148,28 +58,20 @@ function IntroductionPage({ locale }: { locale: Locale }) {
         Mira is trained to understand context, follow complex instructions, and generate
         helpful, accurate responses. Here are its core capabilities:
       </P>
-      <ul className="list-disc pl-6 mb-6 space-y-2 text-[15px] text-white/80 leading-relaxed">
-        <li><strong className="text-white">Code generation and analysis</strong> — write, debug, refactor across many programming languages</li>
-        <li><strong className="text-white">Multilingual</strong> — fluent in Russian, English, and other languages</li>
-        <li><strong className="text-white">Image understanding</strong> — analyze and describe visual content</li>
-        <li><strong className="text-white">Extended thinking</strong> — step-by-step reasoning for complex problems</li>
-        <li><strong className="text-white">Tool use</strong> — call functions and integrate with external services</li>
-        <li><strong className="text-white">Long context</strong> — process large documents and codebases</li>
-      </ul>
+      <UL items={[
+        { bold: "Code generation and analysis", text: "write, debug, refactor across many programming languages" },
+        { bold: "Multilingual", text: "fluent in Russian, English, and other languages" },
+        { bold: "Image understanding", text: "analyze and describe visual content" },
+        { bold: "Extended thinking", text: "step-by-step reasoning for complex problems" },
+        { bold: "Tool use", text: "call functions and integrate with external services" },
+        { bold: "Long context", text: "process large documents and codebases" },
+      ]} />
       <H2>Get started</H2>
-      <P>
-        Ready to begin? Choose your path:
-      </P>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Link href="/docs/quickstart" className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all">
-          <h3 className="text-[15px] font-medium text-white mb-1">API quickstart</h3>
-          <p className="text-[13px] text-white/40">Make your first API call in minutes</p>
-        </Link>
-        <Link href="/docs/mira-code/getting-started" className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all">
-          <h3 className="text-[15px] font-medium text-white mb-1">Mira Code CLI</h3>
-          <p className="text-[13px] text-white/40">AI-powered coding in your terminal</p>
-        </Link>
-      </div>
+      <P>Ready to begin? Choose your path:</P>
+      <NavCards cards={[
+        { href: "/docs/quickstart", title: "API quickstart", desc: "Make your first API call in minutes" },
+        { href: "/docs/mira-code/getting-started", title: "Mira Code CLI", desc: "AI-powered coding in your terminal" },
+      ]} />
     </>
   );
 }
@@ -265,6 +167,46 @@ const data = await response.json();
 console.log(data.choices[0].message.content);`}
       />
 
+      <H3>{isRu ? "Использование OpenAI SDK" : "Using the OpenAI SDK"}</H3>
+      <P>
+        {isRu
+          ? "Поскольку API Мира совместим с OpenAI, вы можете использовать официальный OpenAI SDK, просто изменив базовый URL:"
+          : "Since the Mira API is OpenAI-compatible, you can use the official OpenAI SDK by simply changing the base URL:"
+        }
+      </P>
+      <CodeBlock
+        title="Python (OpenAI SDK)"
+        code={`from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-mira-YOUR_API_KEY",
+    base_url="https://api.vmira.ai/v1"
+)
+
+response = client.chat.completions.create(
+    model="mira",
+    messages=[{"role": "user", "content": "${isRu ? "Привет!" : "Hello!"}"}]
+)
+
+print(response.choices[0].message.content)`}
+      />
+      <CodeBlock
+        title="JavaScript (OpenAI SDK)"
+        code={`import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: "sk-mira-YOUR_API_KEY",
+  baseURL: "https://api.vmira.ai/v1",
+});
+
+const response = await client.chat.completions.create({
+  model: "mira",
+  messages: [{ role: "user", content: "${isRu ? "Привет!" : "Hello!"}" }],
+});
+
+console.log(response.choices[0].message.content);`}
+      />
+
       <H2>{isRu ? "Ответ API" : "API response"}</H2>
       <P>{isRu ? "Успешный ответ выглядит так:" : "A successful response looks like this:"}</P>
       <CodeBlock
@@ -293,16 +235,11 @@ console.log(data.choices[0].message.content);`}
       />
 
       <H2>{isRu ? "Следующие шаги" : "Next steps"}</H2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Link href="/docs/models" className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all">
-          <h3 className="text-[15px] font-medium text-white mb-1">{isRu ? "Обзор моделей" : "Models overview"}</h3>
-          <p className="text-[13px] text-white/40">{isRu ? "Сравните модели и выберите подходящую" : "Compare models and choose the right one"}</p>
-        </Link>
-        <Link href="/docs/streaming" className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all">
-          <h3 className="text-[15px] font-medium text-white mb-1">{isRu ? "Потоковые ответы" : "Streaming"}</h3>
-          <p className="text-[13px] text-white/40">{isRu ? "Получайте ответы в реальном времени" : "Get responses in real-time"}</p>
-        </Link>
-      </div>
+      <NavCards cards={[
+        { href: "/docs/models", title: isRu ? "Обзор моделей" : "Models overview", desc: isRu ? "Сравните модели и выберите подходящую" : "Compare models and choose the right one" },
+        { href: "/docs/streaming", title: isRu ? "Потоковые ответы" : "Streaming", desc: isRu ? "Получайте ответы в реальном времени" : "Get responses in real-time" },
+        { href: "/docs/sdks", title: isRu ? "SDK и библиотеки" : "SDKs and libraries", desc: isRu ? "Интеграция с вашим языком программирования" : "Integrate with your programming language" },
+      ]} />
     </>
   );
 }
@@ -320,27 +257,15 @@ function ModelsPage({ locale }: { locale: Locale }) {
       </P>
 
       <H2>{isRu ? "Текущие модели" : "Current models"}</H2>
-      <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
-        <div className="grid grid-cols-4 gap-4 px-5 py-3 bg-white/[0.03] border-b border-white/[0.04] text-[12px] font-medium text-white/40 uppercase tracking-wider">
-          <span>{isRu ? "Модель" : "Model"}</span>
-          <span>{isRu ? "Описание" : "Description"}</span>
-          <span>{isRu ? "Контекст" : "Context"}</span>
-          <span>{isRu ? "Макс. вывод" : "Max output"}</span>
-        </div>
-        {[
-          { model: "mira", desc: isRu ? "Универсальная модель для большинства задач" : "General-purpose model for most tasks", ctx: "32K", out: "4K" },
-          { model: "mira-thinking", desc: isRu ? "Расширенное мышление для сложных задач" : "Extended thinking for complex tasks", ctx: "32K", out: "8K" },
-          { model: "mira-pro", desc: isRu ? "Продвинутая модель для профессионального использования" : "Advanced model for professional use", ctx: "64K", out: "8K" },
-          { model: "mira-max", desc: isRu ? "Самая мощная модель с максимальным контекстом" : "Most capable model with maximum context", ctx: "128K", out: "16K" },
-        ].map((m, i, arr) => (
-          <div key={m.model} className={`grid grid-cols-4 gap-4 px-5 py-4 text-[14px] ${i < arr.length - 1 ? "border-b border-white/[0.03]" : ""}`}>
-            <code className="font-mono font-medium text-white">{m.model}</code>
-            <span className="text-white/50">{m.desc}</span>
-            <span className="text-white/40">{m.ctx}</span>
-            <span className="text-white/40">{m.out}</span>
-          </div>
-        ))}
-      </div>
+      <Table
+        headers={[isRu ? "Модель" : "Model", isRu ? "Описание" : "Description", isRu ? "Контекст" : "Context", isRu ? "Макс. вывод" : "Max output"]}
+        rows={[
+          ["mira", isRu ? "Универсальная модель для большинства задач" : "General-purpose model for most tasks", "32K", "4K"],
+          ["mira-thinking", isRu ? "Расширенное мышление для сложных задач" : "Extended thinking for complex tasks", "32K", "8K"],
+          ["mira-pro", isRu ? "Продвинутая модель для профессионального использования" : "Advanced model for professional use", "64K", "8K"],
+          ["mira-max", isRu ? "Самая мощная модель с максимальным контекстом" : "Most capable model with maximum context", "128K", "16K"],
+        ]}
+      />
 
       <Note type="tip">
         {isRu
@@ -356,27 +281,29 @@ function ModelsPage({ locale }: { locale: Locale }) {
           : "If you're unsure which model to use, start with mira for most tasks. For tasks requiring deep reasoning, use mira-thinking."
         }
       </P>
+      <UL items={[
+        { bold: "mira", text: isRu ? "Лучший баланс скорости и качества. Идеален для чатов, генерации контента, простых задач кодирования." : "Best balance of speed and quality. Ideal for chat, content generation, simple coding tasks." },
+        { bold: "mira-thinking", text: isRu ? "Рассуждает шаг за шагом. Лучше для математики, логики, сложного анализа." : "Reasons step by step. Better for math, logic, complex analysis." },
+        { bold: "mira-pro", text: isRu ? "Профессиональный уровень. Для корпоративных задач, длинных документов, сложного кодирования." : "Professional grade. For enterprise tasks, long documents, complex coding." },
+        { bold: "mira-max", text: isRu ? "Максимальные возможности. Для самых сложных задач, огромных кодовых баз, исследований." : "Maximum capabilities. For the most complex tasks, large codebases, research." },
+      ]} />
 
       <H2>{isRu ? "Цены" : "Pricing"}</H2>
-      <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
-        <div className="grid grid-cols-3 gap-4 px-5 py-3 bg-white/[0.03] border-b border-white/[0.04] text-[12px] font-medium text-white/40 uppercase tracking-wider">
-          <span>{isRu ? "Модель" : "Model"}</span>
-          <span>{isRu ? "Ввод" : "Input"}</span>
-          <span>{isRu ? "Вывод" : "Output"}</span>
-        </div>
-        {[
-          { model: "mira", input: "$0.50 / 1M tokens", output: "$1.50 / 1M tokens" },
-          { model: "mira-thinking", input: "$1.00 / 1M tokens", output: "$3.00 / 1M tokens" },
-          { model: "mira-pro", input: "$2.00 / 1M tokens", output: "$6.00 / 1M tokens" },
-          { model: "mira-max", input: "$5.00 / 1M tokens", output: "$15.00 / 1M tokens" },
-        ].map((m, i, arr) => (
-          <div key={m.model} className={`grid grid-cols-3 gap-4 px-5 py-4 text-[14px] ${i < arr.length - 1 ? "border-b border-white/[0.03]" : ""}`}>
-            <code className="font-mono font-medium text-white">{m.model}</code>
-            <span className="text-white/40">{m.input}</span>
-            <span className="text-white/40">{m.output}</span>
-          </div>
-        ))}
-      </div>
+      <Table
+        headers={[isRu ? "Модель" : "Model", isRu ? "Ввод" : "Input", isRu ? "Вывод" : "Output"]}
+        rows={[
+          ["mira", "$0.50 / 1M tokens", "$1.50 / 1M tokens"],
+          ["mira-thinking", "$1.00 / 1M tokens", "$3.00 / 1M tokens"],
+          ["mira-pro", "$2.00 / 1M tokens", "$6.00 / 1M tokens"],
+          ["mira-max", "$5.00 / 1M tokens", "$15.00 / 1M tokens"],
+        ]}
+      />
+
+      <H2>{isRu ? "Следующие шаги" : "Next steps"}</H2>
+      <NavCards cards={[
+        { href: "/docs/choosing-a-model", title: isRu ? "Как выбрать модель" : "Choosing a model", desc: isRu ? "Подробное руководство по выбору" : "Detailed guide to model selection" },
+        { href: "/docs/pricing", title: isRu ? "Подробные цены" : "Detailed pricing", desc: isRu ? "Тарифные планы и калькулятор стоимости" : "Pricing tiers and cost calculator" },
+      ]} />
     </>
   );
 }
@@ -415,16 +342,35 @@ function ApiOverviewPage({ locale }: { locale: Locale }) {
         }
       </Note>
 
+      <H2>{isRu ? "OpenAI-совместимость" : "OpenAI compatibility"}</H2>
+      <P>
+        {isRu
+          ? "API Мира полностью совместим с форматом OpenAI. Если вы уже используете OpenAI SDK, достаточно изменить базовый URL и API-ключ:"
+          : "The Mira API is fully compatible with the OpenAI format. If you're already using the OpenAI SDK, just change the base URL and API key:"
+        }
+      </P>
+      <CodeBlock
+        title={isRu ? "Миграция с OpenAI" : "Migration from OpenAI"}
+        code={`# ${isRu ? "Было (OpenAI)" : "Before (OpenAI)"}
+OPENAI_API_KEY=sk-xxx
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# ${isRu ? "Стало (Мира)" : "After (Mira)"}
+OPENAI_API_KEY=sk-mira-xxx
+OPENAI_BASE_URL=https://api.vmira.ai/v1`}
+      />
+
       <H2>{isRu ? "Доступные эндпоинты" : "Available endpoints"}</H2>
       <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
         {[
           { method: "POST", path: "/v1/chat/completions", desc: isRu ? "Создать завершение чата" : "Create a chat completion" },
           { method: "GET", path: "/api/v1/models", desc: isRu ? "Список доступных моделей" : "List available models" },
+          { method: "POST", path: "/v1/embeddings", desc: isRu ? "Создать эмбеддинги текста" : "Create text embeddings" },
           { method: "POST", path: "/api/v1/api-keys", desc: isRu ? "Создать API-ключ" : "Create an API key" },
           { method: "GET", path: "/api/v1/auth/me/usage", desc: isRu ? "Получить данные об использовании" : "Get usage data" },
         ].map((e, i, arr) => (
           <div key={e.path} className={`flex items-center gap-4 px-5 py-3.5 text-[14px] ${i < arr.length - 1 ? "border-b border-white/[0.03]" : ""}`}>
-            <span className="text-[12px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">{e.method}</span>
+            <span className={`text-[12px] font-mono font-bold px-2 py-0.5 rounded ${e.method === "GET" ? "text-blue-400 bg-blue-500/10" : "text-emerald-400 bg-emerald-500/10"}`}>{e.method}</span>
             <code className="font-mono text-white/70">{e.path}</code>
             <span className="text-white/40 ml-auto">{e.desc}</span>
           </div>
@@ -438,26 +384,29 @@ function ApiOverviewPage({ locale }: { locale: Locale }) {
           : "Rate limits are applied per API key. If you exceed the limit, requests will return a 429 status code."
         }
       </P>
-      <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
-        {[
-          { tier: isRu ? "Бесплатный" : "Free", limit: isRu ? "20 запросов/день" : "20 requests/day" },
-          { tier: "Pro", limit: isRu ? "500 запросов/день" : "500 requests/day" },
-          { tier: "Max", limit: isRu ? "Без ограничений" : "Unlimited" },
-        ].map((r, i, arr) => (
-          <div key={r.tier} className={`grid grid-cols-2 gap-4 px-5 py-3.5 text-[14px] ${i < arr.length - 1 ? "border-b border-white/[0.03]" : ""}`}>
-            <span className="font-medium text-white">{r.tier}</span>
-            <span className="text-white/50">{r.limit}</span>
-          </div>
-        ))}
-      </div>
+      <Table
+        headers={[isRu ? "Тарифный план" : "Tier", isRu ? "Лимит" : "Limit"]}
+        rows={[
+          [isRu ? "Бесплатный" : "Free", isRu ? "20 запросов/день" : "20 requests/day"],
+          ["Pro", isRu ? "500 запросов/день" : "500 requests/day"],
+          ["Max", isRu ? "Без ограничений" : "Unlimited"],
+        ]}
+      />
+
+      <H2>{isRu ? "Следующие шаги" : "Next steps"}</H2>
+      <NavCards cards={[
+        { href: "/docs/api/authentication", title: isRu ? "Аутентификация" : "Authentication", desc: isRu ? "Подробнее о ключах и авторизации" : "Learn more about keys and authorization" },
+        { href: "/docs/api/chat-completions", title: isRu ? "Chat Completions" : "Chat Completions", desc: isRu ? "Полная документация эндпоинта" : "Full endpoint documentation" },
+        { href: "/docs/sdks", title: isRu ? "SDK и библиотеки" : "SDKs and libraries", desc: isRu ? "Интеграция с вашим языком" : "Integrate with your language" },
+      ]} />
     </>
   );
 }
 
-// Placeholder for pages that aren't fully written yet
+// ── Placeholder for pages not yet written ───────────────────
+
 function PlaceholderPage({ slug, locale }: { slug: string; locale: Locale }) {
   const isRu = locale === "ru";
-  // Find title from nav
   const { docsNav } = require("@/lib/docs/navigation");
   let title = slug;
   for (const section of docsNav) {
@@ -487,13 +436,23 @@ function PlaceholderPage({ slug, locale }: { slug: string; locale: Locale }) {
   );
 }
 
-// ── Main content router ─────────────────────────────────────
+// ── Content map — merge all section maps ────────────────────
 
-const contentMap: Record<string, React.FC<{ locale: Locale }>> = {
+const coreContent: Record<string, React.FC<{ locale: Locale }>> = {
   "introduction": IntroductionPage,
   "quickstart": QuickstartPage,
   "models": ModelsPage,
   "api/overview": ApiOverviewPage,
+};
+
+const contentMap: Record<string, React.FC<{ locale: Locale }>> = {
+  ...coreContent,
+  ...buildFeaturesContent,
+  ...buildAdvancedContent,
+  ...modelsCapabilitiesContent,
+  ...apiReferenceContent,
+  ...miraCodeContent,
+  ...resourcesContent,
 };
 
 export function DocsContent({ slug, locale }: { slug: string; locale: Locale }) {

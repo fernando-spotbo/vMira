@@ -227,7 +227,7 @@ export default function AuthorizePage() {
 
           {/* Code input */}
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-center gap-1.5" onPaste={handlePaste}>
+            <div className="flex items-center justify-center gap-1" onPaste={handlePaste}>
               {code.map((char, i) => (
                 <div key={i} className="flex items-center">
                   <input
@@ -237,11 +237,11 @@ export default function AuthorizePage() {
                     value={char}
                     onChange={(e) => handleInput(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
-                    className="w-10 h-12 text-center text-lg font-mono font-semibold bg-white/[0.04] border border-white/[0.08] rounded-lg text-white focus:border-white/[0.2] focus:bg-white/[0.06] focus:shadow-[0_0_0_3px_rgba(255,255,255,0.04)] outline-none transition-all duration-200"
+                    className="w-8 h-10 text-center text-[15px] font-mono font-semibold bg-white/[0.04] border border-white/[0.08] rounded-md text-white focus:border-white/[0.2] focus:bg-white/[0.06] focus:shadow-[0_0_0_3px_rgba(255,255,255,0.04)] outline-none transition-all duration-200"
                     autoCapitalize="characters"
                   />
                   {i === 3 && (
-                    <span className="text-white/20 text-xl font-light mx-1">-</span>
+                    <span className="text-white/15 text-base font-light mx-0.5">-</span>
                   )}
                 </div>
               ))}

@@ -105,7 +105,6 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "rgba(255,255,255,0.5)"; e.currentTarget.style.background = "transparent"; }}}
                 >
                   {i(tab.title)}
-                  {tab.slug === "mira-code/getting-started" && "  ↗"}
                 </Link>
               );
             })}

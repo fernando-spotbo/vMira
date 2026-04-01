@@ -70,7 +70,6 @@ function DocCard({ card, locale, warm }: { card: HomeCard; locale: Locale; warm?
       </div>
       <h3 style={{ fontSize: 15, fontWeight: 500, color: "#fff", marginBottom: 6, letterSpacing: "-0.01em" }}>
         {i(card.title)}
-        {card.slug.startsWith("mira-code/") && <span style={{ opacity: 0.4 }}>&nbsp;&nbsp;↗</span>}
       </h3>
       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.55, fontWeight: 300 }}>
         {i(card.description)}

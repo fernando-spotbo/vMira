@@ -508,7 +508,7 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
 
   src/components/UserList.tsx:
   ✓ Clean implementation
-  💡 Consider memoizing the filter callback (line 18)
+  * Consider memoizing the filter callback (line 18)
 
   Summary: 2 warnings, 1 suggestion, no critical issues.`} language="text" />
 

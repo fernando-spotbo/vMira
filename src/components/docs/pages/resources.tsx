@@ -1030,14 +1030,14 @@ function GlossaryPage({ locale }: { locale: Locale }) {
             className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-5 hover:bg-white/[0.03] transition-colors"
           >
             <div className="flex items-baseline gap-3 mb-2">
-              <h3 className="text-[16px] font-semibold text-white font-mono">
+              <h3 className="text-[16px] font-medium text-white font-mono">
                 {isRu ? t.termRu : t.term}
               </h3>
               {isRu && (
-                <span className="text-[12px] text-white/30 font-mono">{t.term}</span>
+                <span className="text-[14px] text-white/30 font-mono">{t.term}</span>
               )}
             </div>
-            <p className="text-[14px] text-white/70 leading-relaxed">
+            <p className="text-[15px] text-white/70 leading-relaxed">
               {isRu ? t.defRu : t.def}
             </p>
           </div>

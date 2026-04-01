@@ -642,48 +642,48 @@ for model in models["data"]:
         code={`const response = await fetch("https://api.vmira.ai/api/v1/models");
 const models = await response.json();
 
-for (const model of models.data) {
+for (const model of models.models) {
   console.log(\`\${model.id} — context: \${model.context_window}, max output: \${model.max_output_tokens}\`);
-}`}
+}
+console.log("Default model:", models.default);`}
       />
 
       <H2>{isRu ? "Формат ответа" : "Response format"}</H2>
       <CodeBlock
         title="JSON"
         code={`{
-  "object": "list",
-  "data": [
+  "default": "mira",
+  "models": [
     {
       "id": "mira",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "vmira",
+      "name": "Mira",
+      "description": "General-purpose assistant",
       "context_window": 32768,
       "max_output_tokens": 4096
     },
     {
       "id": "mira-thinking",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "vmira",
+      "name": "Mira Thinking",
+      "description": "Extended reasoning for complex tasks",
       "context_window": 32768,
-      "max_output_tokens": 8192
+      "max_output_tokens": 8192,
+      "requires_plan": "pro"
     },
     {
       "id": "mira-pro",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "vmira",
+      "name": "Mira Pro",
+      "description": "Advanced model for professional use",
       "context_window": 65536,
-      "max_output_tokens": 8192
+      "max_output_tokens": 8192,
+      "requires_plan": "pro"
     },
     {
       "id": "mira-max",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "vmira",
+      "name": "Mira Max",
+      "description": "Most capable model with maximum context",
       "context_window": 131072,
-      "max_output_tokens": 16384
+      "max_output_tokens": 16384,
+      "requires_plan": "max"
     }
   ]
 }`}
@@ -692,11 +692,11 @@ for (const model of models.data) {
       <H2>{isRu ? "Поля объекта модели" : "Model object fields"}</H2>
       <ParamTable params={[
         { name: "id", type: "string", required: true, desc: isRu ? "Уникальный идентификатор модели, используемый в запросах к API" : "Unique model identifier used in API requests" },
-        { name: "object", type: "string", required: true, desc: isRu ? "Тип объекта, всегда \"model\"" : "Object type, always \"model\"" },
-        { name: "created", type: "integer", required: true, desc: isRu ? "Unix-временная метка создания модели" : "Unix timestamp of model creation" },
-        { name: "owned_by", type: "string", required: true, desc: isRu ? "Организация-владелец модели (\"vmira\")" : "Organization that owns the model (\"vmira\")" },
+        { name: "name", type: "string", required: true, desc: isRu ? "Отображаемое имя модели" : "Display name of the model" },
+        { name: "description", type: "string", required: true, desc: isRu ? "Краткое описание модели и её возможностей" : "Brief description of the model and its capabilities" },
         { name: "context_window", type: "integer", required: true, desc: isRu ? "Максимальное количество токенов в контекстном окне" : "Maximum number of tokens in the context window" },
         { name: "max_output_tokens", type: "integer", required: true, desc: isRu ? "Максимальное количество токенов в ответе модели" : "Maximum number of tokens in the model's response" },
+        { name: "requires_plan", type: "string", required: false, desc: isRu ? "Минимальный тарифный план для доступа к модели (\"pro\" или \"max\")" : "Minimum plan required to access the model (\"pro\" or \"max\")" },
       ]} />
 
       <H2>{isRu ? "Сравнение моделей" : "Model comparison"}</H2>
@@ -1099,8 +1099,8 @@ function RateLimitsPage({ locale }: { locale: Locale }) {
         ]}
         rows={[
           [isRu ? "Бесплатный (Free)" : "Free", "20", "5", isRu ? "Бесплатно" : "Free"],
-          ["Pro", "500", "30", "$9.99 / " + (isRu ? "мес" : "mo")],
-          ["Max", isRu ? "Без лимита" : "Unlimited", "120", "$29.99 / " + (isRu ? "мес" : "mo")],
+          ["Pro", "500", "30", "199 ₽ / " + (isRu ? "мес" : "mo")],
+          ["Max", isRu ? "Без лимита" : "Unlimited", "120", "990 ₽ / " + (isRu ? "мес" : "mo")],
         ]}
       />
 

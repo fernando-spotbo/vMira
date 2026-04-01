@@ -61,9 +61,9 @@ export default function UsagePage() {
           <span>Tier</span><span>Price</span><span>Notes</span>
         </div>
         {[
-          { tier: "Standard", price: "300 RUB / 1M tokens", note: "~$3.15 USD" },
-          { tier: "Batch", price: "150 RUB / 1M tokens", note: "Async, lower priority" },
-          { tier: "Free trial", price: "Free", note: "100K tokens for new accounts" },
+          { tier: "Standard", price: "0,10–6,00 ₽ / 1K токенов", note: "Зависит от модели" },
+          { tier: "Batch", price: "50% от стандартной цены", note: "Асинхронно, ниже приоритет" },
+          { tier: "Free trial", price: "Бесплатно", note: "100K токенов для новых аккаунтов" },
         ].map((r) => (
           <div key={r.tier} className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-white/[0.03] last:border-0 text-[14px]">
             <span className="font-medium text-white">{r.tier}</span>

@@ -27,15 +27,10 @@ export function CodeBlock({ title, code, language }: { title?: string; code: str
 }
 
 export function Note({ children, type = "info" }: { children: React.ReactNode; type?: "info" | "warning" | "tip" }) {
-  const config = {
-    info: { icon: <Info size={16} />, border: "border-blue-500/20", bg: "bg-blue-500/5", text: "text-blue-400" },
-    warning: { icon: <AlertTriangle size={16} />, border: "border-amber-500/20", bg: "bg-amber-500/5", text: "text-amber-400" },
-    tip: { icon: <Lightbulb size={16} />, border: "border-emerald-500/20", bg: "bg-emerald-500/5", text: "text-emerald-400" },
-  }[type];
-
+  const icons = { info: <Info size={16} />, warning: <AlertTriangle size={16} />, tip: <Lightbulb size={16} /> };
   return (
-    <div className={`rounded-xl border ${config.border} ${config.bg} p-4 mb-6 flex gap-3`}>
-      <span className={`${config.text} shrink-0 mt-0.5`}>{config.icon}</span>
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 mb-6 flex gap-3">
+      <span className="text-white/40 shrink-0 mt-0.5">{icons[type]}</span>
       <div className="text-[14px] text-white/70 leading-relaxed">{children}</div>
     </div>
   );
@@ -64,13 +59,13 @@ export function ParamTable({ params }: { params: { name: string; type: string; r
 }
 
 export function H1({ children }: { children: React.ReactNode }) {
-  return <h1 className="text-[28px] font-bold text-white mb-3">{children}</h1>;
+  return <h1 className="text-[24px] font-medium text-white mb-3">{children}</h1>;
 }
 export function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-[20px] font-bold text-white mb-4 mt-10">{children}</h2>;
+  return <h2 className="text-[18px] font-medium text-white mb-4 mt-10">{children}</h2>;
 }
 export function H3({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-[16px] font-semibold text-white mb-3 mt-6">{children}</h3>;
+  return <h3 className="text-[15px] font-medium text-white mb-3 mt-6">{children}</h3>;
 }
 export function P({ children }: { children: React.ReactNode }) {
   return <p className="text-[15px] text-white/80 leading-[1.8] mb-4">{children}</p>;
@@ -131,10 +126,9 @@ export function Table({ headers, rows }: { headers: string[]; rows: string[][] }
 }
 
 export function EndpointRow({ method, path, desc }: { method: string; path: string; desc: string }) {
-  const color = method === "GET" ? "text-blue-400 bg-blue-500/10" : method === "POST" ? "text-emerald-400 bg-emerald-500/10" : method === "DELETE" ? "text-red-400 bg-red-500/10" : "text-amber-400 bg-amber-500/10";
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 text-[14px] border-b border-white/[0.03] last:border-b-0">
-      <span className={`text-[12px] font-mono font-bold ${color} px-2 py-0.5 rounded`}>{method}</span>
+      <span className="text-[12px] font-mono font-medium text-white/60 bg-white/[0.06] px-2 py-0.5 rounded">{method}</span>
       <code className="font-mono text-white/70">{path}</code>
       <span className="text-white/40 ml-auto">{desc}</span>
     </div>

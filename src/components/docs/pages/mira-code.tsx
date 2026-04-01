@@ -130,8 +130,8 @@ mira`}
       />
       <Note type="info">
         {isRu
-          ? "Ваш токен аутентификации сохраняется локально в ~/.mira/auth.json. Повторная аутентификация не потребуется до истечения срока действия токена."
-          : "Your authentication token is stored locally in ~/.mira/auth.json. You will not need to re-authenticate until the token expires."}
+          ? "Ваш API-ключ сохраняется локально в ~/.mira.json. Повторная аутентификация не потребуется до истечения срока действия ключа."
+          : "Your API key is stored locally in ~/.mira.json. You will not need to re-authenticate until the key expires."}
       </Note>
 
       <H2>{isRu ? "Базовое использование" : "Basic Usage"}</H2>
@@ -266,11 +266,11 @@ export MIRA_API_URL="https://api.vmira.ai"`}
       <H3>{isRu ? "Глобальная конфигурация" : "Global Configuration"}</H3>
       <P>
         {isRu
-          ? "Глобальная конфигурация хранится в ~/.mira/config.json и применяется ко всем проектам:"
-          : "Global configuration is stored at ~/.mira/config.json and applies to all projects:"}
+          ? "Глобальная конфигурация хранится в ~/.mira.json и применяется ко всем проектам:"
+          : "Global configuration is stored at ~/.mira.json and applies to all projects:"}
       </P>
       <CodeBlock
-        title="~/.mira/config.json"
+        title="~/.mira.json"
         code={`{
   "model": "mira",
   "apiKey": "your-api-key",
@@ -288,24 +288,19 @@ export MIRA_API_URL="https://api.vmira.ai"`}
       <H3>{isRu ? "Конфигурация проекта" : "Project Configuration"}</H3>
       <P>
         {isRu
-          ? "Конфигурация проекта хранится в .mira.json в корне проекта и переопределяет глобальные настройки:"
-          : "Project configuration is stored at .mira.json in the project root and overrides global settings:"}
+          ? "Настройки проекта хранятся в .mira/settings.json в корне проекта и переопределяют глобальные настройки:"
+          : "Project settings are stored at .mira/settings.json in the project root and override global settings:"}
       </P>
       <CodeBlock
-        title=".mira.json"
+        title=".mira/settings.json"
         code={`{
-  "model": "mira-pro",
-  "maxTokens": 8192,
   "permissions": {
-    "fileRead": "auto",
-    "fileWrite": "auto",
-    "commandExecution": "ask"
+    "allow": ["Read", "Edit", "Write", "Bash(npm test:*)"],
+    "deny": ["Bash(rm *)"]
   },
-  "ignore": [
-    "node_modules",
-    ".env",
-    "dist"
-  ]
+  "env": {
+    "MIRA_MODEL": "mira-pro"
+  }
 }`}
         language="json"
       />
@@ -524,7 +519,7 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
   ✓ Bug fixed.`} language="text" />
 
       <H3>/init</H3>
-      <P>{isRu ? "Создаёт файл конфигурации .mira.json в корне текущего проекта с оптимальными настройками." : "Creates a .mira.json configuration file in the current project root with optimal settings."}</P>
+      <P>{isRu ? "Анализирует ваш проект и создаёт MIRA.md с инструкциями для Mira Code, а также .mira/settings.json по необходимости." : "Analyzes your project and creates a MIRA.md with instructions for Mira Code, plus .mira/settings.json as needed."}</P>
       <CodeBlock title="/init" code={`> /init
 
   Creating project configuration...
@@ -534,8 +529,8 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
   - Language: TypeScript
   - Package manager: pnpm
 
-  Created: .mira.json
-  ✓ Project configuration initialized.`} language="text" />
+  Created: MIRA.md
+  ✓ Project initialized.`} language="text" />
 
       <H2>{isRu ? "Горячие клавиши" : "Keyboard Shortcuts"}</H2>
       <P>
@@ -584,17 +579,18 @@ function MiraCodeConfigPage({ locale }: { locale: Locale }) {
       </P>
       <CodeBlock
         title={isRu ? "Порядок приоритета" : "Precedence order"}
-        code={`1. CLI flags          (--model mira-pro)
-2. Environment vars   (MIRA_MODEL=mira-pro)
-3. Project config     (.mira.json)
-4. Global config      (~/.mira/config.json)
-5. Default values`}
+        code={`1. CLI flags              (--model mira-pro)
+2. Environment vars       (MIRA_MODEL=mira-pro)
+3. Project local settings (.mira/settings.local.json)
+4. Project settings       (.mira/settings.json)
+5. Global config          (~/.mira.json)
+6. Default values`}
         language="text"
       />
       <Note type="info">
         {isRu
-          ? "Это означает, что флаг --model всегда переопределит значение из .mira.json или переменной окружения MIRA_MODEL."
-          : "This means a --model flag will always override a value from .mira.json or the MIRA_MODEL environment variable."}
+          ? "Это означает, что флаг --model всегда переопределит значение из settings.json или переменной окружения MIRA_MODEL."
+          : "This means a --model flag will always override a value from settings.json or the MIRA_MODEL environment variable."}
       </Note>
 
       <H2>{isRu ? "Глобальная конфигурация" : "Global Configuration"}</H2>
@@ -604,7 +600,7 @@ function MiraCodeConfigPage({ locale }: { locale: Locale }) {
           : "Global configuration applies to all projects and is stored in the user's home directory:"}
       </P>
       <CodeBlock
-        title="~/.mira/config.json"
+        title="~/.mira.json"
         code={`{
   "model": "mira",
   "maxTokens": 4096,
@@ -627,47 +623,51 @@ function MiraCodeConfigPage({ locale }: { locale: Locale }) {
       </P>
       <CodeBlock title={isRu ? "Создание глобальной конфигурации" : "Create global config"} code="mira --init-global" language="bash" />
 
-      <H2>{isRu ? "Конфигурация проекта" : "Project Configuration"}</H2>
+      <H2>{isRu ? "Настройки проекта" : "Project Settings"}</H2>
       <P>
         {isRu
-          ? "Конфигурация проекта хранится в файле .mira.json в корне проекта. Она переопределяет глобальные настройки для данного проекта:"
-          : "Project configuration is stored in a .mira.json file at the project root. It overrides global settings for that project:"}
+          ? "Настройки проекта хранятся в .mira/settings.json в корне проекта. Они переопределяют глобальные настройки:"
+          : "Project settings are stored in .mira/settings.json in the project root. They override global settings:"}
       </P>
       <CodeBlock
-        title=".mira.json"
+        title=".mira/settings.json"
         code={`{
-  "model": "mira-pro",
-  "maxTokens": 8192,
   "permissions": {
-    "fileRead": "auto",
-    "fileWrite": "auto",
-    "commandExecution": "ask"
-  },
-  "ignore": [
-    "node_modules",
-    "dist",
-    ".env",
-    ".env.local",
-    "*.log",
-    "coverage"
-  ],
-  "context": {
-    "include": [
-      "src/**/*.ts",
-      "src/**/*.tsx"
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(npm test:*)",
+      "Bash(npm run build)"
     ],
-    "exclude": [
-      "**/*.test.ts",
-      "**/__mocks__/**"
+    "deny": [
+      "Bash(rm -rf *)"
     ]
+  },
+  "env": {
+    "MIRA_MODEL": "mira-pro"
+  }
+}`}
+        language="json"
+      />
+      <P>
+        {isRu
+          ? "Для приватных настроек используйте .mira/settings.local.json (добавьте в .gitignore):"
+          : "For private settings, use .mira/settings.local.json (add to .gitignore):"}
+      </P>
+      <CodeBlock
+        title=".mira/settings.local.json"
+        code={`{
+  "env": {
+    "MIRA_API_KEY": "sk-mira-your-personal-key"
   }
 }`}
         language="json"
       />
       <Note type="tip">
         {isRu
-          ? "Добавьте .mira.json в систему контроля версий (git), чтобы все участники команды использовали одинаковые настройки."
-          : "Commit .mira.json to version control (git) so all team members share the same settings."}
+          ? "Добавьте .mira/settings.json в систему контроля версий (git), чтобы все участники команды использовали одинаковые настройки. Файл settings.local.json должен быть в .gitignore."
+          : "Commit .mira/settings.json to version control so all team members share the same settings. Keep settings.local.json in .gitignore."}
       </Note>
 
       <H2>{isRu ? "Файлы инструкций (MIRA.md)" : "Instruction Files (MIRA.md)"}</H2>
@@ -730,7 +730,7 @@ function MiraCodeConfigPage({ locale }: { locale: Locale }) {
       />
       <CodeBlock
         title={isRu ? "Установка темы" : "Setting the theme"}
-        code={`// In ~/.mira/config.json
+        code={`// In ~/.mira.json
 {
   "theme": "light"
 }
@@ -763,8 +763,8 @@ mira --model mira-pro
 # Environment variable
 export MIRA_MODEL="mira-pro"
 
-# In .mira.json
-{ "model": "mira-pro" }
+# In .mira/settings.json
+{ "env": { "MIRA_MODEL": "mira-pro" } }
 
 # Interactive: use /model command
 > /model`}
@@ -793,9 +793,11 @@ export MIRA_MODEL="mira-pro"
       </Note>
       <CodeBlock
         title={isRu ? "Использование пресета" : "Using a preset"}
-        code={`// In .mira.json
+        code={`// In .mira/settings.json
 {
-  "permissionPreset": "trusted"
+  "permissions": {
+    "allow": ["Read", "Edit", "Write", "Bash"]
+  }
 }`}
         language="json"
       />
@@ -890,8 +892,8 @@ function MiraCodeChangelogPage({ locale }: { locale: Locale }) {
           {
             bold: isRu ? "Система конфигурации" : "Configuration system",
             text: isRu
-              ? "Глобальная (~/.mira/config.json) и проектная (.mira.json) конфигурация с поддержкой файлов инструкций MIRA.md."
-              : "Global (~/.mira/config.json) and project-level (.mira.json) configuration with MIRA.md instruction file support.",
+              ? "Глобальная (~/.mira.json) и проектная (.mira/settings.json) конфигурация с поддержкой файлов инструкций MIRA.md."
+              : "Global (~/.mira.json) and project-level (.mira/settings.json) configuration with MIRA.md instruction file support.",
           },
           {
             bold: isRu ? "Система разрешений" : "Permission system",

@@ -1,0 +1,68 @@
+# Mira API
+
+> Mira is an AI assistant platform with an OpenAI-compatible API. Built for the Russian market with pricing in rubles.
+
+## Documentation
+
+- [Introduction](https://platform.vmira.ai/docs/introduction): Overview of what Mira can do
+- [Quickstart](https://platform.vmira.ai/docs/quickstart): Get started with the Mira API in minutes
+- [Models](https://platform.vmira.ai/docs/models): Available models and their capabilities
+- [Pricing](https://platform.vmira.ai/docs/pricing): Token pricing and subscription plans
+- [Chat Completions API](https://platform.vmira.ai/docs/api/chat-completions): Main API endpoint reference
+- [Authentication](https://platform.vmira.ai/docs/api/authentication): API key authentication
+- [Streaming](https://platform.vmira.ai/docs/streaming): Server-sent events streaming
+- [Tool Use](https://platform.vmira.ai/docs/tool-use): Function calling / tool use
+- [Vision](https://platform.vmira.ai/docs/vision): Image understanding
+- [Extended Thinking](https://platform.vmira.ai/docs/extended-thinking): Chain-of-thought reasoning
+- [JSON Mode](https://platform.vmira.ai/docs/json-mode): Structured output
+- [Embeddings](https://platform.vmira.ai/docs/embeddings): Text embeddings
+- [Error Handling](https://platform.vmira.ai/docs/api/errors): Error codes and handling
+- [Rate Limits](https://platform.vmira.ai/docs/api/rate-limits): Request rate limits
+- [SDKs](https://platform.vmira.ai/docs/sdks): Official SDKs and libraries
+- [Security](https://platform.vmira.ai/docs/security): Security best practices
+
+## Base URL
+
+    https://api.vmira.ai/v1
+
+## Authentication
+
+All requests require an API key in the Authorization header:
+
+    Authorization: Bearer YOUR_API_KEY
+
+## Models
+
+| Model | Input (1K tokens) | Output (1K tokens) | Context |
+|-------|-------------------|---------------------|---------|
+| mira | 0.10 RUB | 0.30 RUB | 32K |
+| mira-thinking | 0.15 RUB | 0.50 RUB | 32K |
+| mira-pro | 0.30 RUB | 0.90 RUB | 64K |
+| mira-max | 1.50 RUB | 6.00 RUB | 128K |
+
+## Quick Example
+
+```bash
+curl https://api.vmira.ai/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "mira",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+## OpenAI Compatibility
+
+The Mira API is compatible with the OpenAI Chat Completions format. You can use the OpenAI SDK by changing the base URL:
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="https://api.vmira.ai/v1", api_key="YOUR_API_KEY")
+```
+
+## Endpoints
+
+- POST /v1/chat/completions - Create chat completion
+- GET /v1/models - List available models
+- POST /v1/embeddings - Create embeddings

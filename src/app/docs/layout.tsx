@@ -78,7 +78,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         }}
       >
         <div className="flex items-center gap-6">
-          <Link href="/docs" className="flex items-center gap-2.5" style={{ fontSize: 15, fontWeight: 600, color: "#fff", letterSpacing: "-0.01em" }}>
+          <Link href="/docs" className="flex items-center gap-2.5" style={{ fontSize: 15, fontWeight: 500, color: "#fff", letterSpacing: "-0.01em" }}>
             <MiraLogo />
             Mira API Docs
           </Link>
@@ -186,7 +186,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             {filteredNav.map((section, si) => (
               <div key={si} style={{ marginBottom: 20 }}>
                 <div style={{
-                  padding: "4px 8px", fontSize: "11.5px", fontWeight: 600,
+                  padding: "4px 8px", fontSize: "11.5px", fontWeight: 500,
                   color: "rgba(255,255,255,0.55)", textTransform: "uppercase",
                   letterSpacing: "0.06em", marginBottom: 2,
                 }}>

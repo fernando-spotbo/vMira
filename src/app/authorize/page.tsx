@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
+import AuthModal from "@/components/AuthModal";
 
 function MiraLogo({ size = 32 }: { size?: number }) {
   return (
@@ -20,6 +21,8 @@ export default function AuthorizePage() {
   const [errorMsg, setErrorMsg] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [authModal, setAuthModal] = useState<"login" | "register" | null>(null);
+  const currentPath = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/authorize";
 
   useEffect(() => {
     requestAnimationFrame(() => setMounted(true));
@@ -137,18 +140,31 @@ export default function AuthorizePage() {
               <p className="mt-2 text-[15px] text-white/50 leading-relaxed">
                 You need to be signed in to authorize Mira Code for your terminal.
               </p>
-              <a
-                href={`/chat?redirect=${encodeURIComponent('/authorize' + (typeof window !== 'undefined' ? window.location.search : ''))}`}
-                className="mt-8 w-full inline-flex items-center justify-center rounded-xl bg-white py-3.5 text-[16px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all duration-200"
+              <button
+                onClick={() => setAuthModal("login")}
+                className="mt-8 w-full rounded-xl bg-white py-3.5 text-[16px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all duration-200"
               >
                 Sign in to Mira
-              </a>
+              </button>
+              <button
+                onClick={() => setAuthModal("register")}
+                className="mt-3 w-full rounded-xl bg-white/[0.06] border border-white/[0.08] py-3.5 text-[16px] font-medium text-white hover:bg-white/[0.1] hover:border-white/[0.12] active:scale-[0.98] transition-all duration-200"
+              >
+                Create account
+              </button>
             </div>
           </div>
           <p className="mt-4 text-center text-[13px] text-white/25">
             Only authorize if you initiated this from your terminal.
           </p>
         </div>
+        {authModal && (
+          <AuthModal
+            mode={authModal}
+            onClose={() => setAuthModal(null)}
+            redirectTo={currentPath}
+          />
+        )}
       </div>
     );
   }

@@ -12,6 +12,7 @@ type AuthMode = "login" | "register" | "forgot" | "phone";
 interface AuthModalProps {
   mode: "login" | "register";
   onClose: () => void;
+  redirectTo?: string;
 }
 
 function MiraLogo() {
@@ -81,7 +82,7 @@ function InputField({
   );
 }
 
-export default function AuthModal({ mode: initialMode, onClose }: AuthModalProps) {
+export default function AuthModal({ mode: initialMode, onClose, redirectTo }: AuthModalProps) {
   const router = useRouter();
   const { login, register, loginWithPhone } = useAuth();
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -126,7 +127,7 @@ export default function AuthModal({ mode: initialMode, onClose }: AuthModalProps
     setSubmitting(false);
     if (result.ok) {
       setVisible(false);
-      setTimeout(() => { onClose(); router.push("/chat"); }, 250);
+      setTimeout(() => { onClose(); router.push(redirectTo || "/chat"); }, 250);
     } else {
       setError(result.error || "Invalid credentials");
     }
@@ -145,7 +146,7 @@ export default function AuthModal({ mode: initialMode, onClose }: AuthModalProps
     setSubmitting(false);
     if (result.ok) {
       setVisible(false);
-      setTimeout(() => { onClose(); router.push("/chat"); }, 250);
+      setTimeout(() => { onClose(); router.push(redirectTo || "/chat"); }, 250);
     } else {
       setError(result.error || "Registration failed");
     }
@@ -183,7 +184,7 @@ export default function AuthModal({ mode: initialMode, onClose }: AuthModalProps
     setSubmitting(false);
     if (result.ok) {
       setVisible(false);
-      setTimeout(() => { onClose(); router.push("/chat"); }, 250);
+      setTimeout(() => { onClose(); router.push(redirectTo || "/chat"); }, 250);
     } else {
       setError(result.error || "Invalid code");
     }

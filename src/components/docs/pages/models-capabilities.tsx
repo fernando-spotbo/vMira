@@ -396,8 +396,8 @@ function PricingPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Сравнение с другими провайдерами" : "Comparison with other providers"}</H2>
       <P>
         {isRu
-          ? "Сравнение стоимости моделей аналогичного класса. Все цены указаны за 1M токенов."
-          : "Cost comparison for models of similar class. All prices are per 1M tokens."}
+          ? "Сравнение стоимости моделей аналогичного класса. Все цены указаны за 1M токенов в рублях (курс ~90 ₽/$)."
+          : "Cost comparison for models of similar class. All prices per 1M tokens in rubles (~90 ₽/$)."}
       </P>
       <Table
         headers={[
@@ -408,11 +408,11 @@ function PricingPage({ locale }: { locale: Locale }) {
         ]}
         rows={[
           ["Mira", "mira", "100 ₽", "300 ₽"],
-          ["OpenAI", "GPT-4o mini", "$0.15", "$0.60"],
+          ["OpenAI", "GPT-4o mini", "~14 ₽", "~54 ₽"],
           ["Mira", "mira-pro", "300 ₽", "900 ₽"],
-          ["OpenAI", "GPT-4o", "$2.50", "$10.00"],
+          ["OpenAI", "GPT-4o", "~225 ₽", "~900 ₽"],
           ["Mira", "mira-max", "1 500 ₽", "6 000 ₽"],
-          ["Anthropic", "Claude Opus", "$15.00", "$75.00"],
+          ["Anthropic", "Claude Opus", "~1 350 ₽", "~6 750 ₽"],
         ]}
       />
       <Note type="info">

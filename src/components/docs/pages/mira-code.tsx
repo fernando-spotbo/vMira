@@ -982,6 +982,64 @@ function MiraCodeChangelogPage({ locale }: { locale: Locale }) {
   );
 }
 
+// ── Mira Code Pricing Page ─────────────────────────────────────
+
+function MiraCodePricingPage({ locale }: { locale: Locale }) {
+  const isRu = locale === "ru";
+  return (
+    <>
+      <H1>{isRu ? "Тарифы Mira Code" : "Mira Code Pricing"}</H1>
+      <P>
+        {isRu
+          ? "Mira Code тарифицируется отдельно от подписки Мира. Выберите план, который подходит вашему рабочему процессу."
+          : "Mira Code is billed separately from the Mira chat subscription. Choose the plan that fits your workflow."}
+      </P>
+
+      <Table
+        headers={[
+          "", "Free",  "Pro — 499 ₽/" + (isRu ? "мес" : "mo"), "Max — 990 ₽/" + (isRu ? "мес" : "mo"),
+        ]}
+        rows={[
+          [isRu ? "Запросов в день" : "Requests/day", "50", "1 000", isRu ? "Безлимит" : "Unlimited"],
+          [isRu ? "Модели" : "Models", "Mira Fast", isRu ? "Все (Fast, Pro, Max)" : "All (Fast, Pro, Max)", isRu ? "Все + приоритет" : "All + priority"],
+          [isRu ? "Режим мышления" : "Thinking mode", "—", "✓", "✓"],
+          [isRu ? "Контекст" : "Context", "32K", "64K", "128K"],
+          [isRu ? "Генерация тестов" : "Test generation", "—", "✓", "✓"],
+          [isRu ? "Анализ кодовой базы" : "Codebase analysis", "—", "—", "✓"],
+          [isRu ? "Приоритетная очередь" : "Priority queue", "—", "—", "✓"],
+        ]}
+      />
+
+      <H2>{isRu ? "Как это работает" : "How it works"}</H2>
+      <UL items={[
+        { bold: isRu ? "Авторизация" : "Authorization", text: isRu ? "выполните mira auth login — откроется браузер для подтверждения" : "run mira auth login — a browser window opens for confirmation" },
+        { bold: isRu ? "Выбор плана" : "Choosing a plan", text: isRu ? "бесплатный план активируется автоматически. Для Pro или Max — обновите на platform.vmira.ai" : "free plan activates automatically. For Pro or Max — upgrade on platform.vmira.ai" },
+        { bold: isRu ? "Раздельная оплата" : "Separate billing", text: isRu ? "подписка Mira Code не влияет на подписку чата Мира и наоборот" : "Mira Code subscription does not affect your Mira chat subscription and vice versa" },
+      ]} />
+
+      <H2>{isRu ? "Часто задаваемые вопросы" : "FAQ"}</H2>
+      <H3>{isRu ? "Могу ли я использовать Mira Code бесплатно?" : "Can I use Mira Code for free?"}</H3>
+      <P>
+        {isRu
+          ? "Да. Бесплатный план включает 50 запросов в день с моделью Mira Fast. Этого достаточно для знакомства с продуктом."
+          : "Yes. The free plan includes 50 requests per day with the Mira Fast model. Enough to get familiar with the product."}
+      </P>
+      <H3>{isRu ? "Связана ли подписка с чатом Мира?" : "Is the subscription linked to Mira chat?"}</H3>
+      <P>
+        {isRu
+          ? "Нет. Mira Code и чат Мира тарифицируются отдельно. Вы можете иметь разные планы для каждого продукта."
+          : "No. Mira Code and Mira chat are billed separately. You can have different plans for each product."}
+      </P>
+      <H3>{isRu ? "Что произойдёт, если я превышу лимит?" : "What happens if I exceed the limit?"}</H3>
+      <P>
+        {isRu
+          ? "Запросы сверх дневного лимита будут отклонены до следующего дня. Вы можете обновить план в любой момент."
+          : "Requests beyond the daily limit will be rejected until the next day. You can upgrade your plan at any time."}
+      </P>
+    </>
+  );
+}
+
 // ── Export map ───────────────────────────────────────────────────
 
 export const miraCodeContent: Record<string, React.FC<{ locale: Locale }>> = {
@@ -990,4 +1048,5 @@ export const miraCodeContent: Record<string, React.FC<{ locale: Locale }>> = {
   "mira-code/commands": MiraCodeCommandsPage,
   "mira-code/configuration": MiraCodeConfigPage,
   "mira-code/changelog": MiraCodeChangelogPage,
+  "mira-code/pricing": MiraCodePricingPage,
 };

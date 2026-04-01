@@ -192,6 +192,10 @@ export const docsNav: NavSection[] = [
         slug: "mira-code/changelog",
         title: { en: "Changelog", ru: "Журнал изменений" },
       },
+      {
+        slug: "mira-code/pricing",
+        title: { en: "Pricing", ru: "Тарифы" },
+      },
     ],
   },
   {

@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Settings, HelpCircle, LogOut, LayoutDashboard, BarChart3, Key, Wallet } from "lucide-react";
+import { Settings, HelpCircle, LogOut, LayoutDashboard, BarChart3, Key, Wallet, Zap, ChevronRight, BookOpen, FileText, Shield, Bug, Keyboard } from "lucide-react";
+import SettingsModal from "@/components/SettingsModal";
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: LayoutDashboard },
@@ -40,7 +41,10 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(true);
   const [userMenu, setUserMenu] = useState(false);
   const [menuRect, setMenuRect] = useState<DOMRect | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [submenu, setSubmenu] = useState<"help" | "learn" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const submenuTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const userName = user?.name || "User";
   const userEmail = user?.email || user?.phone || "";
@@ -49,40 +53,130 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userMenu) return;
     const handle = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setUserMenu(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) { setUserMenu(false); setSubmenu(null); }
     };
     const timer = setTimeout(() => document.addEventListener("mousedown", handle), 10);
     return () => { clearTimeout(timer); document.removeEventListener("mousedown", handle); };
   }, [userMenu]);
 
+  const openSubmenu = (which: "help" | "learn") => {
+    if (submenuTimeout.current) clearTimeout(submenuTimeout.current);
+    setSubmenu(which);
+  };
+  const closeSubmenuDelayed = () => {
+    submenuTimeout.current = setTimeout(() => setSubmenu(null), 250);
+  };
+  const keepSubmenuOpen = () => {
+    if (submenuTimeout.current) clearTimeout(submenuTimeout.current);
+  };
+
+  const helpItems = [
+    { icon: BookOpen, label: t("user.helpCenter"), href: "/help" },
+    { icon: Bug, label: t("user.reportBug") },
+    { icon: Keyboard, label: t("user.shortcuts"), shortcut: "Ctrl+/" },
+  ];
+
+  const learnItems = [
+    { icon: BookOpen, label: t("user.about"), href: "/" },
+    { icon: FileText, label: t("user.terms"), href: "/legal/terms" },
+    { icon: Shield, label: t("user.usagePolicy"), href: "/legal/usage-policy" },
+    { icon: Shield, label: t("user.privacyPolicy"), href: "/legal/privacy" },
+  ];
+
+  const closeMenu = () => { setUserMenu(false); setSubmenu(null); };
+
   return (
     <div className="fixed inset-0 bg-[#161616] overflow-hidden z-[9999] flex">
-      {/* User menu popup — matches chat sidebar popup exactly */}
+      {/* Settings modal */}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+
+      {/* User menu popup — exact replica of chat sidebar popup */}
       {userMenu && menuRect && (
-        <div
-          ref={menuRef}
-          className="fixed z-[150] w-[240px] rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
-          style={{ left: menuRect.left, bottom: window.innerHeight - menuRect.top + 8 }}
-        >
-          <div className="px-4 py-3 border-b border-white/[0.06]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.15] text-white text-sm font-semibold">{userInitial}</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white truncate">{userName}</div>
-                <div className="text-xs text-white/70 truncate">{userEmail}</div>
+        <div ref={menuRef} className="fixed z-[150] flex gap-1" style={{ left: menuRect.left, bottom: window.innerHeight - menuRect.top + 8 }}>
+          <div className="w-[240px] rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.15] text-white text-sm font-semibold">{userInitial}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-white truncate">{userName}</div>
+                  <div className="text-xs text-white/70 truncate">{userEmail}</div>
+                </div>
               </div>
             </div>
+            <button onClick={() => { closeMenu(); setTimeout(() => setSettingsOpen(true), 50); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors">
+              <Settings size={16} /><span className="flex-1 text-left">{t("user.settings")}</span>
+              <span className="text-[11px] text-white/40">Ctrl+,</span>
+            </button>
+            <button
+              onMouseEnter={() => openSubmenu("help")}
+              onMouseLeave={closeSubmenuDelayed}
+              onClick={() => setSubmenu(submenu === "help" ? null : "help")}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
+            >
+              <HelpCircle size={16} /><span className="flex-1 text-left">{t("user.help")}</span><ChevronRight size={14} className="text-white/40" />
+            </button>
+            <div className="my-1 border-t border-white/[0.06]" />
+            <button
+              onMouseEnter={() => openSubmenu("learn")}
+              onMouseLeave={closeSubmenuDelayed}
+              onClick={() => setSubmenu(submenu === "learn" ? null : "learn")}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
+            >
+              <HelpCircle size={16} /><span className="flex-1 text-left">{t("user.learnMore")}</span><ChevronRight size={14} className="text-white/40" />
+            </button>
+            <div className="my-1 border-t border-white/[0.06]" />
+            <button onClick={async () => { closeMenu(); await logout(); window.location.href = "/"; }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors">
+              <LogOut size={16} /><span className="flex-1 text-left">{t("user.logout")}</span>
+            </button>
           </div>
-          <button onClick={() => setUserMenu(false)} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors">
-            <Settings size={16} /><span className="flex-1 text-left">{t("user.settings")}</span>
-          </button>
-          <button onClick={() => setUserMenu(false)} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors">
-            <HelpCircle size={16} /><span className="flex-1 text-left">{t("user.help")}</span>
-          </button>
-          <div className="my-1 border-t border-white/[0.06]" />
-          <button onClick={async () => { setUserMenu(false); await logout(); window.location.href = "/"; }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors">
-            <LogOut size={16} /><span className="flex-1 text-left">{t("user.logout")}</span>
-          </button>
+
+          {/* Submenu — appears to the right */}
+          {submenu && (
+            <div
+              className="w-[210px] rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)] self-end"
+              onMouseEnter={keepSubmenuOpen}
+              onMouseLeave={closeSubmenuDelayed}
+            >
+              {(submenu === "help" ? helpItems : learnItems).map((item) => {
+                const content = (
+                  <>
+                    <item.icon size={16} />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {"shortcut" in item && item.shortcut && (
+                      <span className="text-[11px] text-white/40">{item.shortcut}</span>
+                    )}
+                    {"href" in item && item.href && item.href !== "/" && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40 shrink-0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" /></svg>
+                    )}
+                  </>
+                );
+
+                if ("href" in item && item.href) {
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      target={item.href.startsWith("/legal") ? "_blank" : undefined}
+                      onClick={closeMenu}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
+                    >
+                      {content}
+                    </a>
+                  );
+                }
+
+                return (
+                  <button
+                    key={item.label}
+                    onClick={closeMenu}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
+                  >
+                    {content}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

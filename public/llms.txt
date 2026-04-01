@@ -36,7 +36,6 @@ All requests require an API key in the Authorization header:
 | Model | Input (1M tokens) | Output (1M tokens) | Context |
 |-------|-------------------|---------------------|---------|
 | mira | 50 RUB | 150 RUB | 32K |
-| mira-thinking | 50 RUB | 200 RUB | 32K |
 | mira-pro | 100 RUB | 300 RUB | 64K |
 | mira-max | 250 RUB | 750 RUB | 128K |
 

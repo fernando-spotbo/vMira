@@ -29,9 +29,8 @@ function ChoosingModelPage({ locale }: { locale: Locale }) {
         ]}
         rows={[
           ["mira", "32K", "4K", isRu ? "Быстрая" : "Fast", "$"],
-          ["mira-thinking", "32K", "8K", isRu ? "Средняя" : "Medium", "$$"],
-          ["mira-pro", "64K", "8K", isRu ? "Средняя" : "Medium", "$$$"],
-          ["mira-max", "128K", "16K", isRu ? "Медленнее" : "Slower", "$$$$"],
+          ["mira-pro", "64K", "8K", isRu ? "Средняя" : "Medium", "$$"],
+          ["mira-max", "128K", "16K", isRu ? "Медленнее" : "Slower", "$$$"],
         ]}
       />
 
@@ -49,23 +48,11 @@ function ChoosingModelPage({ locale }: { locale: Locale }) {
         { bold: isRu ? "Типичная задержка" : "Typical latency", text: isRu ? "< 1 секунды до первого токена" : "< 1 second to first token" },
       ]} />
 
-      <H3>mira-thinking</H3>
-      <P>
-        {isRu
-          ? "Модель с расширенным мышлением, выполняющая цепочку рассуждений перед ответом. Генерирует внутреннюю «цепочку мыслей», что значительно повышает точность при решении сложных задач."
-          : "An extended reasoning model that performs chain-of-thought before responding. It generates an internal \"thinking chain\" that dramatically improves accuracy on complex problems."}
-      </P>
-      <UL items={[
-        { bold: isRu ? "Лучше всего для" : "Best for", text: isRu ? "математика, логические задачи, отладка кода, многошаговое планирование" : "math, logic puzzles, code debugging, multi-step planning" },
-        { bold: isRu ? "Контекст" : "Context", text: isRu ? "32K токенов, вывод до 8K" : "32K tokens, up to 8K output" },
-        { bold: isRu ? "Компромисс" : "Trade-off", text: isRu ? "медленнее, но значительно точнее при сложных рассуждениях" : "slower, but significantly more accurate on complex reasoning" },
-      ]} />
-
       <H3>mira-pro</H3>
       <P>
         {isRu
-          ? "Профессиональная модель с расширенным контекстным окном. Предназначена для корпоративных приложений, где требуется обработка больших документов и высокая точность."
-          : "A professional-grade model with an expanded context window. Built for enterprise applications that demand large document processing and high accuracy."}
+          ? "Профессиональная модель с расширенным контекстным окном и встроенным режимом мышления. Предназначена для корпоративных приложений, где требуется обработка больших документов, глубокие рассуждения и высокая точность."
+          : "A professional-grade model with an expanded context window and built-in thinking mode. Built for enterprise applications that demand large document processing, deep reasoning, and high accuracy."}
       </P>
       <UL items={[
         { bold: isRu ? "Лучше всего для" : "Best for", text: isRu ? "анализ длинных документов, корпоративные приложения, детальный код-ревью" : "long document analysis, enterprise applications, detailed code review" },
@@ -95,26 +82,18 @@ function ChoosingModelPage({ locale }: { locale: Locale }) {
         title={isRu ? "Алгоритм выбора модели" : "Model selection flowchart"}
         code={isRu
           ? `1. Ваш ввод > 64K токенов?
-   ├─ Да  → mira-max
+   ├─ Да  → mira-max (включает режим мышления)
    └─ Нет → перейдите к шагу 2
 
-2. Задача требует глубоких рассуждений (математика, логика, отладка)?
-   ├─ Да  → mira-thinking
-   └─ Нет → перейдите к шагу 3
-
-3. Ваш ввод > 32K токенов ИЛИ нужна максимальная точность?
-   ├─ Да  → mira-pro
+2. Ваш ввод > 32K токенов ИЛИ нужны глубокие рассуждения / высокая точность?
+   ├─ Да  → mira-pro (включает режим мышления)
    └─ Нет → mira (оптимальное соотношение цены и качества)`
           : `1. Is your input > 64K tokens?
-   ├─ Yes → mira-max
+   ├─ Yes → mira-max (includes thinking mode)
    └─ No  → go to step 2
 
-2. Does the task require deep reasoning (math, logic, debugging)?
-   ├─ Yes → mira-thinking
-   └─ No  → go to step 3
-
-3. Is your input > 32K tokens OR do you need maximum accuracy?
-   ├─ Yes → mira-pro
+2. Is your input > 32K tokens OR do you need deep reasoning / max accuracy?
+   ├─ Yes → mira-pro (includes thinking mode)
    └─ No  → mira (best cost-performance ratio)`}
       />
 
@@ -127,7 +106,7 @@ function ChoosingModelPage({ locale }: { locale: Locale }) {
         ]}
         rows={[
           [isRu ? "Чат-бот / FAQ" : "Chatbot / FAQ", "mira", isRu ? "Быстро, дёшево, достаточно точно" : "Fast, cheap, accurate enough"],
-          [isRu ? "Решение уравнений" : "Math problems", "mira-thinking", isRu ? "Цепочка рассуждений повышает точность" : "Chain-of-thought improves accuracy"],
+          [isRu ? "Решение уравнений" : "Math problems", "mira-pro", isRu ? "Режим мышления повышает точность" : "Thinking mode improves accuracy"],
           [isRu ? "Код-ревью (большой PR)" : "Code review (large PR)", "mira-pro", isRu ? "64K контекст вмещает крупные диффы" : "64K context fits large diffs"],
           [isRu ? "Анализ кодовой базы" : "Codebase analysis", "mira-max", isRu ? "128K контекст для целых проектов" : "128K context for entire projects"],
           [isRu ? "Перевод" : "Translation", "mira", isRu ? "Отличное качество при низкой стоимости" : "Great quality at low cost"],
@@ -144,8 +123,8 @@ function ChoosingModelPage({ locale }: { locale: Locale }) {
       </P>
       <Note type="tip">
         {isRu
-          ? "Совет: используйте маршрутизацию моделей — направляйте простые запросы на mira, а сложные на mira-thinking или mira-pro. Это снижает среднюю стоимость на 40-60%."
-          : "Tip: use model routing — send simple queries to mira and complex ones to mira-thinking or mira-pro. This reduces average cost by 40-60%."}
+          ? "Совет: используйте маршрутизацию моделей — направляйте простые запросы на mira, а сложные на mira-pro или mira-max. Это снижает среднюю стоимость на 40-60%."
+          : "Tip: use model routing — send simple queries to mira and complex ones to mira-pro or mira-max. This reduces average cost by 40-60%."}
       </Note>
 
       <H2>{isRu ? "Миграция между моделями" : "Migrating between models"}</H2>
@@ -172,7 +151,7 @@ const response = await fetch("https://api.vmira.ai/v1/chat/completions", {
 
       <NavCards cards={[
         { href: "/docs/models-capabilities/pricing", title: isRu ? "Цены" : "Pricing", desc: isRu ? "Подробные цены по моделям и тарифам" : "Detailed per-model and per-tier pricing" },
-        { href: "/docs/models-capabilities/thinking-mode", title: isRu ? "Режим мышления" : "Thinking mode", desc: isRu ? "Глубокое погружение в mira-thinking" : "Deep dive into mira-thinking" },
+        { href: "/docs/models-capabilities/thinking-mode", title: isRu ? "Режим мышления" : "Thinking mode", desc: isRu ? "Глубокое погружение в режим мышления mira-pro и mira-max" : "Deep dive into mira-pro and mira-max thinking mode" },
         { href: "/docs/models-capabilities/long-context", title: isRu ? "Длинный контекст" : "Long context", desc: isRu ? "Работа с большими документами" : "Working with large documents" },
       ]} />
     </>
@@ -219,11 +198,11 @@ function WhatsNewPage({ locale }: { locale: Locale }) {
       {/* ── March 2026 ────────────────────────────────── */}
       <H2>{isRu ? "Март 2026" : "March 2026"}</H2>
 
-      <H3>{isRu ? "Улучшения mira-thinking — 15 марта 2026" : "mira-thinking improvements — March 15, 2026"}</H3>
+      <H3>{isRu ? "Улучшения режима мышления — 15 марта 2026" : "Thinking mode improvements — March 15, 2026"}</H3>
       <P>
         {isRu
-          ? "Значительные улучшения модели mira-thinking: более точная цепочка рассуждений, уменьшенное количество галлюцинаций и улучшенная производительность при математических задачах."
-          : "Major improvements to mira-thinking: more accurate chain-of-thought reasoning, reduced hallucinations, and improved performance on mathematical tasks."}
+          ? "Значительные улучшения режима мышления в mira-pro и mira-max: более точная цепочка рассуждений, уменьшенное количество галлюцинаций и улучшенная производительность при математических задачах."
+          : "Major improvements to thinking mode in mira-pro and mira-max: more accurate chain-of-thought reasoning, reduced hallucinations, and improved performance on mathematical tasks."}
       </P>
       <UL items={[
         { bold: isRu ? "Математика" : "Math", text: isRu ? "+12% точности на GSM8K и MATH бенчмарках" : "+12% accuracy on GSM8K and MATH benchmarks" },
@@ -325,15 +304,14 @@ function PricingPage({ locale }: { locale: Locale }) {
         ]}
         rows={[
           ["mira", "50 ₽", "150 ₽", "32K"],
-          ["mira-thinking", "50 ₽", "200 ₽", "32K"],
           ["mira-pro", "100 ₽", "300 ₽", "64K"],
           ["mira-max", "250 ₽", "750 ₽", "128K"],
         ]}
       />
       <Note type="info">
         {isRu
-          ? "Токены мышления (thinking tokens) в модели mira-thinking тарифицируются как выходные токены. Они включаются в usage.completion_tokens ответа API."
-          : "Thinking tokens in the mira-thinking model are billed as output tokens. They are included in the usage.completion_tokens of the API response."}
+          ? "Токены мышления доступны в моделях mira-pro и mira-max. Они тарифицируются по ставке выходных токенов соответствующей модели."
+          : "Thinking tokens are available in mira-pro and mira-max models. They are billed at the output token rate of the respective model."}
       </Note>
 
       <H2>{isRu ? "Тарифные планы" : "Subscription tiers"}</H2>
@@ -448,15 +426,15 @@ function ThinkingModePage({ locale }: { locale: Locale }) {
       <H1>{isRu ? "Режим мышления (Thinking Mode)" : "Thinking mode"}</H1>
       <P>
         {isRu
-          ? "mira-thinking — это специализированная модель, которая выполняет внутреннюю «цепочку рассуждений» перед генерацией финального ответа. Этот подход значительно повышает точность при решении задач, требующих логических рассуждений, математических вычислений и многоступенчатого анализа."
-          : "mira-thinking is a specialized model that performs an internal \"chain of thought\" before generating the final response. This approach significantly improves accuracy on tasks requiring logical reasoning, mathematical computation, and multi-step analysis."}
+          ? "Режим мышления — это функция моделей mira-pro и mira-max, которая выполняет внутреннюю «цепочку рассуждений» перед генерацией финального ответа. Этот подход значительно повышает точность при решении задач, требующих логических рассуждений, математических вычислений и многоступенчатого анализа."
+          : "Thinking mode is a feature of the mira-pro and mira-max models that performs an internal \"chain of thought\" before generating the final response. This approach significantly improves accuracy on tasks requiring logical reasoning, mathematical computation, and multi-step analysis."}
       </P>
 
       <H2>{isRu ? "Как это работает" : "How it works"}</H2>
       <P>
         {isRu
-          ? "Когда вы отправляете запрос к mira-thinking, модель проходит два этапа:"
-          : "When you send a request to mira-thinking, the model goes through two stages:"}
+          ? "Когда вы отправляете запрос к mira-pro или mira-max, модель проходит два этапа:"
+          : "When you send a request to mira-pro or mira-max, the model goes through two stages:"}
       </P>
       <UL items={[
         { bold: isRu ? "Этап мышления" : "Thinking stage", text: isRu ? "модель генерирует внутренний ход рассуждений, разбивая задачу на подзадачи, проверяя промежуточные результаты и исследуя альтернативные подходы" : "the model generates an internal reasoning trace, breaking the problem into sub-tasks, verifying intermediate results, and exploring alternative approaches" },
@@ -489,8 +467,8 @@ function ThinkingModePage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Использование через API" : "Using via API"}</H2>
       <P>
         {isRu
-          ? "Для активации режима мышления просто укажите модель mira-thinking. Никаких дополнительных параметров не требуется."
-          : "To activate thinking mode, simply specify the mira-thinking model. No additional parameters are required."}
+          ? "Режим мышления автоматически доступен при использовании моделей mira-pro и mira-max. Никаких дополнительных параметров не требуется."
+          : "Thinking mode is automatically available when using the mira-pro and mira-max models. No additional parameters are required."}
       </P>
       <CodeBlock
         title={isRu ? "Запрос с мышлением" : "Request with thinking"}
@@ -501,7 +479,7 @@ function ThinkingModePage({ locale }: { locale: Locale }) {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    model: "mira-thinking",
+    model: "mira-pro",
     messages: [{
       role: "user",
       content: "${isRu ? "Докажите, что сумма углов треугольника равна 180 градусов" : "Prove that the sum of angles in a triangle is 180 degrees"}"
@@ -548,7 +526,7 @@ function ThinkingModePage({ locale }: { locale: Locale }) {
 mira response: 17 × 23 = 391, 156 ÷ 12 = 13, 391 + 13 - 89 = 315`}
       />
 
-      <H3>{isRu ? "С мышлением (mira-thinking)" : "With thinking (mira-thinking)"}</H3>
+      <H3>{isRu ? "С мышлением (mira-pro)" : "With thinking (mira-pro)"}</H3>
       <CodeBlock
         title={isRu ? "Ход мышления + ответ" : "Thinking trace + response"}
         code={isRu
@@ -591,13 +569,13 @@ Computation steps:
       <H2>{isRu ? "Стоимость токенов мышления" : "Thinking token costs"}</H2>
       <P>
         {isRu
-          ? "Токены мышления тарифицируются по ставке выходных токенов (200 ₽ / 1M). Типичный запрос с мышлением использует от 200 до 2 000 дополнительных токенов для цепочки рассуждений. Для простых задач стоимость мышления может превысить стоимость самого ответа, поэтому используйте mira-thinking только когда точность критически важна."
-          : "Thinking tokens are billed at the output token rate (200 ₽ / 1M). A typical thinking request uses between 200 and 2,000 additional tokens for the reasoning chain. For simple tasks, the thinking cost can exceed the response cost, so use mira-thinking only when accuracy is critical."}
+          ? "Токены мышления доступны в моделях mira-pro и mira-max и тарифицируются по ставке выходных токенов соответствующей модели (300 ₽ / 1M для mira-pro, 750 ₽ / 1M для mira-max). Типичный запрос с мышлением использует от 200 до 2 000 дополнительных токенов для цепочки рассуждений."
+          : "Thinking tokens are available in mira-pro and mira-max and are billed at the output token rate of the respective model (300 ₽ / 1M for mira-pro, 750 ₽ / 1M for mira-max). A typical thinking request uses between 200 and 2,000 additional tokens for the reasoning chain."}
       </P>
       <Note type="warning">
         {isRu
-          ? "Не используйте mira-thinking для простых задач (перевод, обобщение, чат). Это увеличит стоимость и задержку без заметного улучшения качества. Используйте стандартную модель mira."
-          : "Don't use mira-thinking for simple tasks (translation, summarization, chat). This will increase cost and latency without noticeable quality improvement. Use the standard mira model instead."}
+          ? "Для простых задач (перевод, обобщение, чат) используйте модель mira. Режим мышления в mira-pro и mira-max увеличит стоимость и задержку без заметного улучшения качества для таких задач."
+          : "For simple tasks (translation, summarization, chat), use the mira model. Thinking mode in mira-pro and mira-max will increase cost and latency without noticeable quality improvement for such tasks."}
       </Note>
 
       <H2>{isRu ? "Ограничения" : "Limitations"}</H2>
@@ -806,7 +784,6 @@ function LongContextPage({ locale }: { locale: Locale }) {
         ]}
         rows={[
           ["mira", "32K", "4K", "28K"],
-          ["mira-thinking", "32K", "8K", "24K"],
           ["mira-pro", "64K", "8K", "56K"],
           ["mira-max", "128K", "16K", "112K"],
         ]}
@@ -1059,13 +1036,13 @@ def most_frequent(strings: list[str]) -> str:
       <H2>{isRu ? "Отладка" : "Debugging"}</H2>
       <P>
         {isRu
-          ? "Для отладки сложного кода рекомендуется использовать mira-thinking — модель с цепочкой рассуждений, которая систематически анализирует код на наличие ошибок."
-          : "For debugging complex code, we recommend using mira-thinking — the chain-of-thought model that systematically analyzes code for bugs."}
+          ? "Для отладки сложного кода рекомендуется использовать mira-pro — модель с режимом мышления, которая систематически анализирует код на наличие ошибок."
+          : "For debugging complex code, we recommend using mira-pro — the model with thinking mode that systematically analyzes code for bugs."}
       </P>
       <CodeBlock
         title={isRu ? "Отладка с мышлением" : "Debugging with thinking"}
         code={`{
-  "model": "mira-thinking",
+  "model": "mira-pro",
   "messages": [{
     "role": "user",
     "content": "${isRu
@@ -1178,7 +1155,7 @@ mira-code explain src/algorithm.rs`}
         { bold: isRu ? "Предоставьте контекст" : "Provide context", text: isRu ? "включите существующие типы, интерфейсы и зависимости — модель генерирует более совместимый код" : "include existing types, interfaces, and dependencies — the model generates more compatible code" },
         { bold: isRu ? "Проверяйте код" : "Review code", text: isRu ? "всегда проверяйте сгенерированный код перед использованием в продакшене" : "always review generated code before using in production" },
         { bold: isRu ? "Итерируйте" : "Iterate", text: isRu ? "если результат не идеален, уточните требования или попросите улучшить конкретный аспект" : "if the result isn't perfect, refine requirements or ask to improve a specific aspect" },
-        { bold: isRu ? "Для сложных задач" : "For complex tasks", text: isRu ? "используйте mira-thinking для отладки и mira-pro/mira-max для работы с большими кодовыми базами" : "use mira-thinking for debugging and mira-pro/mira-max for large codebase work" },
+        { bold: isRu ? "Для сложных задач" : "For complex tasks", text: isRu ? "используйте mira-pro для отладки с режимом мышления и mira-max для работы с большими кодовыми базами" : "use mira-pro for debugging with thinking mode and mira-max for large codebase work" },
       ]} />
 
       <NavCards cards={[

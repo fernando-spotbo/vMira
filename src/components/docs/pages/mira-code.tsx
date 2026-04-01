@@ -488,12 +488,11 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
       <CodeBlock title="/model" code={`> /model
 
   Available models:
-  1. mira          - Fast, general purpose
-  2. mira-thinking - Extended reasoning
-  3. mira-pro      - Advanced capabilities
-  4. mira-max      - Maximum performance
+  1. mira     - Fast, general purpose
+  2. mira-pro - Advanced capabilities + thinking mode
+  3. mira-max - Maximum performance + thinking mode
 
-  Select model (1-4): 3
+  Select model (1-3): 2
   ✓ Switched to mira-pro`} language="text" />
 
       <H3>/review</H3>
@@ -752,9 +751,8 @@ export MIRA_THEME="light"`}
         headers={[isRu ? "Модель" : "Model", isRu ? "Описание" : "Description", isRu ? "Лучше всего для" : "Best for"]}
         rows={[
           ["mira", isRu ? "Быстрая, общего назначения" : "Fast, general purpose", isRu ? "Повседневные задачи" : "Everyday tasks"],
-          ["mira-thinking", isRu ? "С расширенным рассуждением" : "Extended reasoning", isRu ? "Сложная логика, отладка" : "Complex logic, debugging"],
-          ["mira-pro", isRu ? "Продвинутые возможности" : "Advanced capabilities", isRu ? "Архитектурные решения" : "Architecture decisions"],
-          ["mira-max", isRu ? "Максимальная производительность" : "Maximum performance", isRu ? "Крупные рефакторинги" : "Large-scale refactoring"],
+          ["mira-pro", isRu ? "Продвинутые возможности + режим мышления" : "Advanced capabilities + thinking mode", isRu ? "Архитектурные решения, сложная логика, отладка" : "Architecture decisions, complex logic, debugging"],
+          ["mira-max", isRu ? "Максимальная производительность + режим мышления" : "Maximum performance + thinking mode", isRu ? "Крупные рефакторинги, анализ кодовых баз" : "Large-scale refactoring, codebase analysis"],
         ]}
       />
       <CodeBlock
@@ -880,8 +878,8 @@ function MiraCodeChangelogPage({ locale }: { locale: Locale }) {
           {
             bold: isRu ? "Поддержка моделей" : "Model support",
             text: isRu
-              ? "Поддержка моделей mira, mira-thinking, mira-pro и mira-max. Модели загружаются динамически с платформы vmira.ai."
-              : "Support for mira, mira-thinking, mira-pro, and mira-max models. Models are fetched dynamically from the vmira.ai platform.",
+              ? "Поддержка моделей mira, mira-pro и mira-max. Модели загружаются динамически с платформы vmira.ai."
+              : "Support for mira, mira-pro, and mira-max models. Models are fetched dynamically from the vmira.ai platform.",
           },
           {
             bold: isRu ? "Уведомление о безопасности" : "Security notice and consent",

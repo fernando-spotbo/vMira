@@ -261,9 +261,8 @@ function ModelsPage({ locale }: { locale: Locale }) {
         headers={[isRu ? "Модель" : "Model", isRu ? "Описание" : "Description", isRu ? "Контекст" : "Context", isRu ? "Макс. вывод" : "Max output"]}
         rows={[
           ["mira", isRu ? "Универсальная модель для большинства задач" : "General-purpose model for most tasks", "32K", "4K"],
-          ["mira-thinking", isRu ? "Расширенное мышление для сложных задач" : "Extended thinking for complex tasks", "32K", "8K"],
-          ["mira-pro", isRu ? "Продвинутая модель для профессионального использования" : "Advanced model for professional use", "64K", "8K"],
-          ["mira-max", isRu ? "Самая мощная модель с максимальным контекстом" : "Most capable model with maximum context", "128K", "16K"],
+          ["mira-pro", isRu ? "Профессиональный уровень с режимом мышления" : "Professional grade with thinking mode", "64K", "8K"],
+          ["mira-max", isRu ? "Максимальные возможности с режимом мышления" : "Maximum capabilities with thinking mode", "128K", "16K"],
         ]}
       />
 
@@ -277,15 +276,14 @@ function ModelsPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Выбор модели" : "Choosing a model"}</H2>
       <P>
         {isRu
-          ? "Если вы не уверены, какую модель выбрать, начните с mira для большинства задач. Для задач, требующих глубоких рассуждений, используйте mira-thinking."
-          : "If you're unsure which model to use, start with mira for most tasks. For tasks requiring deep reasoning, use mira-thinking."
+          ? "Если вы не уверены, какую модель выбрать, начните с mira для большинства задач. Для задач, требующих глубоких рассуждений, используйте mira-pro или mira-max с режимом мышления."
+          : "If you're unsure which model to use, start with mira for most tasks. For tasks requiring deep reasoning, use mira-pro or mira-max with thinking mode."
         }
       </P>
       <UL items={[
         { bold: "mira", text: isRu ? "Лучший баланс скорости и качества. Идеален для чатов, генерации контента, простых задач кодирования." : "Best balance of speed and quality. Ideal for chat, content generation, simple coding tasks." },
-        { bold: "mira-thinking", text: isRu ? "Рассуждает шаг за шагом. Лучше для математики, логики, сложного анализа." : "Reasons step by step. Better for math, logic, complex analysis." },
-        { bold: "mira-pro", text: isRu ? "Профессиональный уровень. Для корпоративных задач, длинных документов, сложного кодирования." : "Professional grade. For enterprise tasks, long documents, complex coding." },
-        { bold: "mira-max", text: isRu ? "Максимальные возможности. Для самых сложных задач, огромных кодовых баз, исследований." : "Maximum capabilities. For the most complex tasks, large codebases, research." },
+        { bold: "mira-pro", text: isRu ? "Профессиональный уровень с режимом мышления. Для корпоративных задач, длинных документов, сложного кодирования и глубоких рассуждений." : "Professional grade with thinking mode. For enterprise tasks, long documents, complex coding, and deep reasoning." },
+        { bold: "mira-max", text: isRu ? "Максимальные возможности с режимом мышления. Для самых сложных задач, огромных кодовых баз, исследований." : "Maximum capabilities with thinking mode. For the most complex tasks, large codebases, research." },
       ]} />
 
       <H2>{isRu ? "Цены" : "Pricing"}</H2>
@@ -293,7 +291,6 @@ function ModelsPage({ locale }: { locale: Locale }) {
         headers={[isRu ? "Модель" : "Model", isRu ? "Ввод (1M токенов)" : "Input (1M tokens)", isRu ? "Вывод (1M токенов)" : "Output (1M tokens)"]}
         rows={[
           ["mira", "50 ₽", "150 ₽"],
-          ["mira-thinking", "50 ₽", "200 ₽"],
           ["mira-pro", "100 ₽", "300 ₽"],
           ["mira-max", "250 ₽", "750 ₽"],
         ]}

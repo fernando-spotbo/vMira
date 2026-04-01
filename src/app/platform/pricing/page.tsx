@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Zap,
-  Brain,
   Rocket,
   Gem,
   Check,
@@ -29,17 +28,6 @@ const models = [
     best_for: "Быстрые вопросы, простые задачи",
   },
   {
-    key: "mira-thinking",
-    label: "Mira Thinking",
-    icon: Brain,
-    color: "#999999",
-    speed: "Глубокий",
-    speedIcon: "brain",
-    input_1k: "0,05",
-    output_1k: "0,20",
-    best_for: "Сложные рассуждения, аналитика",
-  },
-  {
     key: "mira-pro",
     label: "Mira Pro",
     icon: Rocket,
@@ -48,7 +36,7 @@ const models = [
     speedIcon: "rocket",
     input_1k: "0,10",
     output_1k: "0,30",
-    best_for: "Профессиональные задачи, код",
+    best_for: "Сложные рассуждения, код, аналитика",
   },
   {
     key: "mira-max",
@@ -59,7 +47,7 @@ const models = [
     speedIcon: "gem",
     input_1k: "0,25",
     output_1k: "0,75",
-    best_for: "Критически важные задачи",
+    best_for: "Критически важные задачи, исследования",
   },
 ];
 
@@ -90,8 +78,8 @@ const plans = [
     description: "Для продвинутых пользователей",
     features: [
       "500 сообщений в день",
-      "Все модели (Fast, Thinking, Pro)",
-      "Режим размышлений",
+      "Все модели (Fast, Pro)",
+      "Режим размышлений (Pro, Max)",
       "Быстрые ответы",
       "Загрузка файлов",
       "Расширенный контекст",

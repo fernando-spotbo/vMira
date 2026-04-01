@@ -44,7 +44,7 @@ function getPlans() {
         t("pricing.f.pro.6"),
         t("pricing.f.pro.7"),
       ],
-      models: ["Mira Fast", "Mira Thinking", "Mira Pro"],
+      models: ["Mira Fast", "Mira Pro"],
       buttonText: `${t("pricing.upgrade")} Pro`,
       popular: true,
     },
@@ -64,7 +64,7 @@ function getPlans() {
         t("pricing.f.max.6"),
         t("pricing.f.max.7"),
       ],
-      models: ["Mira Fast", "Mira Thinking", "Mira Pro", "Mira Max"],
+      models: ["Mira Fast", "Mira Pro", "Mira Max"],
       buttonText: `${t("pricing.upgrade")} Max`,
     },
     {

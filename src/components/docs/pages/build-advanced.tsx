@@ -25,8 +25,8 @@ function VisionPage({ locale }: { locale: Locale }) {
 
       <Note type="info">
         {isRu
-          ? "Распознавание изображений доступно для моделей mira, mira-pro и mira-max. Модель mira-thinking поддерживает изображения, но может отвечать медленнее из-за этапа рассуждений."
-          : "Vision is available for the mira, mira-pro, and mira-max models. The mira-thinking model supports images but may respond slower due to the reasoning step."}
+          ? "Распознавание изображений доступно для всех моделей: mira, mira-pro и mira-max. Модели mira-pro и mira-max с режимом мышления могут отвечать медленнее из-за этапа рассуждений."
+          : "Vision is available for all models: mira, mira-pro, and mira-max. The mira-pro and mira-max models with thinking mode may respond slower due to the reasoning step."}
       </Note>
 
       <H2>{isRu ? "Поддерживаемые форматы" : "Supported Formats"}</H2>
@@ -544,8 +544,8 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
       <H1>{isRu ? "Расширенное мышление" : "Extended Thinking"}</H1>
       <Note type="info">
         {isRu
-          ? "Расширенное мышление доступно через модель mira-thinking. Внутренние рассуждения модели обрабатываются на сервере — ответ API содержит только итоговый результат."
-          : "Extended thinking is available via the mira-thinking model. The model's internal reasoning is processed server-side — the API response contains only the final result."}
+          ? "Расширенное мышление доступно в моделях mira-pro и mira-max. Внутренние рассуждения модели обрабатываются на сервере — ответ API содержит только итоговый результат."
+          : "Extended thinking is available in the mira-pro and mira-max models. The model's internal reasoning is processed server-side — the API response contains only the final result."}
       </Note>
       <P>
         {isRu
@@ -556,8 +556,8 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Как это работает" : "How It Works"}</H2>
       <P>
         {isRu
-          ? "Когда вы используете модель mira-thinking, она генерирует внутреннюю \"цепочку рассуждений\" (chain-of-thought) перед итоговым ответом. Этапы рассуждения возвращаются в поле thinking ответа, что позволяет вам видеть ход мысли модели."
-          : "When you use the mira-thinking model, it generates an internal \"chain-of-thought\" before the final answer. The reasoning steps are returned in the thinking field of the response, letting you see the model's thought process."}
+          ? "Когда вы используете модель mira-pro или mira-max, она генерирует внутреннюю \"цепочку рассуждений\" (chain-of-thought) перед итоговым ответом. Этапы рассуждения возвращаются в поле thinking ответа, что позволяет вам видеть ход мысли модели."
+          : "When you use the mira-pro or mira-max model, it generates an internal \"chain-of-thought\" before the final answer. The reasoning steps are returned in the thinking field of the response, letting you see the model's thought process."}
       </P>
 
       <UL
@@ -565,8 +565,8 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
           {
             bold: isRu ? "Модель" : "Model",
             text: isRu
-              ? "Используйте mira-thinking для активации режима рассуждений."
-              : "Use mira-thinking to enable reasoning mode.",
+              ? "Используйте mira-pro или mira-max для активации режима рассуждений."
+              : "Use mira-pro or mira-max to enable reasoning mode.",
           },
           {
             bold: isRu ? "Этап рассуждения" : "Thinking phase",
@@ -590,7 +590,7 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
   -H "Authorization: Bearer sk-mira-YOUR_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "mira-thinking",
+    "model": "mira-pro",
     "messages": [
       {
         "role": "user",
@@ -611,7 +611,7 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
         title="JSON"
         code={`{
   "id": "chatcmpl-xyz789",
-  "model": "mira-thinking",
+  "model": "mira-pro",
   "choices": [
     {
       "index": 0,
@@ -643,7 +643,7 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
         headers={[
           isRu ? "Параметр" : "Aspect",
           isRu ? "mira (обычный)" : "mira (regular)",
-          "mira-thinking",
+          isRu ? "mira-pro / mira-max (мышление)" : "mira-pro / mira-max (thinking)",
         ]}
         rows={[
           [
@@ -702,8 +702,8 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Лучшие практики" : "Best Practices"}</H2>
       <Note type="tip">
         {isRu
-          ? "Используйте mira-thinking только для задач, где точность критична. Для простых вопросов (перевод, генерация текста, чат) обычная модель mira будет быстрее и дешевле."
-          : "Use mira-thinking only for tasks where accuracy is critical. For simple questions (translation, text generation, chat), the regular mira model will be faster and cheaper."}
+          ? "Используйте режим мышления в mira-pro и mira-max только для задач, где точность критична. Для простых вопросов (перевод, генерация текста, чат) модель mira будет быстрее и дешевле."
+          : "Use thinking mode in mira-pro and mira-max only for tasks where accuracy is critical. For simple questions (translation, text generation, chat), the mira model will be faster and cheaper."}
       </Note>
       <UL
         items={[

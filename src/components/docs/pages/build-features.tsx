@@ -42,8 +42,8 @@ function FeaturesOverviewPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Расширенное мышление" : "Extended thinking"}</H2>
       <P>
         {isRu
-          ? "Модель mira-thinking использует цепочку рассуждений для решения сложных задач. Она «думает вслух», разбивая проблему на шаги, прежде чем дать финальный ответ. Это значительно повышает точность на задачах с математикой, логикой и программированием."
-          : "The mira-thinking model uses chain-of-thought reasoning to solve complex problems. It \"thinks out loud,\" breaking the problem into steps before giving a final answer. This significantly improves accuracy on math, logic, and programming tasks."}
+          ? "Модели mira-pro и mira-max включают режим мышления с цепочкой рассуждений для решения сложных задач. Модель «думает вслух», разбивая проблему на шаги, прежде чем дать финальный ответ. Это значительно повышает точность на задачах с математикой, логикой и программированием."
+          : "The mira-pro and mira-max models include thinking mode with chain-of-thought reasoning to solve complex problems. The model \"thinks out loud,\" breaking the problem into steps before giving a final answer. This significantly improves accuracy on math, logic, and programming tasks."}
       </P>
 
       <H2>{isRu ? "Потоковая передача (Streaming)" : "Streaming"}</H2>
@@ -165,7 +165,7 @@ function MessagesApiPage({ locale }: { locale: Locale }) {
       </P>
 
       <ParamTable params={[
-        { name: "model", type: "string", required: true, desc: isRu ? "ID модели: mira, mira-thinking, mira-pro, mira-max" : "Model ID: mira, mira-thinking, mira-pro, mira-max" },
+        { name: "model", type: "string", required: true, desc: isRu ? "ID модели: mira, mira-pro, mira-max" : "Model ID: mira, mira-pro, mira-max" },
         { name: "messages", type: "array", required: true, desc: isRu ? "Массив сообщений с полями role и content" : "Array of messages with role and content fields" },
         { name: "max_tokens", type: "integer", required: false, desc: isRu ? "Максимальное количество токенов в ответе" : "Maximum number of tokens in the response" },
         { name: "temperature", type: "number", required: false, desc: isRu ? "Температура семплирования (0–2, по умолчанию 1)" : "Sampling temperature (0\u20132, default 1)" },
@@ -916,8 +916,8 @@ function PromptEngineeringPage({ locale }: { locale: Locale }) {
 
       <Note type="tip">
         {isRu
-          ? "Для задач, требующих глубокого анализа, используйте модель mira-thinking — она автоматически применяет цепочку рассуждений."
-          : "For tasks requiring deep analysis, use the mira-thinking model \u2014 it automatically applies chain-of-thought reasoning."}
+          ? "Для задач, требующих глубокого анализа, используйте модели mira-pro или mira-max — они автоматически применяют цепочку рассуждений."
+          : "For tasks requiring deep analysis, use the mira-pro or mira-max models \u2014 they automatically apply chain-of-thought reasoning."}
       </Note>
 
       {/* ── Technique 1: Be specific ── */}
@@ -1038,8 +1038,8 @@ Please solve this step by step, explaining each reasoning step before giving the
 
       <Note type="tip">
         {isRu
-          ? "Модель mira-thinking делает это автоматически — она всегда рассуждает пошагово. Для остальных моделей нужно явно попросить."
-          : "The mira-thinking model does this automatically \u2014 it always reasons step by step. For other models, you need to ask explicitly."}
+          ? "Модели mira-pro и mira-max делают это автоматически — они всегда рассуждают пошагово. Для модели mira нужно явно попросить."
+          : "The mira-pro and mira-max models do this automatically \u2014 they always reason step by step. For the mira model, you need to ask explicitly."}
       </Note>
 
       {/* ── Technique 5: Role prompting ── */}

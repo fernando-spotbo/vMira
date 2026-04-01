@@ -726,7 +726,7 @@ function PlatformChangelogPage({ locale }: { locale: Locale }) {
       items: isRu
         ? [
             "Запуск платформы Мира — api.vmira.ai и platform.vmira.ai",
-            "Доступны модели mira (универсальная) и mira-thinking (расширенное мышление)",
+            "Доступны модели mira (универсальная), mira-pro (с режимом мышления) и mira-max (максимальные возможности)",
             "OpenAI-совместимый API: /v1/chat/completions, /v1/models",
             "Полная поддержка стриминга через Server-Sent Events (SSE)",
             "Регистрация и управление API-ключами через личный кабинет",
@@ -735,7 +735,7 @@ function PlatformChangelogPage({ locale }: { locale: Locale }) {
           ]
         : [
             "Launched the Mira platform — api.vmira.ai and platform.vmira.ai",
-            "Available models: mira (general-purpose) and mira-thinking (extended thinking)",
+            "Available models: mira (general-purpose), mira-pro (with thinking mode), and mira-max (maximum capabilities)",
             "OpenAI-compatible API: /v1/chat/completions, /v1/models",
             "Full streaming support via Server-Sent Events (SSE)",
             "Registration and API key management through the dashboard",
@@ -857,8 +857,8 @@ function GlossaryPage({ locale }: { locale: Locale }) {
     {
       term: "Extended Thinking",
       termRu: "Расширенное мышление",
-      def: "A capability where the model performs step-by-step reasoning before providing a final answer. Available via the mira-thinking model for complex analytical tasks.",
-      defRu: "Возможность модели выполнять пошаговое рассуждение перед итоговым ответом. Доступно через модель mira-thinking для сложных аналитических задач.",
+      def: "A capability where the model performs step-by-step reasoning before providing a final answer. Available in the mira-pro and mira-max models for complex analytical tasks.",
+      defRu: "Возможность модели выполнять пошаговое рассуждение перед итоговым ответом. Доступно в моделях mira-pro и mira-max для сложных аналитических задач.",
     },
     {
       term: "Few-Shot Learning",
@@ -905,8 +905,8 @@ function GlossaryPage({ locale }: { locale: Locale }) {
     {
       term: "Model",
       termRu: "Модель",
-      def: "A trained AI system that generates responses. Mira offers multiple models (mira, mira-thinking, mira-pro, mira-max) optimized for different use cases.",
-      defRu: "Обученная ИИ-система, генерирующая ответы. Мира предлагает несколько моделей (mira, mira-thinking, mira-pro, mira-max), оптимизированных для разных задач.",
+      def: "A trained AI system that generates responses. Mira offers multiple models (mira, mira-pro, mira-max) optimized for different use cases.",
+      defRu: "Обученная ИИ-система, генерирующая ответы. Мира предлагает несколько моделей (mira, mira-pro, mira-max), оптимизированных для разных задач.",
     },
     {
       term: "Prompt",

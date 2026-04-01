@@ -271,7 +271,7 @@ function ChatCompletionsPage({ locale }: { locale: Locale }) {
 
       <H2>{isRu ? "Параметры запроса" : "Request parameters"}</H2>
       <ParamTable params={[
-        { name: "model", type: "string", required: true, desc: isRu ? "Идентификатор модели: mira, mira-thinking, mira-pro или mira-max" : "Model ID: mira, mira-thinking, mira-pro, or mira-max" },
+        { name: "model", type: "string", required: true, desc: isRu ? "Идентификатор модели: mira, mira-pro или mira-max" : "Model ID: mira, mira-pro, or mira-max" },
         { name: "messages", type: "array", required: true, desc: isRu ? "Массив сообщений диалога (макс. 200). Каждое сообщение содержит role и content." : "Array of conversation messages (max 200). Each message has a role and content." },
         { name: "temperature", type: "float", required: false, desc: isRu ? "Степень случайности (0-2). Меньшие значения делают ответы более детерминированными. По умолчанию 0.7." : "Randomness (0-2). Lower values make responses more deterministic. Default 0.7." },
         { name: "max_tokens", type: "integer", required: false, desc: isRu ? "Максимальное количество токенов в ответе. По умолчанию 4096, максимум 16384." : "Maximum number of tokens in the response. Default 4096, max 16384." },
@@ -607,14 +607,6 @@ console.log("Default model:", models.default);`}
       "max_output_tokens": 4096
     },
     {
-      "id": "mira-thinking",
-      "name": "Mira Thinking",
-      "description": "Extended reasoning for complex tasks",
-      "context_window": 32768,
-      "max_output_tokens": 8192,
-      "requires_plan": "pro"
-    },
-    {
       "id": "mira-pro",
       "name": "Mira Pro",
       "description": "Advanced model for professional use",
@@ -654,8 +646,7 @@ console.log("Default model:", models.default);`}
         ]}
         rows={[
           ["mira", "32K", "4K", isRu ? "Общие задачи, чат, суммаризация" : "General tasks, chat, summarization"],
-          ["mira-thinking", "32K", "8K", isRu ? "Сложные рассуждения, математика, логика" : "Complex reasoning, math, logic"],
-          ["mira-pro", "64K", "8K", isRu ? "Профессиональные задачи, длинные документы" : "Professional tasks, long documents"],
+          ["mira-pro", "64K", "8K", isRu ? "Профессиональные задачи, рассуждения, длинные документы" : "Professional tasks, reasoning, long documents"],
           ["mira-max", "128K", "16K", isRu ? "Максимальный контекст, анализ кодовых баз" : "Maximum context, codebase analysis"],
         ]}
       />
@@ -1005,8 +996,8 @@ function RateLimitsPage({ locale }: { locale: Locale }) {
       />
       <Note type="info">
         {isRu
-          ? "Модели mira-thinking и mira-pro требуют тариф Pro или выше. Модель mira-max требует тариф Max."
-          : "The mira-thinking and mira-pro models require the Pro plan or higher. The mira-max model requires the Max plan."}
+          ? "Модель mira-pro требует тариф Pro или выше. Модель mira-max требует тариф Max."
+          : "The mira-pro model requires the Pro plan or higher. The mira-max model requires the Max plan."}
       </Note>
 
       <H2>{isRu ? "Заголовок Retry-After" : "Retry-After header"}</H2>
@@ -1282,7 +1273,7 @@ console.log(response.choices[0].message.content);`}
         rows={[
           [isRu ? "Базовый URL" : "Base URL", "https://api.openai.com/v1", "https://api.vmira.ai/v1"],
           [isRu ? "Формат ключа" : "Key format", "sk-...", "sk-mira-..."],
-          [isRu ? "Модели" : "Models", "gpt-4o, gpt-4o-mini", "mira, mira-thinking, mira-pro, mira-max"],
+          [isRu ? "Модели" : "Models", "gpt-4o, gpt-4o-mini", "mira, mira-pro, mira-max"],
           [isRu ? "Формат запросов" : "Request format", isRu ? "Идентичный" : "Identical", isRu ? "Идентичный" : "Identical"],
           [isRu ? "Формат ответов" : "Response format", isRu ? "Идентичный" : "Identical", isRu ? "Идентичный" : "Identical"],
         ]}

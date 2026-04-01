@@ -3,95 +3,138 @@
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Play, Settings, Sparkles, Code, Monitor, Star, Terminal, Search } from "lucide-react";
-import { docsNav, platformCards, codeCards, type HomeCard } from "@/lib/docs/navigation";
+import {
+  Play, Settings, Sparkles, Code, Monitor, Star, Terminal, Search,
+} from "lucide-react";
+import { platformCards, codeCards, type HomeCard } from "@/lib/docs/navigation";
 import type { Locale } from "@/lib/i18n";
 import { DocsContent } from "@/components/docs/DocsContent";
 
 function getLocale(): Locale {
   if (typeof window === "undefined") return "en";
   try {
-    const stored = localStorage.getItem("mira-locale");
-    if (stored === "ru" || stored === "en") return stored;
+    const s = localStorage.getItem("mira-locale");
+    if (s === "ru" || s === "en") return s;
   } catch {}
   return navigator.language.startsWith("ru") ? "ru" : "en";
 }
 
-const iconMap: Record<string, React.ReactNode> = {
-  play: <Play size={18} strokeWidth={1.5} />,
-  settings: <Settings size={18} strokeWidth={1.5} />,
-  sparkles: <Sparkles size={18} strokeWidth={1.5} />,
-  code: <Code size={18} strokeWidth={1.5} />,
-  monitor: <Monitor size={18} strokeWidth={1.5} />,
-  star: <Star size={18} strokeWidth={1.5} />,
-  terminal: <Terminal size={18} strokeWidth={1.5} />,
+const ICONS: Record<string, React.ReactNode> = {
+  play: <Play size={20} strokeWidth={1.5} />,
+  settings: <Settings size={20} strokeWidth={1.5} />,
+  sparkles: <Sparkles size={20} strokeWidth={1.5} />,
+  code: <Code size={20} strokeWidth={1.5} />,
+  monitor: <Monitor size={20} strokeWidth={1.5} />,
+  star: <Star size={20} strokeWidth={1.5} />,
+  terminal: <Terminal size={20} strokeWidth={1.5} />,
 };
 
-function CardGrid({ title, cards, locale }: { title: string; cards: HomeCard[]; locale: Locale }) {
-  const i = (text: Record<Locale, string>) => text[locale] || text.en;
+/* ═══ Card styles matching preview-docs.html ═══ */
+const cardBase: React.CSSProperties = {
+  padding: 24, borderRadius: 12, cursor: "pointer", position: "relative", overflow: "hidden",
+  background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
+  transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+};
+const cardWarmBase: React.CSSProperties = {
+  ...cardBase,
+  background: "rgba(255,250,240,0.015)", borderColor: "rgba(255,250,240,0.06)",
+};
+
+function DocCard({ card, locale, warm }: { card: HomeCard; locale: Locale; warm?: boolean }) {
+  const i = (t: Record<Locale, string>) => t[locale] || t.en;
+  const base = warm ? cardWarmBase : cardBase;
   return (
-    <div className="mb-12">
-      <h2 className="text-[22px] font-medium text-white mb-6 text-center">{title}</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cards.map(card => (
-          <Link
-            key={card.slug}
-            href={`/docs/${card.slug}`}
-            className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all duration-200"
-          >
-            <div className="text-white/40 mb-3 group-hover:text-white/60 transition-colors">
-              {iconMap[card.icon] || <Code size={18} />}
-            </div>
-            <h3 className="text-[15px] font-medium text-white mb-1.5">{i(card.title)}</h3>
-            <p className="text-[13px] text-white/40 leading-relaxed">{i(card.description)}</p>
-          </Link>
-        ))}
+    <Link
+      href={`/docs/${card.slug}`}
+      style={base}
+      className="group block"
+      onMouseEnter={e => {
+        const el = e.currentTarget;
+        el.style.background = warm ? "rgba(255,250,240,0.03)" : "rgba(255,255,255,0.04)";
+        el.style.borderColor = warm ? "rgba(255,250,240,0.10)" : "rgba(255,255,255,0.10)";
+        el.style.transform = "translateY(-1px)";
+        el.style.boxShadow = "0 4px 20px rgba(0,0,0,0.25)";
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget;
+        el.style.background = warm ? "rgba(255,250,240,0.015)" : "rgba(255,255,255,0.02)";
+        el.style.borderColor = warm ? "rgba(255,250,240,0.06)" : "rgba(255,255,255,0.06)";
+        el.style.transform = "none";
+        el.style.boxShadow = "none";
+      }}
+    >
+      <div style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14, color: "rgba(255,255,255,0.3)", transition: "color 0.25s" }}
+        className="group-hover:!text-white/50"
+      >
+        {ICONS[card.icon] || <Code size={20} />}
       </div>
-    </div>
+      <h3 style={{ fontSize: 15, fontWeight: 500, color: "#fff", marginBottom: 6, letterSpacing: "-0.01em" }}>
+        {i(card.title)}
+        {card.slug.startsWith("mira-code/") && <span style={{ opacity: 0.4 }}>&nbsp;&nbsp;↗</span>}
+      </h3>
+      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.55, fontWeight: 300 }}>
+        {i(card.description)}
+      </p>
+    </Link>
   );
 }
 
 function DocsHome({ locale }: { locale: Locale }) {
-  const i = (text: Record<Locale, string>) => text[locale] || text.en;
-
+  const i = (t: Record<Locale, string>) => t[locale] || t.en;
   return (
-    <div className="max-w-[960px] mx-auto">
+    <div style={{ maxWidth: 960, margin: "0 auto" }}>
       {/* Hero */}
-      <div className="text-center mb-12 pt-4">
-        <h1 className="text-[36px] font-light text-white mb-3">
+      <div className="docs-fade" style={{ textAlign: "center", marginBottom: 56, paddingTop: 4 }}>
+        <h1 style={{ fontSize: 42, fontWeight: 300, color: "#fff", letterSpacing: "-0.03em", marginBottom: 10, lineHeight: 1.15 }}>
           {i({ en: "Build with Mira", ru: "Создавайте с Мирой" })}
         </h1>
-        <p className="text-[16px] text-white/50 mb-8">
-          {i({
-            en: "Learn how to get started with Mira Platform and Mira Code.",
-            ru: "Узнайте, как начать работу с платформой Мира и Mira Code."
-          })}
+        <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", marginBottom: 28, fontWeight: 300 }}>
+          {i({ en: "Learn how to get started with Mira Platform and Mira Code.", ru: "Узнайте, как начать работу с платформой Мира и Mira Code." })}
         </p>
-
-        {/* Search bar */}
-        <div className="max-w-[480px] mx-auto relative">
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25" />
+        <div style={{ maxWidth: 480, margin: "0 auto", position: "relative" }}>
+          <Search size={16} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)" }} />
           <input
             type="text"
             placeholder={i({ en: "Ask Mira about the docs...", ru: "Спросите Миру о документации..." })}
-            className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-[14px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.12] transition-colors"
+            style={{
+              width: "100%", padding: "14px 70px 14px 44px", borderRadius: 16,
+              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+              color: "#ececec", fontSize: 14, fontFamily: "inherit", outline: "none",
+            }}
+            onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}
           />
+          <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 3 }}>
+            {["⌘", "K"].map(k => (
+              <span key={k} style={{
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 4, padding: "1px 6px", fontFamily: "var(--font-mono, monospace)",
+                fontSize: 11, color: "rgba(255,255,255,0.15)",
+              }}>{k}</span>
+            ))}
+          </span>
         </div>
       </div>
 
-      {/* Mira Platform cards */}
-      <CardGrid
-        title={i({ en: "Mira Platform", ru: "Платформа Мира" })}
-        cards={platformCards}
-        locale={locale}
-      />
+      {/* Mira Platform */}
+      <h2 style={{ textAlign: "center", fontSize: 22, fontWeight: 400, color: "#fff", marginBottom: 24, letterSpacing: "-0.01em" }}>
+        {i({ en: "Mira Platform", ru: "Платформа Мира" })}
+      </h2>
+      <div className="docs-fade docs-fade-d1" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 56 }}>
+        {platformCards.map(c => <DocCard key={c.slug} card={c} locale={locale} />)}
+      </div>
 
-      {/* Mira Code cards */}
-      <CardGrid
-        title="Mira Code"
-        cards={codeCards}
-        locale={locale}
-      />
+      {/* Divider */}
+      <div style={{ height: 1, background: "rgba(255,255,255,0.06)", maxWidth: 200, margin: "0 auto 48px" }} />
+
+      {/* Mira Code */}
+      <h2 style={{ textAlign: "center", fontSize: 22, fontWeight: 400, color: "#fff", marginBottom: 24, letterSpacing: "-0.01em" }}>
+        Mira Code
+      </h2>
+      <div className="docs-fade docs-fade-d2" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 56 }}>
+        {codeCards.map(c => <DocCard key={c.slug} card={c} locale={locale} warm />)}
+      </div>
     </div>
   );
 }
@@ -102,7 +145,6 @@ export default function DocsPage() {
 
   useEffect(() => {
     setLocale(getLocale());
-    // Listen for locale changes from layout
     const handler = () => setLocale(getLocale());
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
@@ -111,25 +153,10 @@ export default function DocsPage() {
   const slugArray = (params?.slug as string[] | undefined) || [];
   const slug = slugArray.join("/");
 
-  // Home page
-  if (!slug) {
-    return <DocsHome locale={locale} />;
-  }
-
-  // Find the page in navigation
-  let pageTitle: Record<Locale, string> | null = null;
-  for (const section of docsNav) {
-    const item = section.items.find(i => i.slug === slug);
-    if (item) {
-      pageTitle = item.title;
-      break;
-    }
-  }
-
-  const i = (text: Record<Locale, string>) => text[locale] || text.en;
+  if (!slug) return <DocsHome locale={locale} />;
 
   return (
-    <div className="max-w-[760px] mx-auto">
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <DocsContent slug={slug} locale={locale} />
     </div>
   );

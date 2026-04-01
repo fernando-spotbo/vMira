@@ -11,6 +11,7 @@ pub mod chat;
 pub mod completions;
 pub mod feedback;
 pub mod health;
+pub mod models;
 pub mod notifications;
 pub mod projects;
 pub mod sessions;
@@ -51,6 +52,7 @@ pub fn create_router(state: AppState) -> Router {
             voice::voice_routes()
                 .layer(DefaultBodyLimit::max(upload_limit)),
         )
+        .nest("/api/v1", models::models_routes())
         .nest("/v1", completions::completions_routes())
         // Default 2MB body limit for all non-upload routes
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))

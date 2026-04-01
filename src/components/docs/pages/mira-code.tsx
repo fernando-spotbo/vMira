@@ -618,10 +618,9 @@ function MiraCodeConfigPage({ locale }: { locale: Locale }) {
       />
       <P>
         {isRu
-          ? "Вы можете создать этот файл вручную или использовать команду инициализации:"
-          : "You can create this file manually or use the init command:"}
+          ? "Этот файл создаётся автоматически при первом запуске Mira Code. Вы можете отредактировать его в любом текстовом редакторе."
+          : "This file is created automatically on first launch. You can edit it with any text editor."}
       </P>
-      <CodeBlock title={isRu ? "Создание глобальной конфигурации" : "Create global config"} code="mira --init-global" language="bash" />
 
       <H2>{isRu ? "Настройки проекта" : "Project Settings"}</H2>
       <P>

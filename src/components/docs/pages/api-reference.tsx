@@ -632,7 +632,7 @@ function ModelsListPage({ locale }: { locale: Locale }) {
 response = requests.get("https://api.vmira.ai/api/v1/models")
 models = response.json()
 
-for model in models["data"]:
+for model in models["models"]:
     print(f"{model['id']:20} context={model['context_window']:>7}  max_output={model['max_output_tokens']}")`}
       />
 
@@ -737,7 +737,7 @@ client = OpenAI(
 )
 
 models = client.models.list()
-for model in models.data:
+for model in models.models:
     print(model.id)`}
       />
     </>

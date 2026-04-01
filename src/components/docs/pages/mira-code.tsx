@@ -226,11 +226,16 @@ function MiraCodeReferencePage({ locale }: { locale: Locale }) {
       <Table
         headers={[isRu ? "Флаг" : "Flag", isRu ? "Описание" : "Description", isRu ? "Пример" : "Example"]}
         rows={[
-          ["--version", isRu ? "Показать текущую версию" : "Display current version", "mira --version"],
-          ["--help", isRu ? "Показать справку" : "Show help information", "mira --help"],
+          ["--version, -v", isRu ? "Показать текущую версию" : "Display current version", "mira --version"],
+          ["--help, -h", isRu ? "Показать справку" : "Show help information", "mira --help"],
           ["--model", isRu ? "Выбрать модель AI" : "Select AI model", "mira --model mira-pro"],
-          ["--api-key", isRu ? "Указать API-ключ" : "Provide API key", "mira --api-key sk-..."],
-          ["--max-tokens", isRu ? "Максимум токенов ответа" : "Maximum response tokens", "mira --max-tokens 4096"],
+          ["--print, -p", isRu ? "Неинтерактивный вывод (для скриптов)" : "Non-interactive output (for scripting)", "mira -p \"explain this\""],
+          ["--continue, -c", isRu ? "Продолжить последний диалог" : "Continue most recent conversation", "mira --continue"],
+          ["--resume, -r", isRu ? "Возобновить сессию по ID" : "Resume a session by ID", "mira -r SESSION_ID"],
+          ["--yolo", isRu ? "Пропустить все подтверждения" : "Skip all permission checks", "mira --yolo"],
+          ["--effort", isRu ? "Уровень усилий (low, medium, high, max)" : "Effort level (low, medium, high, max)", "mira --effort high"],
+          ["--system-prompt", isRu ? "Системный промпт" : "System prompt override", "mira --system-prompt \"Be terse\""],
+          ["--verbose", isRu ? "Подробный вывод" : "Verbose output", "mira --verbose"],
         ]}
       />
       <Note type="tip">
@@ -249,16 +254,18 @@ function MiraCodeReferencePage({ locale }: { locale: Locale }) {
         headers={[isRu ? "Переменная" : "Variable", isRu ? "Описание" : "Description", isRu ? "По умолчанию" : "Default"]}
         rows={[
           ["MIRA_API_KEY", isRu ? "API-ключ для аутентификации" : "API key for authentication", isRu ? "нет" : "none"],
-          ["MIRA_API_URL", isRu ? "Базовый URL API" : "Base API URL", "https://api.vmira.ai"],
+          ["MIRA_BASE_URL", isRu ? "Базовый URL API" : "Base API URL", "https://api.vmira.ai"],
           ["MIRA_MODEL", isRu ? "Модель по умолчанию" : "Default model", "mira"],
+          ["MIRA_AUTH_URL", isRu ? "URL для аутентификации" : "Authentication endpoint URL", "https://api.vmira.ai"],
+          ["MIRA_CONFIG_DIR", isRu ? "Директория конфигурации" : "Configuration directory", "~/.mira"],
         ]}
       />
       <CodeBlock
         title={isRu ? "Настройка переменных окружения (bash)" : "Setting environment variables (bash)"}
         code={`# Add to your ~/.bashrc or ~/.zshrc
-export MIRA_API_KEY="your-api-key-here"
+export MIRA_API_KEY="sk-mira-your-key-here"
 export MIRA_MODEL="mira-pro"
-export MIRA_API_URL="https://api.vmira.ai"`}
+export MIRA_BASE_URL="https://api.vmira.ai"`}
         language="bash"
       />
 
@@ -272,18 +279,18 @@ export MIRA_API_URL="https://api.vmira.ai"`}
       <CodeBlock
         title="~/.mira.json"
         code={`{
-  "model": "mira",
-  "apiKey": "your-api-key",
-  "maxTokens": 4096,
+  "apiKey": "sk-mira-your-key-here",
   "theme": "dark",
-  "permissions": {
-    "fileRead": "auto",
-    "fileWrite": "ask",
-    "commandExecution": "ask"
-  }
+  "autoUpdates": true,
+  "verbose": false
 }`}
         language="json"
       />
+      <Note type="info">
+        {isRu
+          ? "Файл ~/.mira.json создаётся автоматически при первой аутентификации. API-ключ сохраняется в поле apiKey."
+          : "The ~/.mira.json file is created automatically on first authentication. Your API key is stored in the apiKey field."}
+      </Note>
 
       <H3>{isRu ? "Конфигурация проекта" : "Project Configuration"}</H3>
       <P>
@@ -305,16 +312,24 @@ export MIRA_API_URL="https://api.vmira.ai"`}
         language="json"
       />
 
-      <H2>{isRu ? "Опции конфигурации" : "Configuration Options"}</H2>
+      <H2>{isRu ? "Ключевые опции" : "Key Options"}</H2>
+      <H3>{isRu ? "Глобальная конфигурация (~/.mira.json)" : "Global config (~/.mira.json)"}</H3>
       <Table
-        headers={[isRu ? "Опция" : "Option", isRu ? "Тип" : "Type", isRu ? "Описание" : "Description"]}
+        headers={[isRu ? "Поле" : "Field", isRu ? "Тип" : "Type", isRu ? "Описание" : "Description"]}
         rows={[
-          ["model", "string", isRu ? "Идентификатор модели AI (mira, mira-thinking, mira-pro, mira-max)" : "AI model identifier (mira, mira-thinking, mira-pro, mira-max)"],
-          ["apiKey", "string", isRu ? "API-ключ для аутентификации" : "API key for authentication"],
-          ["maxTokens", "number", isRu ? "Максимальное количество токенов ответа (по умолчанию: 4096)" : "Maximum response tokens (default: 4096)"],
+          ["apiKey", "string", isRu ? "API-ключ Mira (sk-mira-...)" : "Mira API key (sk-mira-...)"],
           ["theme", "string", isRu ? "Цветовая тема: \"dark\" или \"light\"" : "Color theme: \"dark\" or \"light\""],
-          ["permissions", "object", isRu ? "Настройки системы разрешений" : "Permission system settings"],
-          ["ignore", "string[]", isRu ? "Файлы и директории для игнорирования" : "Files and directories to ignore"],
+          ["autoUpdates", "boolean", isRu ? "Автоматическое обновление CLI" : "Auto-update the CLI"],
+          ["verbose", "boolean", isRu ? "Подробный вывод логов" : "Verbose logging output"],
+        ]}
+      />
+      <H3>{isRu ? "Настройки проекта (.mira/settings.json)" : "Project settings (.mira/settings.json)"}</H3>
+      <Table
+        headers={[isRu ? "Поле" : "Field", isRu ? "Тип" : "Type", isRu ? "Описание" : "Description"]}
+        rows={[
+          ["permissions.allow", "string[]", isRu ? "Разрешённые инструменты (Read, Edit, Write, Bash(...))" : "Allowed tools (Read, Edit, Write, Bash(...))"],
+          ["permissions.deny", "string[]", isRu ? "Запрещённые инструменты" : "Denied tools"],
+          ["env", "object", isRu ? "Переменные окружения для сессии (MIRA_MODEL и др.)" : "Environment variables for the session (MIRA_MODEL, etc.)"],
         ]}
       />
 
@@ -439,14 +454,22 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
       <CodeBlock title="/help" code={`> /help
 
   Available commands:
-    /help     - Show this help message
-    /clear    - Clear conversation history
-    /compact  - Compact conversation context
-    /model    - Change AI model
-    /commit   - Create a git commit
-    /review   - Review code changes
-    /bug      - Find and fix bugs
-    /init     - Initialize project config`} language="text" />
+    /help        - Show this help message
+    /clear       - Clear conversation history
+    /compact     - Compact conversation context
+    /model       - Change AI model
+    /init        - Initialize project (create MIRA.md)
+    /review      - Review code changes
+    /login       - Authenticate with Mira
+    /logout      - Remove stored credentials
+    /cost        - Show session token usage and cost
+    /doctor      - Run diagnostics
+    /status      - Show session status
+    /memory      - Manage persistent memory
+    /theme       - Switch color theme
+    /config      - Open configuration
+    /permissions - Manage tool permissions
+    /diff        - Show pending changes`} language="text" />
 
       <H3>/clear</H3>
       <P>{isRu ? "Очищает текущую историю диалога. Полезно, когда контекст разговора стал слишком большим или вы хотите начать новую тему." : "Clears the current conversation history. Useful when context becomes too large or you want to start a new topic."}</P>
@@ -473,20 +496,6 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
   Select model (1-4): 3
   ✓ Switched to mira-pro`} language="text" />
 
-      <H3>/commit</H3>
-      <P>{isRu ? "Анализирует текущие изменения в git и создаёт коммит с автоматически сгенерированным сообщением." : "Analyzes current git changes and creates a commit with an automatically generated message."}</P>
-      <CodeBlock title="/commit" code={`> /commit
-
-  Analyzing staged changes...
-  - Modified: src/components/Button.tsx
-  - Added: src/components/Button.test.tsx
-
-  Suggested commit message:
-  "feat: add Button component with variants and tests"
-
-  Proceed? (y/n): y
-  ✓ Committed: feat: add Button component with variants and tests`} language="text" />
-
       <H3>/review</H3>
       <P>{isRu ? "Выполняет ревью текущих изменений кода, находит потенциальные проблемы и предлагает улучшения." : "Performs a code review of current changes, finding potential issues and suggesting improvements."}</P>
       <CodeBlock title="/review" code={`> /review
@@ -503,20 +512,17 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
 
   Summary: 2 warnings, 1 suggestion, no critical issues.`} language="text" />
 
-      <H3>/bug</H3>
-      <P>{isRu ? "Помогает найти и исправить баги в проекте. Можно описать симптомы, и Mira Code проанализирует код для поиска причины." : "Helps find and fix bugs in the project. Describe the symptoms, and Mira Code will analyze the code to find the root cause."}</P>
-      <CodeBlock title="/bug" code={`> /bug Users report that the search results page shows a blank screen on mobile
+      <H3>/cost</H3>
+      <P>{isRu ? "Показывает количество использованных токенов и стоимость текущей сессии." : "Shows the number of tokens used and cost of the current session."}</P>
 
-  Investigating...
-  Searching for responsive breakpoints in search components...
+      <H3>/doctor</H3>
+      <P>{isRu ? "Запускает диагностику окружения — проверяет Node.js, аутентификацию, подключение к API и конфигурацию проекта." : "Runs environment diagnostics — checks Node.js, authentication, API connectivity, and project configuration."}</P>
 
-  Found the issue in src/components/SearchResults.tsx:
-  Line 67: The grid layout uses "grid-cols-3" without a mobile breakpoint.
-  On screens < 768px, items overflow and become invisible.
+      <H3>/login, /logout</H3>
+      <P>{isRu ? "Аутентификация через device code flow (/login) или удаление сохранённых учётных данных (/logout)." : "Authenticate via device code flow (/login) or remove stored credentials (/logout)."}</P>
 
-  Fix applied:
-  - Changed "grid-cols-3" to "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-  ✓ Bug fixed.`} language="text" />
+      <H3>/memory</H3>
+      <P>{isRu ? "Управляет постоянной памятью Mira Code — сохраняет заметки, предпочтения и контекст между сессиями." : "Manages Mira Code's persistent memory — saves notes, preferences, and context across sessions."}</P>
 
       <H3>/init</H3>
       <P>{isRu ? "Анализирует ваш проект и создаёт MIRA.md с инструкциями для Mira Code, а также .mira/settings.json по необходимости." : "Analyzes your project and creates a MIRA.md with instructions for Mira Code, plus .mira/settings.json as needed."}</P>
@@ -541,18 +547,15 @@ function MiraCodeCommandsPage({ locale }: { locale: Locale }) {
       <Table
         headers={[isRu ? "Сочетание" : "Shortcut", isRu ? "Действие" : "Action"]}
         rows={[
-          ["Ctrl+C", isRu ? "Отменить текущую генерацию или ввод" : "Cancel current generation or input"],
+          ["Ctrl+C", isRu ? "Прервать текущую генерацию" : "Interrupt current generation"],
           ["Ctrl+D", isRu ? "Выйти из Mira Code" : "Exit Mira Code"],
-          ["Tab", isRu ? "Автодополнение команд и путей файлов" : "Autocomplete commands and file paths"],
+          ["Escape", isRu ? "Отменить текущую генерацию" : "Cancel current generation"],
           ["↑ / ↓", isRu ? "Навигация по истории ввода" : "Navigate input history"],
-          ["Escape", isRu ? "Очистить текущую строку ввода" : "Clear current input line"],
+          ["Ctrl+R", isRu ? "Поиск по истории" : "Search input history"],
+          ["Ctrl+L", isRu ? "Перерисовать экран" : "Redraw screen"],
+          ["Ctrl+O", isRu ? "Показать/скрыть транскрипт" : "Toggle transcript view"],
         ]}
       />
-      <Note type="tip">
-        {isRu
-          ? "Нажмите Tab дважды, чтобы увидеть все доступные варианты автодополнения для текущего ввода."
-          : "Press Tab twice to see all available autocomplete suggestions for your current input."}
-      </Note>
     </div>
   );
 }
@@ -770,36 +773,40 @@ export MIRA_MODEL="mira-pro"
         language="bash"
       />
 
-      <H2>{isRu ? "Пресеты разрешений" : "Permission Presets"}</H2>
+      <H2>{isRu ? "Система разрешений" : "Permission System"}</H2>
       <P>
         {isRu
-          ? "Для удобства Mira Code предоставляет пресеты разрешений, которые можно использовать вместо ручной настройки каждого параметра:"
-          : "For convenience, Mira Code provides permission presets that can be used instead of manually configuring each option:"}
+          ? "Mira Code использует систему разрешений на основе инструментов. Каждый инструмент (Read, Edit, Write, Bash и т.д.) может быть разрешён или запрещён в настройках проекта:"
+          : "Mira Code uses a tool-based permission system. Each tool (Read, Edit, Write, Bash, etc.) can be allowed or denied in project settings:"}
       </P>
-      <Table
-        headers={[isRu ? "Пресет" : "Preset", isRu ? "Чтение" : "Read", isRu ? "Запись" : "Write", isRu ? "Команды" : "Commands", isRu ? "Описание" : "Description"]}
-        rows={[
-          ["safe", "auto", "ask", "ask", isRu ? "По умолчанию. Читает свободно, спрашивает перед изменениями." : "Default. Reads freely, asks before changes."],
-          ["trusted", "auto", "auto", "ask", isRu ? "Автозапись файлов, спрашивает перед командами." : "Auto-writes files, asks before commands."],
-          ["yolo", "auto", "auto", "auto", isRu ? "Полная автоматизация. Используйте с осторожностью!" : "Full automation. Use with caution!"],
-          ["readonly", "auto", "deny", "deny", isRu ? "Только чтение. Не может изменять файлы или выполнять команды." : "Read only. Cannot modify files or run commands."],
-        ]}
-      />
-      <Note type="warning">
-        {isRu
-          ? "Пресет \"yolo\" отключает все подтверждения. Mira Code будет автоматически редактировать файлы и выполнять команды без вашего одобрения. Используйте только в изолированных средах разработки."
-          : "The \"yolo\" preset disables all confirmations. Mira Code will automatically edit files and run commands without your approval. Use only in isolated development environments."}
-      </Note>
       <CodeBlock
-        title={isRu ? "Использование пресета" : "Using a preset"}
-        code={`// In .mira/settings.json
-{
+        title=".mira/settings.json"
+        code={`{
   "permissions": {
-    "allow": ["Read", "Edit", "Write", "Bash"]
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(npm test:*)",
+      "Bash(npm run build)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)"
+    ]
   }
 }`}
         language="json"
       />
+      <P>
+        {isRu
+          ? "По умолчанию Mira Code спрашивает подтверждение перед записью файлов и выполнением команд. Чтение файлов разрешено автоматически."
+          : "By default, Mira Code asks for confirmation before writing files and running commands. File reads are allowed automatically."}
+      </P>
+      <Note type="warning">
+        {isRu
+          ? "Флаг --yolo отключает все подтверждения. Mira Code будет автоматически редактировать файлы и выполнять команды без вашего одобрения. Используйте только в изолированных средах разработки."
+          : "The --yolo flag disables all confirmations. Mira Code will automatically edit files and run commands without your approval. Use only in isolated development environments."}
+      </Note>
     </div>
   );
 }

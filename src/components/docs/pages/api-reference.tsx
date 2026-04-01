@@ -184,18 +184,16 @@ MIRA_API_KEY=sk-mira-your-key-here`}
       <H3>{isRu ? "Шаг 1: Запрос кода устройства" : "Step 1: Request a device code"}</H3>
       <CodeBlock
         title="POST /api/v1/auth/device/code"
-        code={`curl -X POST https://api.vmira.ai/api/v1/auth/device/code \\
-  -H "Content-Type: application/json" \\
-  -d '{"client_id": "mira-code-cli"}'`}
+        code={`curl -X POST https://api.vmira.ai/api/v1/auth/device/code`}
       />
       <P>{isRu ? "Ответ:" : "Response:"}</P>
       <CodeBlock
         title="JSON"
         code={`{
-  "device_code": "ABCD-1234-EFGH-5678",
-  "user_code": "MIRA-ABCD",
-  "verification_uri": "https://platform.vmira.ai/device",
-  "expires_in": 900,
+  "device_code": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  "user_code": "AB3D-7FGH",
+  "verification_uri": "https://platform.vmira.ai/authorize",
+  "expires_in": 600,
   "interval": 5
 }`}
       />
@@ -203,8 +201,8 @@ MIRA_API_KEY=sk-mira-your-key-here`}
       <H3>{isRu ? "Шаг 2: Пользователь авторизует устройство" : "Step 2: User authorizes the device"}</H3>
       <P>
         {isRu
-          ? "Пользователь открывает verification_uri в браузере и вводит user_code для подтверждения авторизации."
-          : "The user opens the verification_uri in a browser and enters the user_code to confirm authorization."}
+          ? "Пользователь открывает verification_uri в браузере и вводит user_code (формат XXXX-XXXX) для подтверждения авторизации."
+          : "The user opens the verification_uri in a browser and enters the user_code (format XXXX-XXXX) to confirm authorization."}
       </P>
 
       <H3>{isRu ? "Шаг 3: Опрос для получения токена" : "Step 3: Poll for the token"}</H3>
@@ -212,23 +210,24 @@ MIRA_API_KEY=sk-mira-your-key-here`}
         title="POST /api/v1/auth/device/token"
         code={`curl -X POST https://api.vmira.ai/api/v1/auth/device/token \\
   -H "Content-Type: application/json" \\
-  -d '{
-    "client_id": "mira-code-cli",
-    "device_code": "ABCD-1234-EFGH-5678",
-    "grant_type": "urn:ietf:params:oauth:grant-type:device_code"
-  }'`}
+  -d '{"device_code": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"}'`}
       />
       <P>
         {isRu
-          ? "CLI опрашивает этот эндпоинт каждые interval секунд. До авторизации ответ содержит ошибку authorization_pending. После авторизации возвращается API-ключ:"
-          : "The CLI polls this endpoint every interval seconds. Until authorization is complete, the response contains an authorization_pending error. After authorization, it returns the API key:"}
+          ? "CLI опрашивает этот эндпоинт каждые interval секунд. До авторизации статус \"pending\". После авторизации возвращается API-ключ:"
+          : "The CLI polls this endpoint every interval seconds. Before authorization, status is \"pending\". After authorization, it returns the API key:"}
       </P>
+      <CodeBlock
+        title={isRu ? "Ожидание" : "Pending"}
+        code={`{"status": "pending"}`}
+      />
       <CodeBlock
         title={isRu ? "Успешный ответ" : "Success response"}
         code={`{
+  "status": "approved",
   "access_token": "sk-mira-a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-  "token_type": "Bearer",
-  "scope": "api"
+  "token_type": "bearer",
+  "expires_in": 2592000
 }`}
       />
 
@@ -273,17 +272,16 @@ function ChatCompletionsPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Параметры запроса" : "Request parameters"}</H2>
       <ParamTable params={[
         { name: "model", type: "string", required: true, desc: isRu ? "Идентификатор модели: mira, mira-thinking, mira-pro или mira-max" : "Model ID: mira, mira-thinking, mira-pro, or mira-max" },
-        { name: "messages", type: "array", required: true, desc: isRu ? "Массив сообщений диалога. Каждое сообщение содержит role и content." : "Array of conversation messages. Each message has a role and content." },
-        { name: "max_tokens", type: "integer", required: false, desc: isRu ? "Максимальное количество токенов в ответе. По умолчанию зависит от модели." : "Maximum number of tokens in the response. Default depends on the model." },
-        { name: "temperature", type: "float", required: false, desc: isRu ? "Степень случайности (0-2). Меньшие значения делают ответы более детерминированными. По умолчанию 1." : "Randomness (0-2). Lower values make responses more deterministic. Default 1." },
-        { name: "top_p", type: "float", required: false, desc: isRu ? "Nucleus sampling (0-1). Альтернатива temperature. По умолчанию 1." : "Nucleus sampling (0-1). Alternative to temperature. Default 1." },
+        { name: "messages", type: "array", required: true, desc: isRu ? "Массив сообщений диалога (макс. 200). Каждое сообщение содержит role и content." : "Array of conversation messages (max 200). Each message has a role and content." },
+        { name: "temperature", type: "float", required: false, desc: isRu ? "Степень случайности (0-2). Меньшие значения делают ответы более детерминированными. По умолчанию 0.7." : "Randomness (0-2). Lower values make responses more deterministic. Default 0.7." },
+        { name: "max_tokens", type: "integer", required: false, desc: isRu ? "Максимальное количество токенов в ответе. По умолчанию 4096, максимум 16384." : "Maximum number of tokens in the response. Default 4096, max 16384." },
         { name: "stream", type: "boolean", required: false, desc: isRu ? "Включить потоковую передачу ответа через Server-Sent Events. По умолчанию false." : "Enable streaming via Server-Sent Events. Default false." },
-        { name: "stop", type: "string | array", required: false, desc: isRu ? "Последовательности, при которых модель прекращает генерацию. До 4 последовательностей." : "Sequences where the model stops generating. Up to 4 sequences." },
-        { name: "tools", type: "array", required: false, desc: isRu ? "Массив определений функций, доступных модели для вызова." : "Array of function definitions available for the model to call." },
-        { name: "tool_choice", type: "string | object", required: false, desc: isRu ? "Стратегия вызова инструментов: \"auto\", \"none\" или конкретный инструмент." : "Tool calling strategy: \"auto\", \"none\", or a specific tool." },
-        { name: "response_format", type: "object", required: false, desc: isRu ? "Формат ответа. Используйте {\"type\": \"json_object\"} для JSON-режима." : "Response format. Use {\"type\": \"json_object\"} for JSON mode." },
-        { name: "n", type: "integer", required: false, desc: isRu ? "Количество вариантов ответа. По умолчанию 1." : "Number of response choices to generate. Default 1." },
       ]} />
+      <Note type="info">
+        {isRu
+          ? "Каждое сообщение ограничено 32 000 символами. Дополнительные параметры OpenAI API (top_p, stop, tools, response_format и др.) планируются в будущих версиях."
+          : "Each message is limited to 32,000 characters. Additional OpenAI API parameters (top_p, stop, tools, response_format, etc.) are planned for future releases."}
+      </Note>
 
       <H2>{isRu ? "Формат сообщений" : "Message format"}</H2>
       <P>
@@ -506,63 +504,10 @@ while (true) {
 }`}
       />
 
-      <H2>{isRu ? "Вызов инструментов (Tool Use)" : "Tool calling"}</H2>
-      <P>
+      <Note type="info">
         {isRu
-          ? "Модели Mira поддерживают вызов функций через параметр tools. Определите функции с их схемами JSON, и модель сможет выбрать и вызвать их."
-          : "Mira models support function calling via the tools parameter. Define functions with their JSON schemas, and the model can choose to invoke them."}
-      </P>
-      <CodeBlock
-        title={isRu ? "Пример с инструментами" : "Tool calling example"}
-        code={`{
-  "model": "mira",
-  "messages": [
-    {"role": "user", "content": "${isRu ? "Какая погода в Москве?" : "What is the weather in London?"}"}
-  ],
-  "tools": [
-    {
-      "type": "function",
-      "function": {
-        "name": "get_weather",
-        "description": "${isRu ? "Получить текущую погоду для города" : "Get the current weather for a city"}",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "city": {
-              "type": "string",
-              "description": "${isRu ? "Название города" : "The city name"}"
-            }
-          },
-          "required": ["city"]
-        }
-      }
-    }
-  ],
-  "tool_choice": "auto"
-}`}
-      />
-
-      <H2>{isRu ? "JSON-режим" : "JSON mode"}</H2>
-      <P>
-        {isRu
-          ? "Установите response_format в {\"type\": \"json_object\"}, чтобы модель гарантированно вернула валидный JSON. Убедитесь, что системное сообщение или пользовательский запрос содержат инструкцию о формате JSON."
-          : "Set response_format to {\"type\": \"json_object\"} to guarantee the model returns valid JSON. Make sure the system message or user prompt includes an instruction about the JSON format."}
-      </P>
-      <CodeBlock
-        title={isRu ? "Пример JSON-режима" : "JSON mode example"}
-        code={`{
-  "model": "mira",
-  "messages": [
-    {"role": "system", "content": "${isRu ? "Отвечай только в формате JSON." : "Respond only in JSON format."}"},
-    {"role": "user", "content": "${isRu ? "Перечисли 3 языка программирования с описаниями" : "List 3 programming languages with descriptions"}"}
-  ],
-  "response_format": {"type": "json_object"}
-}`}
-      />
-      <Note type="tip">
-        {isRu
-          ? "При использовании JSON-режима всегда включайте инструкцию о формате JSON в системное сообщение. Без этого модель может вернуть ошибку."
-          : "When using JSON mode, always include a JSON format instruction in the system message. Without it, the model may return an error."}
+          ? "Дополнительные параметры (tools, tool_choice, response_format) планируются в будущих обновлениях API. Для получения JSON-ответов используйте инструкцию в системном промпте."
+          : "Additional parameters (tools, tool_choice, response_format) are planned for future API updates. To get JSON responses, include instructions in the system prompt."}
       </Note>
 
       <H2>{isRu ? "Следующие шаги" : "Next steps"}</H2>
@@ -769,18 +714,14 @@ function ErrorsPage({ locale }: { locale: Locale }) {
       <CodeBlock
         title="JSON"
         code={`{
-  "error": {
-    "type": "invalid_request_error",
-    "message": "The 'model' field is required.",
-    "code": "missing_required_field"
-  }
+  "detail": "The 'model' field is required."
 }`}
       />
-      <ParamTable params={[
-        { name: "type", type: "string", required: true, desc: isRu ? "Категория ошибки (например, invalid_request_error, authentication_error)" : "Error category (e.g., invalid_request_error, authentication_error)" },
-        { name: "message", type: "string", required: true, desc: isRu ? "Человекочитаемое описание ошибки" : "Human-readable error description" },
-        { name: "code", type: "string", required: true, desc: isRu ? "Машиночитаемый код ошибки для программной обработки" : "Machine-readable error code for programmatic handling" },
-      ]} />
+      <P>
+        {isRu
+          ? "Поле detail содержит человекочитаемое описание ошибки. HTTP-код состояния указывает на категорию ошибки."
+          : "The detail field contains a human-readable error description. The HTTP status code indicates the error category."}
+      </P>
 
       <H2>{isRu ? "Коды состояния HTTP" : "HTTP status codes"}</H2>
 
@@ -793,11 +734,7 @@ function ErrorsPage({ locale }: { locale: Locale }) {
       <CodeBlock
         title={isRu ? "Пример ошибки 400" : "400 error example"}
         code={`{
-  "error": {
-    "type": "invalid_request_error",
-    "message": "${isRu ? "Параметр 'temperature' должен быть между 0 и 2." : "The 'temperature' parameter must be between 0 and 2."}",
-    "code": "invalid_parameter_value"
-  }
+  "detail": "${isRu ? "Параметр 'temperature' должен быть между 0 и 2." : "The 'temperature' parameter must be between 0 and 2."}"
 }`}
       />
       <UL items={[
@@ -830,11 +767,7 @@ function ErrorsPage({ locale }: { locale: Locale }) {
       <CodeBlock
         title={isRu ? "Пример ошибки 401" : "401 error example"}
         code={`{
-  "error": {
-    "type": "authentication_error",
-    "message": "${isRu ? "Недействительный API-ключ." : "Invalid API key."}",
-    "code": "invalid_api_key"
-  }
+  "detail": "${isRu ? "Недействительный API-ключ." : "Invalid API key."}"
 }`}
       />
 
@@ -847,11 +780,7 @@ function ErrorsPage({ locale }: { locale: Locale }) {
       <CodeBlock
         title={isRu ? "Пример ошибки 403" : "403 error example"}
         code={`{
-  "error": {
-    "type": "permission_error",
-    "message": "${isRu ? "Ваш тарифный план не включает доступ к модели mira-max." : "Your plan does not include access to the mira-max model."}",
-    "code": "model_not_allowed"
-  }
+  "detail": "${isRu ? "Ваш тарифный план не включает доступ к модели mira-max." : "Your plan does not include access to the mira-max model."}"
 }`}
       />
 
@@ -864,11 +793,7 @@ function ErrorsPage({ locale }: { locale: Locale }) {
       <CodeBlock
         title={isRu ? "Пример ошибки 404" : "404 error example"}
         code={`{
-  "error": {
-    "type": "not_found_error",
-    "message": "${isRu ? "Эндпоинт не найден." : "Endpoint not found."}",
-    "code": "endpoint_not_found"
-  }
+  "detail": "${isRu ? "Эндпоинт не найден." : "Endpoint not found."}"
 }`}
       />
 
@@ -882,16 +807,9 @@ function ErrorsPage({ locale }: { locale: Locale }) {
         title={isRu ? "Пример ошибки 429" : "429 error example"}
         code={`HTTP/1.1 429 Too Many Requests
 Retry-After: 60
-X-RateLimit-Limit: 20
-X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1711003600
 
 {
-  "error": {
-    "type": "rate_limit_error",
-    "message": "${isRu ? "Превышен лимит запросов. Попробуйте через 60 секунд." : "Rate limit exceeded. Please retry after 60 seconds."}",
-    "code": "rate_limit_exceeded"
-  }
+  "detail": "${isRu ? "Превышен лимит запросов. Попробуйте через 60 секунд." : "Rate limit exceeded. Please retry after 60 seconds."}"
 }`}
       />
       <Note type="warning">
@@ -909,28 +827,7 @@ X-RateLimit-Reset: 1711003600
       <CodeBlock
         title={isRu ? "Пример ошибки 500" : "500 error example"}
         code={`{
-  "error": {
-    "type": "server_error",
-    "message": "${isRu ? "Внутренняя ошибка сервера." : "Internal server error."}",
-    "code": "internal_error"
-  }
-}`}
-      />
-
-      <H3>503 Service Unavailable</H3>
-      <P>
-        {isRu
-          ? "Сервер временно перегружен или находится на обслуживании. Повторите запрос позже с экспоненциальной задержкой."
-          : "The server is temporarily overloaded or under maintenance. Retry later with exponential backoff."}
-      </P>
-      <CodeBlock
-        title={isRu ? "Пример ошибки 503" : "503 error example"}
-        code={`{
-  "error": {
-    "type": "overloaded_error",
-    "message": "${isRu ? "Сервер временно перегружен. Попробуйте позже." : "The server is temporarily overloaded. Please try again later."}",
-    "code": "service_unavailable"
-  }
+  "detail": "${isRu ? "Внутренняя ошибка сервера." : "Internal server error."}"
 }`}
       />
 
@@ -938,18 +835,17 @@ X-RateLimit-Reset: 1711003600
       <Table
         headers={[
           isRu ? "Код" : "Code",
-          isRu ? "Тип" : "Type",
           isRu ? "Описание" : "Description",
           isRu ? "Действие" : "Action",
         ]}
         rows={[
-          ["400", "invalid_request_error", isRu ? "Неверный запрос" : "Bad request", isRu ? "Исправьте параметры" : "Fix your parameters"],
-          ["401", "authentication_error", isRu ? "Неавторизован" : "Unauthorized", isRu ? "Проверьте API-ключ" : "Check your API key"],
-          ["403", "permission_error", isRu ? "Доступ запрещён" : "Forbidden", isRu ? "Обновите тариф" : "Upgrade your plan"],
-          ["404", "not_found_error", isRu ? "Не найдено" : "Not found", isRu ? "Проверьте URL" : "Check the URL"],
-          ["429", "rate_limit_error", isRu ? "Лимит превышен" : "Rate limited", isRu ? "Подождите Retry-After" : "Wait for Retry-After"],
-          ["500", "server_error", isRu ? "Ошибка сервера" : "Server error", isRu ? "Повторите запрос" : "Retry the request"],
-          ["503", "overloaded_error", isRu ? "Сервис недоступен" : "Unavailable", isRu ? "Повторите с задержкой" : "Retry with backoff"],
+          ["400", isRu ? "Неверный запрос (некорректные параметры)" : "Bad request (invalid parameters)", isRu ? "Исправьте параметры" : "Fix your parameters"],
+          ["401", isRu ? "Неавторизован (недействительный ключ)" : "Unauthorized (invalid API key)", isRu ? "Проверьте API-ключ" : "Check your API key"],
+          ["402", isRu ? "Недостаточно средств" : "Payment required (insufficient balance)", isRu ? "Пополните баланс" : "Top up your balance"],
+          ["403", isRu ? "Доступ запрещён (тарифный план)" : "Forbidden (plan restriction)", isRu ? "Обновите тариф" : "Upgrade your plan"],
+          ["404", isRu ? "Не найдено" : "Not found", isRu ? "Проверьте URL" : "Check the URL"],
+          ["429", isRu ? "Лимит превышен" : "Rate limited", isRu ? "Подождите Retry-After" : "Wait for Retry-After"],
+          ["500", isRu ? "Ошибка сервера" : "Server error", isRu ? "Повторите запрос" : "Retry the request"],
         ]}
       />
 
@@ -1090,173 +986,91 @@ function RateLimitsPage({ locale }: { locale: Locale }) {
       </P>
 
       <H2>{isRu ? "Лимиты по тарифным планам" : "Per-tier limits"}</H2>
+      <P>
+        {isRu
+          ? "Лимиты запросов применяются на уровне пользователя (не по модели). Все модели разделяют один дневной лимит:"
+          : "Rate limits are applied per-user (not per-model). All models share a single daily limit:"}
+      </P>
       <Table
         headers={[
           isRu ? "Тариф" : "Tier",
           isRu ? "Запросов в день" : "Requests per day",
-          isRu ? "Запросов в минуту" : "Requests per minute",
           isRu ? "Цена" : "Price",
         ]}
         rows={[
-          [isRu ? "Бесплатный (Free)" : "Free", "20", "5", isRu ? "Бесплатно" : "Free"],
-          ["Pro", "500", "30", "199 ₽ / " + (isRu ? "мес" : "mo")],
-          ["Max", isRu ? "Без лимита" : "Unlimited", "120", "990 ₽ / " + (isRu ? "мес" : "mo")],
-        ]}
-      />
-
-      <H2>{isRu ? "Лимиты по моделям" : "Per-model limits"}</H2>
-      <P>
-        {isRu
-          ? "Более мощные модели имеют сниженные лимиты для бесплатного и Pro тарифов. Тариф Max не имеет ограничений по моделям."
-          : "More powerful models have reduced limits on Free and Pro tiers. The Max tier has no model-specific limits."}
-      </P>
-      <Table
-        headers={[
-          isRu ? "Модель" : "Model",
-          isRu ? "Free (в день)" : "Free (per day)",
-          isRu ? "Pro (в день)" : "Pro (per day)",
-          isRu ? "Max (в день)" : "Max (per day)",
-        ]}
-        rows={[
-          ["mira", "20", "500", isRu ? "Без лимита" : "Unlimited"],
-          ["mira-thinking", "10", "300", isRu ? "Без лимита" : "Unlimited"],
-          ["mira-pro", "5", "200", isRu ? "Без лимита" : "Unlimited"],
-          ["mira-max", "0", "100", isRu ? "Без лимита" : "Unlimited"],
+          [isRu ? "Бесплатный (Free)" : "Free", "20", isRu ? "Бесплатно" : "Free"],
+          ["Pro", "500", "199 ₽ / " + (isRu ? "мес" : "mo")],
+          ["Max", isRu ? "Без лимита" : "Unlimited", "990 ₽ / " + (isRu ? "мес" : "mo")],
         ]}
       />
       <Note type="info">
         {isRu
-          ? "Модель mira-max недоступна на бесплатном тарифе. Для доступа к ней необходимо подписаться на Pro или Max."
-          : "The mira-max model is not available on the Free tier. Subscribe to Pro or Max to gain access."}
+          ? "Модели mira-thinking и mira-pro требуют тариф Pro или выше. Модель mira-max требует тариф Max."
+          : "The mira-thinking and mira-pro models require the Pro plan or higher. The mira-max model requires the Max plan."}
       </Note>
 
-      <H2>{isRu ? "Заголовки лимитов" : "Rate limit headers"}</H2>
+      <H2>{isRu ? "Заголовок Retry-After" : "Retry-After header"}</H2>
       <P>
         {isRu
-          ? "Каждый ответ API включает заголовки с информацией о текущем состоянии ваших лимитов:"
-          : "Every API response includes headers with information about your current rate limit status:"}
+          ? "При превышении лимита ответ 429 включает заголовок Retry-After с количеством секунд до следующего разрешённого запроса:"
+          : "When the limit is exceeded, the 429 response includes a Retry-After header with the number of seconds until the next allowed request:"}
       </P>
-      <ParamTable params={[
-        { name: "X-RateLimit-Limit", type: "integer", required: true, desc: isRu ? "Максимальное количество запросов в текущем периоде" : "Maximum number of requests in the current period" },
-        { name: "X-RateLimit-Remaining", type: "integer", required: true, desc: isRu ? "Оставшееся количество запросов в текущем периоде" : "Remaining requests in the current period" },
-        { name: "X-RateLimit-Reset", type: "integer", required: true, desc: isRu ? "Unix-временная метка сброса лимита" : "Unix timestamp when the rate limit resets" },
-      ]} />
-
       <CodeBlock
-        title={isRu ? "Пример заголовков" : "Example headers"}
-        code={`HTTP/1.1 200 OK
-X-RateLimit-Limit: 500
-X-RateLimit-Remaining: 347
-X-RateLimit-Reset: 1711065600
-Content-Type: application/json`}
+        title={isRu ? "Пример ответа 429" : "429 response example"}
+        code={`HTTP/1.1 429 Too Many Requests
+Retry-After: 120
+Content-Type: application/json
+
+{
+  "detail": "${isRu ? "Превышен дневной лимит запросов." : "Daily request limit exceeded."}"
+}`}
       />
 
       <H2>{isRu ? "Обработка ошибки 429" : "Handling 429 errors"}</H2>
-      <P>
-        {isRu
-          ? "Когда лимит исчерпан, API возвращает статус 429 Too Many Requests с заголовком Retry-After, указывающим количество секунд до следующего разрешённого запроса."
-          : "When the limit is exhausted, the API returns a 429 Too Many Requests status with a Retry-After header indicating the number of seconds until the next allowed request."}
-      </P>
-      <CodeBlock
-        title={isRu ? "Ответ 429" : "429 response"}
-        code={`HTTP/1.1 429 Too Many Requests
-Retry-After: 120
-X-RateLimit-Limit: 20
-X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1711065600
-
-{
-  "error": {
-    "type": "rate_limit_error",
-    "message": "${isRu ? "Превышен дневной лимит запросов. Следующий сброс через 120 секунд." : "Daily request limit exceeded. Next reset in 120 seconds."}",
-    "code": "rate_limit_exceeded"
-  }
-}`}
-      />
-
-      <H3>{isRu ? "Проверка лимитов в коде" : "Checking limits in code"}</H3>
       <CodeBlock
         title="Python"
-        code={`import os
-import requests
+        code={`import time, os, requests
 
-response = requests.post(
-    "https://api.vmira.ai/v1/chat/completions",
-    headers={
-        "Authorization": f"Bearer {os.environ['MIRA_API_KEY']}",
-        "Content-Type": "application/json",
-    },
-    json={"model": "mira", "messages": [{"role": "user", "content": "Hello"}]},
-)
-
-# Check rate limit headers
-limit = response.headers.get("X-RateLimit-Limit")
-remaining = response.headers.get("X-RateLimit-Remaining")
-reset_at = response.headers.get("X-RateLimit-Reset")
-
-print(f"Limit: {limit}, Remaining: {remaining}, Resets at: {reset_at}")
-
-if response.status_code == 429:
-    retry_after = int(response.headers.get("Retry-After", 60))
-    print(f"Rate limited! Retry after {retry_after} seconds.")`}
-      />
-
-      <CodeBlock
-        title="JavaScript (Node.js)"
-        code={`const response = await fetch("https://api.vmira.ai/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Authorization": \`Bearer \${process.env.MIRA_API_KEY}\`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model: "mira",
-    messages: [{ role: "user", content: "Hello" }],
-  }),
-});
-
-const limit = response.headers.get("X-RateLimit-Limit");
-const remaining = response.headers.get("X-RateLimit-Remaining");
-const resetAt = response.headers.get("X-RateLimit-Reset");
-
-console.log(\`Limit: \${limit}, Remaining: \${remaining}, Resets at: \${resetAt}\`);
-
-if (response.status === 429) {
-  const retryAfter = parseInt(response.headers.get("Retry-After") || "60", 10);
-  console.log(\`Rate limited! Retry after \${retryAfter} seconds.\`);
-}`}
+def call_with_retry(messages, max_retries=3):
+    for attempt in range(max_retries):
+        response = requests.post(
+            "https://api.vmira.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {os.environ['MIRA_API_KEY']}"},
+            json={"model": "mira", "messages": messages},
+        )
+        if response.status_code == 429:
+            retry_after = int(response.headers.get("Retry-After", 60))
+            print(f"Rate limited. Waiting {retry_after}s...")
+            time.sleep(retry_after)
+            continue
+        return response.json()
+    raise Exception("Max retries exceeded")`}
       />
 
       <H2>{isRu ? "Лучшие практики" : "Best practices"}</H2>
       <UL items={[
         {
+          bold: isRu ? "Используйте Retry-After" : "Respect Retry-After",
+          text: isRu
+            ? "При получении 429 всегда проверяйте заголовок Retry-After и ждите указанное количество секунд."
+            : "On 429 responses, always check the Retry-After header and wait the specified number of seconds.",
+        },
+        {
           bold: isRu ? "Реализуйте экспоненциальную задержку" : "Implement exponential backoff",
           text: isRu
-            ? "Не повторяйте запросы сразу после ошибки 429. Используйте увеличивающуюся задержку с каждой попыткой: 1с, 2с, 4с, 8с..."
-            : "Don't retry immediately after a 429 error. Use increasing delays between attempts: 1s, 2s, 4s, 8s...",
+            ? "Для ошибок 500 используйте увеличивающуюся задержку: 1с, 2с, 4с, 8с..."
+            : "For 500 errors, use increasing delays: 1s, 2s, 4s, 8s...",
         },
         {
           bold: isRu ? "Кешируйте ответы" : "Cache responses",
           text: isRu
-            ? "Если вы часто отправляете одинаковые запросы, кешируйте ответы на стороне клиента, чтобы сократить количество вызовов API."
-            : "If you frequently send identical requests, cache responses client-side to reduce API calls.",
-        },
-        {
-          bold: isRu ? "Отслеживайте заголовки лимитов" : "Monitor rate limit headers",
-          text: isRu
-            ? "Проверяйте X-RateLimit-Remaining в каждом ответе и замедляйте запросы при приближении к лимиту."
-            : "Check X-RateLimit-Remaining in every response and slow down requests as you approach the limit.",
-        },
-        {
-          bold: isRu ? "Используйте пакетную обработку" : "Use batch processing",
-          text: isRu
-            ? "Группируйте несколько запросов в один, где это возможно. Например, используйте системные сообщения для комплексных инструкций."
-            : "Group multiple requests into one where possible. For example, use system messages for complex instructions.",
+            ? "Кешируйте одинаковые запросы на стороне клиента."
+            : "Cache identical requests client-side.",
         },
         {
           bold: isRu ? "Обновите тарифный план" : "Upgrade your plan",
           text: isRu
-            ? "Если вы регулярно достигаете лимитов, рассмотрите переход на более высокий тарифный план."
+            ? "Если регулярно достигаете лимитов, рассмотрите переход на более высокий тарифный план."
             : "If you regularly hit rate limits, consider upgrading to a higher tier.",
         },
       ]} />

@@ -125,6 +125,62 @@ export function Table({ headers, rows }: { headers: string[]; rows: string[][] }
   );
 }
 
+export function CostCard({ model, scenario, desc, volume, costs, total }: {
+  model: string;
+  scenario: string;
+  desc: string;
+  volume: { label: string; calc: string; result: string }[];
+  costs: { label: string; calc: string; result: string }[];
+  total: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-3.5 bg-white/[0.03] border-b border-white/[0.04]">
+        <span className="text-[12px] font-mono font-medium text-white/60 bg-white/[0.06] px-2 py-0.5 rounded">{model}</span>
+        <span className="text-[14px] font-medium text-white/80">{scenario}</span>
+      </div>
+
+      <div className="px-5 py-4">
+        {/* Description */}
+        <p className="text-[13px] text-white/40 mb-4">{desc}</p>
+
+        {/* Volume breakdown */}
+        <div className="space-y-1.5 mb-4">
+          {volume.map((v, i) => (
+            <div key={i} className="flex items-baseline gap-3 text-[13px] font-mono">
+              <span className="text-white/35 w-[52px] shrink-0 text-right">{v.label}</span>
+              <span className="text-white/50 flex-1">{v.calc}</span>
+              <span className="text-white/60">{v.result}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-white/[0.04] my-3" />
+
+        {/* Cost breakdown */}
+        <div className="space-y-1.5 mb-3">
+          {costs.map((c, i) => (
+            <div key={i} className="flex items-baseline gap-3 text-[13px] font-mono">
+              <span className="text-white/35 w-[52px] shrink-0 text-right">{c.label}</span>
+              <span className="text-white/50 flex-1">{c.calc}</span>
+              <span className="text-white/80 font-medium">{c.result}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-white/[0.06] my-3" />
+
+        {/* Total */}
+        <div className="flex items-baseline justify-between">
+          <span className="text-[13px] text-white/40">Total</span>
+          <span className="text-[18px] font-medium text-white tabular-nums">{total}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EndpointRow({ method, path, desc }: { method: string; path: string; desc: string }) {
   return (
     <div className="flex items-center gap-4 px-5 py-3.5 text-[14px] border-b border-white/[0.03] last:border-b-0">

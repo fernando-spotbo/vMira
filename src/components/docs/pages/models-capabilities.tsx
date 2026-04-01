@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { CodeBlock, Note, H1, H2, H3, P, DocLink, NavCards, UL, Table, InlineCode } from "../shared";
+import { CodeBlock, Note, H1, H2, H3, P, DocLink, NavCards, UL, Table, InlineCode, CostCard } from "../shared";
 import type { Locale } from "@/lib/i18n";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -359,54 +359,38 @@ function PricingPage({ locale }: { locale: Locale }) {
           : "Here are some typical scenarios with cost calculations:"}
       </P>
 
-      <H3>{isRu ? "Пример 1: Чат-бот (mira)" : "Example 1: Chatbot (mira)"}</H3>
-      <P>
-        {isRu
-          ? "Чат-бот обрабатывает 1 000 запросов в день. Средний запрос: 500 токенов ввода, 200 токенов вывода."
-          : "A chatbot processing 1,000 requests per day. Average request: 500 input tokens, 200 output tokens."}
-      </P>
-      <CodeBlock
-        title={isRu ? "Расчёт" : "Calculation"}
-        code={isRu
-          ? `Ввод:  1 000 × 500 = 500 000 токенов/день × 30 = 15M токенов/мес
-Вывод: 1 000 × 200 = 200 000 токенов/день × 30 = 6M токенов/мес
-
-Стоимость ввода:  15 000K × 0,10 ₽ = 1 500 ₽
-Стоимость вывода: 6 000K × 0,30 ₽  = 1 800 ₽
-─────────────────────────────────────
-Итого: 3 300 ₽/мес`
-          : `Input:  1,000 × 500 = 500,000 tokens/day × 30 = 15M tokens/mo
-Output: 1,000 × 200 = 200,000 tokens/day × 30 = 6M tokens/mo
-
-Input cost:  15,000K × 0.10 ₽ = 1,500 ₽
-Output cost: 6,000K × 0.30 ₽  = 1,800 ₽
-─────────────────────────────────────
-Total: 3,300 ₽/mo`}
+      <CostCard
+        model="mira"
+        scenario={isRu ? "Чат-бот" : "Chatbot"}
+        desc={isRu
+          ? "1 000 запросов/день · 500 токенов ввода · 200 токенов вывода"
+          : "1,000 requests/day · 500 input tokens · 200 output tokens"}
+        volume={[
+          { label: isRu ? "Ввод" : "Input", calc: isRu ? "1 000 × 500 × 30" : "1,000 × 500 × 30", result: isRu ? "15M токенов/мес" : "15M tokens/mo" },
+          { label: isRu ? "Вывод" : "Output", calc: isRu ? "1 000 × 200 × 30" : "1,000 × 200 × 30", result: isRu ? "6M токенов/мес" : "6M tokens/mo" },
+        ]}
+        costs={[
+          { label: isRu ? "Ввод" : "Input", calc: "15 000K × 0,10 ₽", result: "1 500 ₽" },
+          { label: isRu ? "Вывод" : "Output", calc: "6 000K × 0,30 ₽", result: "1 800 ₽" },
+        ]}
+        total={isRu ? "3 300 ₽/мес" : "3,300 ₽/mo"}
       />
 
-      <H3>{isRu ? "Пример 2: Код-ревью (mira-pro)" : "Example 2: Code review (mira-pro)"}</H3>
-      <P>
-        {isRu
-          ? "Система код-ревью обрабатывает 50 PR в день. Средний PR: 8 000 токенов ввода, 2 000 токенов вывода."
-          : "A code review system processing 50 PRs per day. Average PR: 8,000 input tokens, 2,000 output tokens."}
-      </P>
-      <CodeBlock
-        title={isRu ? "Расчёт" : "Calculation"}
-        code={isRu
-          ? `Ввод:  50 × 8 000 = 400 000 токенов/день × 30 = 12M токенов/мес
-Вывод: 50 × 2 000 = 100 000 токенов/день × 30 = 3M токенов/мес
-
-Стоимость ввода:  12 000K × 0,30 ₽ = 3 600 ₽
-Стоимость вывода: 3 000K × 0,90 ₽  = 2 700 ₽
-─────────────────────────────────────
-Итого: 6 300 ₽/мес`
-          : `Input:  50 × 8,000 = 400,000 tokens/day × 30 = 12M tokens/mo
-Output: 50 × 2,000 = 100,000 tokens/day × 30 = 3M tokens/mo
-
-Input cost:  12,000K × 0.30 ₽ = 3,600 ₽
-Output cost: 3,000K × 0.90 ₽  = 2,700 ₽
-─────────────────────────────────────
-Total: 6,300 ₽/mo`}
+      <CostCard
+        model="mira-pro"
+        scenario={isRu ? "Код-ревью" : "Code review"}
+        desc={isRu
+          ? "50 PR/день · 8 000 токенов ввода · 2 000 токенов вывода"
+          : "50 PRs/day · 8,000 input tokens · 2,000 output tokens"}
+        volume={[
+          { label: isRu ? "Ввод" : "Input", calc: isRu ? "50 × 8 000 × 30" : "50 × 8,000 × 30", result: isRu ? "12M токенов/мес" : "12M tokens/mo" },
+          { label: isRu ? "Вывод" : "Output", calc: isRu ? "50 × 2 000 × 30" : "50 × 2,000 × 30", result: isRu ? "3M токенов/мес" : "3M tokens/mo" },
+        ]}
+        costs={[
+          { label: isRu ? "Ввод" : "Input", calc: "12 000K × 0,30 ₽", result: "3 600 ₽" },
+          { label: isRu ? "Вывод" : "Output", calc: "3 000K × 0,90 ₽", result: "2 700 ₽" },
+        ]}
+        total={isRu ? "6 300 ₽/мес" : "6,300 ₽/mo"}
       />
 
       <H2>{isRu ? "Сравнение с другими провайдерами" : "Comparison with other providers"}</H2>

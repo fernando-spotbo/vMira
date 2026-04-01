@@ -138,7 +138,7 @@ export default function AuthorizePage() {
                 You need to be signed in to authorize Mira Code for your terminal.
               </p>
               <a
-                href="/chat"
+                href={`/chat?redirect=${encodeURIComponent('/authorize' + (typeof window !== 'undefined' ? window.location.search : ''))}`}
                 className="mt-8 w-full inline-flex items-center justify-center rounded-xl bg-white py-3.5 text-[16px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all duration-200"
               >
                 Sign in to Mira

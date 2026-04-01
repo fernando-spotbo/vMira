@@ -107,7 +107,7 @@ async fn request_device_code(
     let device_code = generate_device_code();
     let user_code = generate_user_code();
 
-    let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "https://vmira.ai".to_string());
+    let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "https://platform.vmira.ai".to_string());
 
     // Store in Redis: device_code → { user_code, status: "pending" }
     let mut conn = state.redis.get_multiplexed_async_connection().await

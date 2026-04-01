@@ -673,8 +673,8 @@ function MiraCodeConfigPage({ locale }: { locale: Locale }) {
       <H2>{isRu ? "Файлы инструкций (MIRA.md)" : "Instruction Files (MIRA.md)"}</H2>
       <P>
         {isRu
-          ? "Mira Code поддерживает файлы MIRA.md (и CLAUDE.md для совместимости) для хранения инструкций, специфичных для проекта. Эти файлы написаны на Markdown и загружаются автоматически при запуске:"
-          : "Mira Code supports MIRA.md (and CLAUDE.md for compatibility) files for storing project-specific instructions. These files are written in Markdown and loaded automatically at startup:"}
+          ? "Mira Code поддерживает файлы MIRA.md для хранения инструкций, специфичных для проекта. Эти файлы написаны на Markdown и загружаются автоматически при запуске:"
+          : "Mira Code supports MIRA.md files for storing project-specific instructions. These files are written in Markdown and loaded automatically at startup:"}
       </P>
       <CodeBlock
         title="MIRA.md"
@@ -709,8 +709,9 @@ function MiraCodeConfigPage({ locale }: { locale: Locale }) {
       <UL
         items={[
           { bold: "MIRA.md", text: isRu ? "В корне проекта (рекомендуется)" : "In project root (recommended)" },
-          { bold: "CLAUDE.md", text: isRu ? "В корне проекта (для совместимости)" : "In project root (for compatibility)" },
           { bold: ".mira/MIRA.md", text: isRu ? "В директории .mira проекта" : "In the project .mira directory" },
+          { bold: ".mira/rules/*.md", text: isRu ? "Правила в директории .mira/rules" : "Rules in the .mira/rules directory" },
+          { bold: "MIRA.local.md", text: isRu ? "Приватные инструкции (добавьте в .gitignore)" : "Private instructions (add to .gitignore)" },
         ]}
       />
 

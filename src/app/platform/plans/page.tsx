@@ -1,170 +1,209 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ArrowUpRight } from "lucide-react";
+import { Zap, ArrowUpRight } from "lucide-react";
 import MiraCodePricingModal from "@/components/MiraCodePricingModal";
+import PricingModal from "@/components/PricingModal";
 
-const MIRA_PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    price: "0",
-    period: "",
-    features: ["20 сообщений/день", "Модель Mira Fast", "Текстовый чат", "Доступ в интернет"],
-    current: true,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "199",
-    period: "/мес",
-    features: ["500 сообщений/день", "Все модели + мышление", "Загрузка файлов", "Расширенный контекст", "Быстрые ответы"],
-    popular: true,
-  },
-  {
-    id: "max",
-    name: "Max",
-    price: "990",
-    period: "/мес",
-    features: ["Безлимит сообщений", "Все модели + приоритет", "Голосовой ввод/вывод", "Максимальный контекст", "Ранний доступ"],
-  },
+// ---- Mock usage data (would come from API in production) ----
+
+const miraPlan = {
+  name: "Free",
+  limit: 20,
+  used: 14,
+  unit: "сообщений",
+  period: "сегодня",
+  resetsAt: "00:00 МСК",
+};
+
+const codePlan = {
+  name: "Free",
+  limit: 50,
+  used: 32,
+  unit: "запросов",
+  period: "сегодня",
+  resetsAt: "00:00 МСК",
+};
+
+const miraHistory = [
+  { date: "Пн", used: 18 },
+  { date: "Вт", used: 20 },
+  { date: "Ср", used: 15 },
+  { date: "Чт", used: 20 },
+  { date: "Пт", used: 12 },
+  { date: "Сб", used: 7 },
+  { date: "Вс", used: 14 },
 ];
 
-const CODE_PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    price: "0",
-    period: "",
-    features: ["50 запросов/день", "Модель Mira Fast", "Автодополнение кода", "Объяснение кода"],
-    current: true,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "499",
-    period: "/мес",
-    features: ["1 000 запросов/день", "Все модели + мышление", "Рефакторинг и ревью", "Генерация тестов", "Контекст 64K"],
-    popular: true,
-  },
-  {
-    id: "max",
-    name: "Max",
-    price: "990",
-    period: "/мес",
-    features: ["Безлимитные запросы", "Все модели + приоритет", "Анализ кодовых баз", "Контекст 128K", "Приоритетная очередь"],
-  },
+const codeHistory = [
+  { date: "Пн", used: 42 },
+  { date: "Вт", used: 50 },
+  { date: "Ср", used: 38 },
+  { date: "Чт", used: 47 },
+  { date: "Пт", used: 29 },
+  { date: "Сб", used: 11 },
+  { date: "Вс", used: 32 },
 ];
 
-function PlanCard({ plan }: { plan: typeof MIRA_PLANS[0] }) {
+// ---- Component ----
+
+function UsageRing({ used, limit, size = 120 }: { used: number; limit: number; size?: number }) {
+  const pct = Math.min(used / limit, 1);
+  const r = (size - 10) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - pct);
+  const isHigh = pct >= 0.8;
+
   return (
-    <div className={`flex flex-col rounded-xl border p-5 transition-all ${
-      plan.popular ? "border-white/[0.15] bg-white/[0.04]" : "border-white/[0.06] bg-white/[0.02]"
-    } ${plan.current ? "relative" : ""}`}>
-      {plan.popular && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-0.5 text-[11px] font-semibold text-[#161616]">
-          Популярный
-        </div>
-      )}
-      {plan.current && !plan.popular && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-white/[0.1] border border-white/[0.15] px-3 py-0.5 text-[11px] font-medium text-white/60">
-          Текущий
-        </div>
-      )}
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={5} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r}
+          fill="none"
+          stroke={isHigh ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.15)"}
+          strokeWidth={5}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          className="transition-all duration-700 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[24px] font-medium text-white tabular-nums">{used}</span>
+        <span className="text-[14px] text-white/25">/ {limit}</span>
+      </div>
+    </div>
+  );
+}
 
-      <div className="mb-4">
-        <span className="text-[15px] font-medium text-white">{plan.name}</span>
-        <div className="flex items-baseline gap-1 mt-2">
-          {plan.price === "0" ? (
-            <span className="text-[22px] font-medium text-white">Бесплатно</span>
-          ) : (
-            <>
-              <span className="text-[22px] font-medium text-white">{plan.price} ₽</span>
-              <span className="text-[14px] text-white/40">{plan.period}</span>
-            </>
-          )}
+function UsageBar({ days, limit }: { days: { date: string; used: number }[]; limit: number }) {
+  return (
+    <div className="flex items-end gap-1.5 h-[60px]">
+      {days.map((d) => {
+        const pct = (d.used / limit) * 100;
+        const isMax = d.used >= limit;
+        return (
+          <div key={d.date} className="flex-1 flex flex-col items-center gap-1 group">
+            <div className="w-full relative" style={{ height: `${Math.max(pct, 4)}%` }}>
+              <div className={`absolute inset-0 rounded-sm transition-colors ${isMax ? "bg-white/[0.25]" : "bg-white/[0.08] group-hover:bg-white/[0.14]"}`} />
+            </div>
+            <span className="text-[11px] text-white/20">{d.date}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SubscriptionBlock({
+  title,
+  subtitle,
+  plan,
+  history,
+  onUpgrade,
+}: {
+  title: string;
+  subtitle: string;
+  plan: typeof miraPlan;
+  history: typeof miraHistory;
+  onUpgrade: () => void;
+}) {
+  const pct = Math.round((plan.used / plan.limit) * 100);
+  const isHigh = pct >= 80;
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
+        <div>
+          <h2 className="text-[16px] font-medium text-white">{title}</h2>
+          <p className="text-[14px] text-white/30 mt-0.5">{subtitle}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[14px] text-white/40">
+            {plan.name}
+          </span>
+          <button
+            onClick={onUpgrade}
+            className="flex items-center gap-1.5 rounded-xl bg-white/[0.06] border border-white/[0.08] px-3.5 py-2 text-[14px] text-white/60 hover:bg-white/[0.1] hover:text-white/80 transition-all"
+          >
+            <Zap size={14} />
+            Сменить план
+          </button>
         </div>
       </div>
 
-      <ul className="flex-1 space-y-2 mb-5">
-        {plan.features.map((f) => (
-          <li key={f} className="flex items-start gap-2.5">
-            <Check size={14} className="shrink-0 mt-0.5 text-white/50" />
-            <span className="text-[14px] text-white/70">{f}</span>
-          </li>
-        ))}
-      </ul>
+      {/* Usage */}
+      <div className="px-6 py-6 flex items-center gap-8">
+        <UsageRing used={plan.used} limit={plan.limit} />
 
-      <button
-        disabled={!!plan.current}
-        className={`w-full rounded-xl py-2.5 text-[15px] font-medium transition-all ${
-          plan.current
-            ? "bg-white/[0.04] text-white/30 cursor-default border border-white/[0.06]"
-            : plan.popular
-            ? "bg-white text-[#161616] hover:bg-white/90 active:scale-[0.98]"
-            : "bg-white/[0.06] text-white/80 hover:bg-white/[0.1] border border-white/[0.06]"
-        }`}
-      >
-        {plan.current ? "Текущий" : `Перейти на ${plan.name}`}
-      </button>
+        <div className="flex-1 space-y-4">
+          <div>
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-[14px] text-white/50">{plan.used} из {plan.limit} {plan.unit} {plan.period}</span>
+              <span className={`text-[14px] tabular-nums ${isHigh ? "text-white/70" : "text-white/30"}`}>{pct}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ease-out ${isHigh ? "bg-white/40" : "bg-white/15"}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[14px] text-white/25 mb-2">За неделю</p>
+            <UsageBar days={history} limit={plan.limit} />
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-6 py-3 border-t border-white/[0.04] flex items-center justify-between">
+        <span className="text-[14px] text-white/20">Сброс лимита: {plan.resetsAt}</span>
+        {plan.limit - plan.used <= 5 && plan.limit - plan.used > 0 && (
+          <span className="text-[14px] text-white/40">Осталось {plan.limit - plan.used}</span>
+        )}
+        {plan.used >= plan.limit && (
+          <span className="text-[14px] text-white/50">Лимит исчерпан</span>
+        )}
+      </div>
     </div>
   );
 }
 
 export default function PlansPage() {
+  const [miraPricingOpen, setMiraPricingOpen] = useState(false);
   const [codePricingOpen, setCodePricingOpen] = useState(false);
 
   return (
     <div className="max-w-[860px] mx-auto">
+      {miraPricingOpen && <PricingModal onClose={() => setMiraPricingOpen(false)} />}
       {codePricingOpen && <MiraCodePricingModal onClose={() => setCodePricingOpen(false)} />}
 
-      <div className="mb-10">
-        <h1 className="text-[24px] font-medium text-white">Тарифы</h1>
-        <p className="text-[15px] text-white/40 mt-2">Управляйте подписками Мира и Mira Code.</p>
+      <div className="mb-8">
+        <h1 className="text-[24px] font-medium text-white">Подписки</h1>
+        <p className="text-[15px] text-white/40 mt-2">Использование лимитов и управление тарифами.</p>
       </div>
 
-      {/* Mira Chat */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-[18px] font-medium text-white">Мира — AI-ассистент</h2>
-            <p className="text-[14px] text-white/35 mt-1">Чат, поиск, анализ документов</p>
-          </div>
-          <a href="https://vmira.ai/chat" target="_blank" className="flex items-center gap-1.5 text-[14px] text-white/30 hover:text-white/50 transition-colors">
-            Открыть чат <ArrowUpRight size={14} />
-          </a>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {MIRA_PLANS.map((p) => <PlanCard key={p.id} plan={p} />)}
-        </div>
+      <div className="space-y-6">
+        <SubscriptionBlock
+          title="Мира"
+          subtitle="AI-ассистент"
+          plan={miraPlan}
+          history={miraHistory}
+          onUpgrade={() => setMiraPricingOpen(true)}
+        />
+
+        <SubscriptionBlock
+          title="Mira Code"
+          subtitle="AI для разработчиков"
+          plan={codePlan}
+          history={codeHistory}
+          onUpgrade={() => setCodePricingOpen(true)}
+        />
       </div>
-
-      {/* Divider */}
-      <div className="border-t border-white/[0.06] mb-10" />
-
-      {/* Mira Code */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-[18px] font-medium text-white">Mira Code — AI для разработчиков</h2>
-            <p className="text-[14px] text-white/35 mt-1">Терминал, автодополнение, рефакторинг</p>
-          </div>
-          <button
-            onClick={() => setCodePricingOpen(true)}
-            className="flex items-center gap-1.5 text-[14px] text-white/30 hover:text-white/50 transition-colors"
-          >
-            Подробнее <ArrowUpRight size={14} />
-          </button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {CODE_PLANS.map((p) => <PlanCard key={p.id + "-code"} plan={p} />)}
-        </div>
-      </div>
-
-      {/* Footer note */}
-      <p className="text-[14px] text-white/20 text-center">
-        Подписки тарифицируются отдельно. Ежемесячная оплата. Отменить можно в любой момент.
-      </p>
     </div>
   );
 }

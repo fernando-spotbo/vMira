@@ -34,7 +34,23 @@ const MAX_TIMESTAMP_DRIFT_SECONDS: i64 = 300;
 const GENERIC_ERROR: &str = "Forbidden";
 
 /// Paths that are exempt from HMAC verification.
-const EXEMPT_PATHS: &[&str] = &["/health", "/v1/chat/completions", "/api/v1/telegram/webhook", "/api/v1/calendar/feed"];
+/// Auth and API key endpoints are exempt because they have their own security
+/// (rate limiting, brute-force protection, API key auth). This allows the CLI
+/// to call them directly without HMAC signing.
+const EXEMPT_PATHS: &[&str] = &[
+    "/health",
+    "/v1/chat/completions",
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+    "/api/v1/auth/refresh",
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
+    "/api/v1/api-keys",
+    "/api/v1/auth/me",
+    "/api/v1/auth/me/usage",
+    "/api/v1/telegram/webhook",
+    "/api/v1/calendar/feed",
+];
 
 /// Tower middleware function for HMAC verification.
 ///

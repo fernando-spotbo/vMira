@@ -172,7 +172,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             <span
               style={{
                 position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                fontSize: 11, color: "rgba(255,255,255,0.15)",
+                fontSize: 13, color: "rgba(255,255,255,0.15)",
                 background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
                 borderRadius: 4, padding: "1px 5px", fontFamily: "var(--font-mono, monospace)",
               }}
@@ -186,7 +186,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             {filteredNav.map((section, si) => (
               <div key={si} style={{ marginBottom: 20 }}>
                 <div style={{
-                  padding: "4px 8px", fontSize: "11.5px", fontWeight: 500,
+                  padding: "4px 8px", fontSize: "13px", fontWeight: 500,
                   color: "rgba(255,255,255,0.55)", textTransform: "uppercase",
                   letterSpacing: "0.06em", marginBottom: 2,
                 }}>

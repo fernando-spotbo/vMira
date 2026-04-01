@@ -462,8 +462,8 @@ data: [DONE]`}
 
       <Note type="info">
         {isRu
-          ? "Объект usage (количество токенов) не включается в потоковые ответы по умолчанию. Добавьте stream_options: { include_usage: true } для его получения в последнем чанке."
-          : "The usage object (token counts) is not included in streaming responses by default. Add stream_options: { include_usage: true } to receive it in the final chunk."}
+          ? "Объект usage (количество токенов) включается только в обычные (непотоковые) ответы. В потоковом режиме данные об использовании токенов недоступны."
+          : "The usage object (token counts) is only included in non-streaming responses. Token usage data is not available in streaming mode."}
       </Note>
 
       <H2>{isRu ? "Примеры реализации" : "Implementation examples"}</H2>

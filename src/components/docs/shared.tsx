@@ -4,22 +4,28 @@ import { useState } from "react";
 import Link from "next/link";
 import { Copy, Check, AlertTriangle, Info, Lightbulb } from "lucide-react";
 
-export function CodeBlock({ title, code, language }: { title?: string; code: string; language?: string }) {
+/*
+ * Typography scale (3 sizes only):
+ *   Body / code / labels:  15px (prose) · 14px (mono/code) · 13px (table headers only)
+ *   Headings:              24px · 18px · 16px
+ */
+
+export function CodeBlock({ title, code }: { title?: string; code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
       {title && (
         <div className="flex items-center justify-between px-5 py-3 bg-white/[0.03] border-b border-white/[0.04]">
-          <span className="text-[13px] font-medium text-white/50">{title}</span>
+          <span className="text-[14px] font-medium text-white/50">{title}</span>
           <button
             onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className="text-white/20 hover:text-white/50 transition-colors"
+            className="flex items-center gap-1.5 text-[14px] text-white/25 hover:text-white/60 transition-colors"
           >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? <><Check size={14} /> <span>Copied</span></> : <><Copy size={14} /> <span>Copy</span></>}
           </button>
         </div>
       )}
-      <pre className="px-5 py-4 bg-[#0f0f0f] text-[13px] font-mono text-white/70 leading-7 overflow-x-auto">
+      <pre className="px-5 py-4 bg-[#0f0f0f] text-[14px] font-mono text-white/70 leading-7 overflow-x-auto">
         {code}
       </pre>
     </div>
@@ -31,7 +37,7 @@ export function Note({ children, type = "info" }: { children: React.ReactNode; t
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 mb-6 flex gap-3">
       <span className="text-white/40 shrink-0 mt-0.5">{icons[type]}</span>
-      <div className="text-[14px] text-white/70 leading-relaxed">{children}</div>
+      <div className="text-[15px] text-white/70 leading-relaxed">{children}</div>
     </div>
   );
 }
@@ -42,7 +48,7 @@ export function ParamTable({ params }: { params: { name: string; type: string; r
       {params.map((p, i) => (
         <div
           key={p.name}
-          className={`grid grid-cols-[150px_80px_80px_1fr] gap-4 px-5 py-3 text-[13px] ${
+          className={`grid grid-cols-[150px_80px_80px_1fr] gap-4 px-5 py-3.5 text-[14px] ${
             i < params.length - 1 ? "border-b border-white/[0.03]" : ""
           }`}
         >
@@ -65,14 +71,14 @@ export function H2({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[18px] font-medium text-white mb-4 mt-10">{children}</h2>;
 }
 export function H3({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-[15px] font-medium text-white mb-3 mt-6">{children}</h3>;
+  return <h3 className="text-[16px] font-medium text-white mb-3 mt-6">{children}</h3>;
 }
 export function P({ children }: { children: React.ReactNode }) {
   return <p className="text-[15px] text-white/80 leading-[1.8] mb-4">{children}</p>;
 }
 export function InlineCode({ children }: { children: React.ReactNode }) {
   return (
-    <code className="bg-white/[0.06] border border-white/[0.06] px-1.5 py-0.5 rounded text-[13px] font-mono">
+    <code className="bg-white/[0.06] border border-white/[0.06] px-1.5 py-0.5 rounded text-[14px] font-mono">
       {children}
     </code>
   );
@@ -91,7 +97,7 @@ export function NavCards({ cards }: { cards: { href: string; title: string; desc
       {cards.map(c => (
         <Link key={c.href} href={c.href} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-white/[0.1] transition-all">
           <h3 className="text-[15px] font-medium text-white mb-1">{c.title}</h3>
-          <p className="text-[13px] text-white/40">{c.desc}</p>
+          <p className="text-[14px] text-white/40">{c.desc}</p>
         </Link>
       ))}
     </div>
@@ -111,11 +117,11 @@ export function UL({ items }: { items: { bold: string; text: string }[] }) {
 export function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
   return (
     <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
-      <div className={`grid gap-4 px-5 py-3 bg-white/[0.03] border-b border-white/[0.04] text-[12px] font-medium text-white/40 uppercase tracking-wider`} style={{ gridTemplateColumns: `repeat(${headers.length}, 1fr)` }}>
+      <div className="grid gap-4 px-5 py-3 bg-white/[0.03] border-b border-white/[0.04] text-[13px] font-medium text-white/40 uppercase tracking-wider" style={{ gridTemplateColumns: `repeat(${headers.length}, 1fr)` }}>
         {headers.map((h, i) => <span key={i}>{h}</span>)}
       </div>
       {rows.map((row, ri) => (
-        <div key={ri} className={`grid gap-4 px-5 py-4 text-[14px] ${ri < rows.length - 1 ? "border-b border-white/[0.03]" : ""}`} style={{ gridTemplateColumns: `repeat(${headers.length}, 1fr)` }}>
+        <div key={ri} className={`grid gap-4 px-5 py-4 text-[15px] ${ri < rows.length - 1 ? "border-b border-white/[0.03]" : ""}`} style={{ gridTemplateColumns: `repeat(${headers.length}, 1fr)` }}>
           {row.map((cell, ci) => (
             <span key={ci} className={ci === 0 ? "font-mono font-medium text-white" : "text-white/50"}>{cell}</span>
           ))}
@@ -135,45 +141,40 @@ export function CostCard({ model, scenario, desc, volume, costs, total }: {
 }) {
   return (
     <div className="rounded-xl border border-white/[0.06] overflow-hidden mb-6">
-      {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3.5 bg-white/[0.03] border-b border-white/[0.04]">
-        <span className="text-[12px] font-mono font-medium text-white/60 bg-white/[0.06] px-2 py-0.5 rounded">{model}</span>
-        <span className="text-[14px] font-medium text-white/80">{scenario}</span>
+        <span className="text-[14px] font-mono font-medium text-white/60 bg-white/[0.06] px-2.5 py-0.5 rounded">{model}</span>
+        <span className="text-[15px] font-medium text-white/80">{scenario}</span>
       </div>
 
       <div className="px-5 py-4">
-        {/* Description */}
-        <p className="text-[13px] text-white/40 mb-4">{desc}</p>
+        <p className="text-[14px] text-white/40 mb-4">{desc}</p>
 
-        {/* Volume breakdown */}
-        <div className="space-y-1.5 mb-4">
+        <div className="space-y-2 mb-4">
           {volume.map((v, i) => (
-            <div key={i} className="flex items-baseline gap-3 text-[13px] font-mono">
-              <span className="text-white/35 w-[52px] shrink-0 text-right">{v.label}</span>
+            <div key={i} className="flex items-baseline gap-3 text-[14px] font-mono">
+              <span className="text-white/35 w-[56px] shrink-0 text-right">{v.label}</span>
               <span className="text-white/50 flex-1">{v.calc}</span>
               <span className="text-white/60">{v.result}</span>
             </div>
           ))}
         </div>
 
-        <div className="border-t border-white/[0.04] my-3" />
+        <div className="border-t border-white/[0.04] my-4" />
 
-        {/* Cost breakdown */}
-        <div className="space-y-1.5 mb-3">
+        <div className="space-y-2 mb-4">
           {costs.map((c, i) => (
-            <div key={i} className="flex items-baseline gap-3 text-[13px] font-mono">
-              <span className="text-white/35 w-[52px] shrink-0 text-right">{c.label}</span>
+            <div key={i} className="flex items-baseline gap-3 text-[14px] font-mono">
+              <span className="text-white/35 w-[56px] shrink-0 text-right">{c.label}</span>
               <span className="text-white/50 flex-1">{c.calc}</span>
               <span className="text-white/80 font-medium">{c.result}</span>
             </div>
           ))}
         </div>
 
-        <div className="border-t border-white/[0.06] my-3" />
+        <div className="border-t border-white/[0.06] my-4" />
 
-        {/* Total */}
         <div className="flex items-baseline justify-between">
-          <span className="text-[13px] text-white/40">Total</span>
+          <span className="text-[15px] text-white/40">Total</span>
           <span className="text-[18px] font-medium text-white tabular-nums">{total}</span>
         </div>
       </div>
@@ -183,8 +184,8 @@ export function CostCard({ model, scenario, desc, volume, costs, total }: {
 
 export function EndpointRow({ method, path, desc }: { method: string; path: string; desc: string }) {
   return (
-    <div className="flex items-center gap-4 px-5 py-3.5 text-[14px] border-b border-white/[0.03] last:border-b-0">
-      <span className="text-[12px] font-mono font-medium text-white/60 bg-white/[0.06] px-2 py-0.5 rounded">{method}</span>
+    <div className="flex items-center gap-4 px-5 py-3.5 text-[15px] border-b border-white/[0.03] last:border-b-0">
+      <span className="text-[14px] font-mono font-medium text-white/60 bg-white/[0.06] px-2.5 py-0.5 rounded">{method}</span>
       <code className="font-mono text-white/70">{path}</code>
       <span className="text-white/40 ml-auto">{desc}</span>
     </div>

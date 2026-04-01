@@ -369,8 +369,8 @@ OPENAI_BASE_URL=https://api.vmira.ai/v1`}
           { method: "POST", path: "/api/v1/api-keys", desc: isRu ? "Создать API-ключ" : "Create an API key" },
           { method: "GET", path: "/api/v1/auth/me/usage", desc: isRu ? "Получить данные об использовании" : "Get usage data" },
         ].map((e, i, arr) => (
-          <div key={e.path} className={`flex items-center gap-4 px-5 py-3.5 text-[14px] ${i < arr.length - 1 ? "border-b border-white/[0.03]" : ""}`}>
-            <span className={`text-[12px] font-mono font-bold px-2 py-0.5 rounded ${e.method === "GET" ? "text-blue-400 bg-blue-500/10" : "text-emerald-400 bg-emerald-500/10"}`}>{e.method}</span>
+          <div key={e.path} className={`flex items-center gap-4 px-5 py-3.5 text-[15px] ${i < arr.length - 1 ? "border-b border-white/[0.03]" : ""}`}>
+            <span className="text-[14px] font-mono font-medium text-white/60 bg-white/[0.06] px-2.5 py-0.5 rounded">{e.method}</span>
             <code className="font-mono text-white/70">{e.path}</code>
             <span className="text-white/40 ml-auto">{e.desc}</span>
           </div>

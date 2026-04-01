@@ -12,6 +12,11 @@ function VisionPage({ locale }: { locale: Locale }) {
   return (
     <>
       <H1>{isRu ? "Распознавание изображений" : "Vision (Image Input)"}</H1>
+      <Note type="warning">
+        {isRu
+          ? "Распознавание изображений через публичный API (/v1/chat/completions) находится в разработке. Эта функция доступна через интерфейс Mira Chat на platform.vmira.ai."
+          : "Vision via the public API (/v1/chat/completions) is under development. This feature is available through the Mira Chat interface at platform.vmira.ai."}
+      </Note>
       <P>
         {isRu
           ? "Модели Mira могут анализировать изображения, переданные в запросе. Вы можете отправлять изображения как Base64-строку или как URL-ссылку, используя формат content blocks, совместимый с OpenAI."
@@ -267,6 +272,11 @@ function ToolUsePage({ locale }: { locale: Locale }) {
   return (
     <>
       <H1>{isRu ? "Использование инструментов (Function Calling)" : "Tool Use (Function Calling)"}</H1>
+      <Note type="warning">
+        {isRu
+          ? "Вызов инструментов через публичный API (/v1/chat/completions) находится в разработке. Параметры tools и tool_choice будут доступны в ближайших обновлениях."
+          : "Tool calling via the public API (/v1/chat/completions) is under development. The tools and tool_choice parameters will be available in upcoming releases."}
+      </Note>
       <P>
         {isRu
           ? "Инструменты позволяют модели вызывать внешние функции для получения данных или выполнения действий. Вы описываете доступные функции в запросе, модель решает, когда их вызвать, и возвращает структурированный вызов, который вы исполняете на своей стороне."
@@ -532,6 +542,11 @@ function ExtendedThinkingPage({ locale }: { locale: Locale }) {
   return (
     <>
       <H1>{isRu ? "Расширенное мышление" : "Extended Thinking"}</H1>
+      <Note type="info">
+        {isRu
+          ? "Расширенное мышление доступно через модель mira-thinking. Внутренние рассуждения модели обрабатываются на сервере — ответ API содержит только итоговый результат."
+          : "Extended thinking is available via the mira-thinking model. The model's internal reasoning is processed server-side — the API response contains only the final result."}
+      </Note>
       <P>
         {isRu
           ? "Расширенное мышление позволяет модели пошагово рассуждать перед формированием окончательного ответа. Это повышает точность для сложных задач: математики, логики, анализа кода, многошаговых рассуждений."
@@ -741,6 +756,11 @@ function JsonModePage({ locale }: { locale: Locale }) {
   return (
     <>
       <H1>{isRu ? "Режим JSON" : "JSON Mode"}</H1>
+      <Note type="warning">
+        {isRu
+          ? "Параметр response_format находится в разработке. Для получения JSON-ответов используйте инструкцию в системном промпте: \"Respond only in valid JSON format.\""
+          : "The response_format parameter is under development. To get JSON responses, include instructions in the system prompt: \"Respond only in valid JSON format.\""}
+      </Note>
       <P>
         {isRu
           ? "Режим JSON гарантирует, что модель вернёт ответ в виде валидного JSON-объекта. Это идеально для интеграции с приложениями, парсинга данных и автоматизации."
@@ -953,6 +973,11 @@ function EmbeddingsPage({ locale }: { locale: Locale }) {
   return (
     <>
       <H1>{isRu ? "Эмбеддинги (Embeddings)" : "Embeddings"}</H1>
+      <Note type="warning">
+        {isRu
+          ? "Эндпоинт /v1/embeddings находится в разработке и будет доступен в ближайших обновлениях платформы."
+          : "The /v1/embeddings endpoint is under development and will be available in upcoming platform updates."}
+      </Note>
       <P>
         {isRu
           ? "Эмбеддинги — это числовые векторные представления текста, которые отражают его семантическое значение. Тексты с похожим смыслом будут иметь близкие векторы, что позволяет реализовать семантический поиск, кластеризацию и классификацию."
@@ -1227,6 +1252,11 @@ function BatchProcessingPage({ locale }: { locale: Locale }) {
   return (
     <>
       <H1>{isRu ? "Пакетная обработка (Batch API)" : "Batch Processing (Batch API)"}</H1>
+      <Note type="warning">
+        {isRu
+          ? "Batch API находится в разработке и будет доступен в ближайших обновлениях платформы."
+          : "The Batch API is under development and will be available in upcoming platform updates."}
+      </Note>
       <P>
         {isRu
           ? "Batch API позволяет отправить большое количество запросов за один раз и получить результаты асинхронно. Это идеально для массовой обработки данных, когда мгновенный ответ не требуется."

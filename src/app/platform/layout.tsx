@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Settings, HelpCircle, LogOut, LayoutDashboard, BarChart3, Key, Wallet, Zap, ChevronRight, BookOpen, FileText, Shield, Bug, Keyboard } from "lucide-react";
+import { Settings, HelpCircle, LogOut, LayoutDashboard, BarChart3, Key, Wallet, Zap, ChevronRight, BookOpen, FileText, Shield, Bug, Keyboard, CreditCard } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
+import MiraCodePricingModal from "@/components/MiraCodePricingModal";
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: LayoutDashboard },
+  { href: "/plans", icon: CreditCard },
   { href: "/usage", icon: BarChart3 },
   { href: "/billing", icon: Wallet },
   { href: "/api-keys", icon: Key },
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
 function getNavLabel(href: string): string {
   const labels: Record<string, () => string> = {
     "/dashboard": () => t("platform.dashboard"),
+    "/plans": () => "Тарифы",
     "/usage": () => t("platform.usage"),
     "/billing": () => "Биллинг",
     "/api-keys": () => t("platform.apiKeys"),
@@ -42,6 +45,7 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
   const [userMenu, setUserMenu] = useState(false);
   const [menuRect, setMenuRect] = useState<DOMRect | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
   const [submenu, setSubmenu] = useState<"help" | "learn" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const submenuTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,8 +91,9 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="fixed inset-0 bg-[#161616] overflow-hidden z-[9999] flex">
-      {/* Settings modal */}
+      {/* Modals */}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {pricingOpen && <MiraCodePricingModal onClose={() => setPricingOpen(false)} />}
 
       {/* User menu popup — exact replica of chat sidebar popup */}
       {userMenu && menuRect && (
@@ -106,6 +111,9 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
             <button onClick={() => { closeMenu(); setTimeout(() => setSettingsOpen(true), 50); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors">
               <Settings size={16} /><span className="flex-1 text-left">{t("user.settings")}</span>
               <span className="text-[11px] text-white/40">Ctrl+,</span>
+            </button>
+            <button onClick={() => { closeMenu(); setTimeout(() => setPricingOpen(true), 50); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors">
+              <Zap size={16} /><span className="flex-1 text-left">{t("user.plans")}</span>
             </button>
             <button
               onMouseEnter={() => openSubmenu("help")}

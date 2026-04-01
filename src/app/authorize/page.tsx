@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useContext } from "react";
-import { AuthContext } from "@/context/AuthContext";
+import { useState, useRef, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function AuthorizePage() {
-  const { user, isAuthenticated, isLoading } = useContext(AuthContext);
+  const { user, loading: isLoading } = useAuth();
+  const isAuthenticated = !!user;
   const [code, setCode] = useState(["", "", "", "", "", "", "", ""]);
   const [status, setStatus] = useState<"idle" | "approving" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");

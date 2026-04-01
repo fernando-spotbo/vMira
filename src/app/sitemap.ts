@@ -17,7 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1.0,
     },
     {
-      url: `${BASE_URL}/platform/pricing`,
+      url: "https://platform.vmira.ai/pricing",
       lastModified: CONTENT_UPDATED,
       changeFrequency: "monthly",
       priority: 0.9,

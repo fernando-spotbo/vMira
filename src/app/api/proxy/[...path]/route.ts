@@ -230,6 +230,7 @@ async function handleOptions(req: NextRequest): Promise<Response> {
   const ALLOWED_ORIGINS = [
     "https://vmira.ai",
     "https://www.vmira.ai",
+    "https://platform.vmira.ai",
     "http://localhost:3000",
   ];
   const origin = req.headers.get("origin") || "";

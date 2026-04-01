@@ -5,28 +5,20 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/help", "/legal", "/platform/pricing"],
+        allow: ["/", "/help", "/legal"],
         disallow: [
           "/chat",
           "/api",
-          "/platform/dashboard",
-          "/platform/billing",
-          "/platform/api-keys",
-          "/platform/usage",
-          "/platform/docs",
+          "/platform",
         ],
       },
       {
         userAgent: "Yandex",
-        allow: ["/", "/help", "/legal", "/platform/pricing"],
+        allow: ["/", "/help", "/legal"],
         disallow: [
           "/chat",
           "/api",
-          "/platform/dashboard",
-          "/platform/billing",
-          "/platform/api-keys",
-          "/platform/usage",
-          "/platform/docs",
+          "/platform",
         ],
       },
     ],

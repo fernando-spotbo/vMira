@@ -98,7 +98,7 @@ const plans = [
       "Поиск в интернете",
     ],
     buttonText: "Перейти на Pro",
-    buttonHref: "/platform/billing/topup",
+    buttonHref: "/billing/topup",
     popular: true,
     current: false,
   },
@@ -118,7 +118,7 @@ const plans = [
       "Ранний доступ к функциям",
     ],
     buttonText: "Перейти на Max",
-    buttonHref: "/platform/billing/topup",
+    buttonHref: "/billing/topup",
     popular: false,
     current: false,
   },
@@ -356,7 +356,7 @@ export default function PricingPage() {
             Начать бесплатно
           </Link>
           <Link
-            href="/platform/billing/topup"
+            href="/billing/topup"
             className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-6 py-3 text-[14px] text-white/70 hover:bg-white/[0.08] hover:border-white/[0.12] transition-all"
           >
             Пополнить баланс

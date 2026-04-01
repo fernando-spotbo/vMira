@@ -24,21 +24,21 @@ export default function DashboardPage() {
       {/* Action buttons — 3 in a row, centered */}
       <div className="grid grid-cols-3 gap-4 mb-10">
         <Link
-          href="/platform/api-keys"
+          href="/api-keys"
           className="flex items-center justify-center gap-2.5 rounded-xl border border-white/[0.08] py-4 text-[15px] text-white/70 hover:bg-white/[0.03] hover:border-white/[0.12] transition-all"
         >
           <Plus size={16} />
           Create API key
         </Link>
         <Link
-          href="/platform/docs"
+          href="/docs"
           className="flex items-center justify-center gap-2.5 rounded-xl border border-white/[0.08] py-4 text-[15px] text-white/70 hover:bg-white/[0.03] hover:border-white/[0.12] transition-all"
         >
           <Key size={16} />
           Get API Key
         </Link>
         <Link
-          href="/platform/usage"
+          href="/usage"
           className="flex items-center justify-center gap-2.5 rounded-xl border border-white/[0.08] py-4 text-[15px] text-white/70 hover:bg-white/[0.03] hover:border-white/[0.12] transition-all"
         >
           <ArrowUpRight size={16} />
@@ -85,7 +85,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="px-6 py-4 bg-white/[0.02]">
-          <Link href="/platform/docs" className="text-[14px] text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5">
+          <Link href="/docs" className="text-[14px] text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5">
             Read the full documentation <ArrowUpRight size={13} />
           </Link>
         </div>

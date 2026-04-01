@@ -95,7 +95,7 @@ export default function PaymentSuccessPage() {
         </Link>
 
         <Link
-          href="/platform/billing"
+          href="/billing"
           className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] py-3.5 text-[15px] text-white/60 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
         >
           История транзакций

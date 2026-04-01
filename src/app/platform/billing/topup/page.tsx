@@ -78,17 +78,17 @@ export default function TopupPage() {
   const handlePay = useCallback(async () => {
     if (effectiveAmount < 10) return;
     setLoading(true);
-    // In production: const result = await createTopup(effectiveAmount, window.location.origin + "/platform/billing/success");
+    // In production: const result = await createTopup(effectiveAmount, window.location.origin + "/billing/success");
     // For now, simulate redirect:
     await new Promise((r) => setTimeout(r, 1500));
-    window.location.href = "/platform/billing/success";
+    window.location.href = "/billing/success";
   }, [effectiveAmount]);
 
   return (
     <div className="max-w-[640px] mx-auto">
       {/* Back link */}
       <Link
-        href="/platform/billing"
+        href="/billing"
         className="inline-flex items-center gap-2 text-[13px] text-white/40 hover:text-white/60 transition-colors mb-6"
       >
         <ArrowLeft size={14} />

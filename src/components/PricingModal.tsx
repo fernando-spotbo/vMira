@@ -232,7 +232,7 @@ export default function PricingModal({ onClose }: PricingModalProps) {
             {t("pricing.footer")}
             {" "}
             <Link
-              href="/platform/pricing"
+              href="https://platform.vmira.ai/pricing"
               onClick={() => { setVisible(false); setTimeout(onClose, 250); }}
               className="underline underline-offset-2 hover:text-white/60 transition-colors"
             >

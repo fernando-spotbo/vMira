@@ -13,16 +13,16 @@ function getSections() {
     {
       label: t("platform.analytics"),
       items: [
-        { href: "/platform/dashboard", label: t("platform.dashboard"), icon: LayoutDashboard },
-        { href: "/platform/usage", label: t("platform.usage"), icon: BarChart3 },
-        { href: "/platform/billing", label: "Биллинг", icon: Wallet },
+        { href: "/dashboard", label: t("platform.dashboard"), icon: LayoutDashboard },
+        { href: "/usage", label: t("platform.usage"), icon: BarChart3 },
+        { href: "/billing", label: "Биллинг", icon: Wallet },
       ],
     },
     {
       label: t("platform.manage"),
       items: [
-        { href: "/platform/api-keys", label: t("platform.apiKeys"), icon: Key },
-        { href: "/platform/docs", label: t("platform.docs"), icon: FileText },
+        { href: "/api-keys", label: t("platform.apiKeys"), icon: Key },
+        { href: "/docs", label: t("platform.docs"), icon: FileText },
       ],
     },
   ];
@@ -160,7 +160,7 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
           {/* Bottom */}
           <div className={`border-t border-white/[0.06] py-3 ${expanded ? "px-3" : "px-[5px]"}`}>
             <Link
-              href="/platform/docs"
+              href="/docs"
               className={`flex items-center gap-2.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.05] transition-colors ${
                 expanded ? "px-3 py-1.5 text-[13px]" : "h-10 w-10 justify-center"
               }`}

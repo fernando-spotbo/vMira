@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     "Мира Pro",
     "Мира Max",
   ],
-  alternates: { canonical: "https://vmira.ai/platform/pricing" },
+  alternates: { canonical: "https://platform.vmira.ai/pricing" },
   openGraph: {
     title: "Тарифы Мира AI — от 0 ₽/мес",
     description: "Бесплатный план, Pro за 199 ₽/мес и Max за 990 ₽/мес. AI-ассистент с поиском в интернете.",

@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob:",
               "media-src 'self' blob:",
-              "connect-src 'self' https://vmira.ai https://api.vmira.ai",
+              "connect-src 'self' https://vmira.ai https://platform.vmira.ai https://api.vmira.ai",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

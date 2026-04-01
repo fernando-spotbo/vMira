@@ -91,7 +91,7 @@ function ErrorBanner({ error, onUpgrade, onLogin }: { error: MessageError; onUpg
           </p>
           {error.type === "payment" && (
             <a
-              href="/platform/billing/topup"
+              href="https://platform.vmira.ai/billing/topup"
               className="inline-flex items-center gap-1 text-[16px] text-white/50 hover:text-white/70 mt-1.5 transition-colors duration-200"
             >
               {t("error.topupCta")}

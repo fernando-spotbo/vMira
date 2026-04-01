@@ -247,7 +247,7 @@ export default function BillingPage() {
           <p className="text-[15px] text-white/40 mt-2">Баланс, расходы и история транзакций.</p>
         </div>
         <Link
-          href="/platform/billing/topup"
+          href="/billing/topup"
           className="flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
         >
           <Plus size={16} />
@@ -269,7 +269,7 @@ export default function BillingPage() {
             <p className="text-[28px] font-bold text-white leading-tight">{mockBalance.balance_rubles} <span className="text-[20px] font-normal text-white/50">&#8381;</span></p>
           </div>
           <Link
-            href="/platform/billing/topup"
+            href="/billing/topup"
             className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[13px] text-white/70 hover:bg-white/[0.1] hover:border-white/[0.12] transition-all"
           >
             <Plus size={14} />
@@ -469,7 +469,7 @@ export default function BillingPage() {
           <p className="text-[12px] text-white/30 mt-1">Подробная информация о ценах за токен для каждой модели</p>
         </div>
         <Link
-          href="/platform/pricing"
+          href="/pricing"
           className="flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[13px] text-white/60 hover:bg-white/[0.1] hover:text-white/80 transition-all"
         >
           Цены

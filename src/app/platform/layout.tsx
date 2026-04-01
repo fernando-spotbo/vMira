@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { BookOpen, Settings, HelpCircle, LogOut, ChevronDown, LayoutDashboard, BarChart3, Key, FileText, Wallet } from "lucide-react";
+import { Settings, HelpCircle, LogOut, ChevronDown, LayoutDashboard, BarChart3, Key, Wallet } from "lucide-react";
 
 function getSections() {
   return [
@@ -16,13 +16,7 @@ function getSections() {
         { href: "/dashboard", label: t("platform.dashboard"), icon: LayoutDashboard },
         { href: "/usage", label: t("platform.usage"), icon: BarChart3 },
         { href: "/billing", label: "Биллинг", icon: Wallet },
-      ],
-    },
-    {
-      label: t("platform.manage"),
-      items: [
         { href: "/api-keys", label: t("platform.apiKeys"), icon: Key },
-        { href: "/docs", label: t("platform.docs"), icon: FileText },
       ],
     },
   ];
@@ -59,7 +53,6 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
   }, [userMenu]);
 
   const sections = getSections();
-  const allItems = sections.flatMap((s) => s.items);
 
   return (
     <div className="fixed inset-0 bg-[#161616] overflow-hidden z-[9999] flex">
@@ -123,7 +116,6 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Nav */}
-          {/* Nav — icons always in same position */}
           <nav className={`flex-1 pt-2 ${expanded ? "space-y-5" : "space-y-1"} ${expanded ? "px-3" : "px-[5px]"}`}>
             {sections.map((section) => (
               <div key={section.label}>
@@ -156,21 +148,7 @@ function PlatformLayoutInner({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          {/* Bottom: docs + user */}
-          {/* Bottom */}
-          <div className={`border-t border-white/[0.06] py-3 ${expanded ? "px-3" : "px-[5px]"}`}>
-            <Link
-              href="/docs"
-              className={`flex items-center gap-2.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.05] transition-colors ${
-                expanded ? "px-3 py-1.5 text-[13px]" : "h-10 w-10 justify-center"
-              }`}
-              title={expanded ? undefined : "Docs"}
-            >
-              <BookOpen size={16} strokeWidth={1.8} className="shrink-0" />
-              {expanded && <span>{t("platform.docs")}</span>}
-            </Link>
-          </div>
-
+          {/* Bottom: user */}
           <div className={`border-t border-white/[0.06] py-3 ${expanded ? "px-3" : "px-[5px] flex justify-center"}`}>
             <button
               onClick={(e) => { setMenuRect((e.currentTarget).getBoundingClientRect()); setUserMenu(true); }}

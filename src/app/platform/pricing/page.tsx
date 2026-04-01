@@ -21,7 +21,7 @@ const models = [
     key: "mira",
     label: "Mira Fast",
     icon: Zap,
-    color: "#4ade80",
+    color: "#737373",
     speed: "Мгновенно",
     speedIcon: "zap",
     input_1k: "0,10",
@@ -32,7 +32,7 @@ const models = [
     key: "mira-thinking",
     label: "Mira Thinking",
     icon: Brain,
-    color: "#60a5fa",
+    color: "#999999",
     speed: "Глубокий",
     speedIcon: "brain",
     input_1k: "0,15",
@@ -43,7 +43,7 @@ const models = [
     key: "mira-pro",
     label: "Mira Pro",
     icon: Rocket,
-    color: "#c084fc",
+    color: "#b5b5b5",
     speed: "Продвинутый",
     speedIcon: "rocket",
     input_1k: "0,30",
@@ -54,7 +54,7 @@ const models = [
     key: "mira-max",
     label: "Mira Max",
     icon: Gem,
-    color: "#f472b6",
+    color: "#e5e5e5",
     speed: "Максимальный",
     speedIcon: "gem",
     input_1k: "1,50",
@@ -160,7 +160,7 @@ export default function PricingPage() {
     <div className="max-w-[960px] mx-auto">
       {/* Header */}
       <div className="text-center mb-12 pt-4">
-        <h1 className="text-[32px] font-bold text-white mb-3">Цены</h1>
+        <h1 className="text-[32px] font-medium text-white mb-3">Цены</h1>
         <p className="text-[16px] text-white/50 max-w-md mx-auto">
           Прозрачная оплата за использование. Платите только за то, что используете.
         </p>
@@ -247,7 +247,7 @@ export default function PricingPage() {
 
       {/* Plans comparison */}
       <div className="mb-12">
-        <h2 className="text-[20px] font-bold text-white text-center mb-2">Тарифные планы</h2>
+        <h2 className="text-[20px] font-medium text-white text-center mb-2">Тарифные планы</h2>
         <p className="text-[14px] text-white/40 text-center mb-8">Обновите в любое время. Отмените когда угодно.</p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -270,10 +270,10 @@ export default function PricingPage() {
                 <h3 className="text-[18px] font-semibold text-white">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 mt-2">
                   {plan.price === "0" ? (
-                    <span className="text-[28px] font-bold text-white">Бесплатно</span>
+                    <span className="text-[28px] font-medium text-white">Бесплатно</span>
                   ) : (
                     <>
-                      <span className="text-[28px] font-bold text-white">{plan.price}</span>
+                      <span className="text-[28px] font-medium text-white">{plan.price}</span>
                       <span className="text-[16px] text-white/40">&#8381;{plan.period}</span>
                     </>
                   )}
@@ -307,7 +307,7 @@ export default function PricingPage() {
 
       {/* FAQ */}
       <div className="mb-12">
-        <h2 className="text-[20px] font-bold text-white text-center mb-2">Часто задаваемые вопросы</h2>
+        <h2 className="text-[20px] font-medium text-white text-center mb-2">Часто задаваемые вопросы</h2>
         <p className="text-[14px] text-white/40 text-center mb-8">Ответы на популярные вопросы о ценах и оплате</p>
 
         <div className="space-y-2">
@@ -343,7 +343,7 @@ export default function PricingPage() {
 
       {/* CTA */}
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center mb-4">
-        <h3 className="text-[20px] font-bold text-white mb-2">Готовы начать?</h3>
+        <h3 className="text-[20px] font-medium text-white mb-2">Готовы начать?</h3>
         <p className="text-[14px] text-white/40 mb-6 max-w-md mx-auto">
           Начните бесплатно с 20 сообщениями в день или пополните баланс для полного доступа ко всем моделям.
         </p>

@@ -7,7 +7,7 @@ export default function UsagePage() {
   return (
     <div className="max-w-[900px] mx-auto">
       <div className="mb-8">
-        <h1 className="text-[26px] font-bold text-white">Usage</h1>
+        <h1 className="text-[22px] font-medium text-white">Usage</h1>
         <p className="text-[15px] text-white/40 mt-2">Monitor your API consumption and costs.</p>
       </div>
 
@@ -16,7 +16,7 @@ export default function UsagePage() {
         {["Today", "7 days", "30 days", "All time"].map((p, i) => (
           <button
             key={p}
-            className={`rounded-lg px-4 py-2 text-[13px] transition-colors ${
+            className={`rounded-xl px-4 py-2 text-[13px] transition-colors ${
               i === 1 ? "bg-white text-[#161616]" : "bg-white/[0.04] text-white/50 hover:bg-white/[0.06]"
             }`}
           >
@@ -30,12 +30,12 @@ export default function UsagePage() {
         {[
           { label: "Total requests", value: "0" },
           { label: "Tokens used", value: "0" },
-          { label: "Cost", value: "$0.00" },
+          { label: "Cost", value: "0,00 ₽" },
           { label: "Avg latency", value: "—" },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border border-white/[0.06] p-5">
             <p className="text-[12px] text-white/40 mb-1">{s.label}</p>
-            <p className="text-[24px] font-semibold text-white">{s.value}</p>
+            <p className="text-[22px] font-semibold text-white">{s.value}</p>
           </div>
         ))}
       </div>
@@ -55,7 +55,7 @@ export default function UsagePage() {
       </div>
 
       {/* Pricing */}
-      <h2 className="text-[17px] font-semibold text-white mb-4">Pricing</h2>
+      <h2 className="text-[15px] font-medium text-white mb-4">Pricing</h2>
       <div className="rounded-xl border border-white/[0.06] overflow-hidden">
         <div className="grid grid-cols-3 gap-4 px-6 py-3 bg-white/[0.03] border-b border-white/[0.04] text-[12px] font-medium text-white/40 uppercase tracking-wider">
           <span>Tier</span><span>Price</span><span>Notes</span>

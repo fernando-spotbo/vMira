@@ -43,7 +43,7 @@ export default function PaymentSuccessPage() {
           show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
         }`}
       >
-        <h1 className="text-[24px] font-bold text-white mb-2">Оплата прошла успешно!</h1>
+        <h1 className="text-[24px] font-medium text-white mb-2">Оплата прошла успешно!</h1>
         <p className="text-[15px] text-white/50 mb-1">Баланс обновлён.</p>
       </div>
 
@@ -74,7 +74,7 @@ export default function PaymentSuccessPage() {
             </div>
             <div className="text-left">
               <p className="text-[13px] text-white/40">Текущий баланс</p>
-              <p className="text-[22px] font-bold text-white">{newBalance} &#8381;</p>
+              <p className="text-[22px] font-medium text-white">{newBalance} &#8381;</p>
             </div>
           </div>
         </div>

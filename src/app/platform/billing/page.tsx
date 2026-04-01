@@ -170,7 +170,7 @@ const mockModelSpending = [
     amount_rubles: "55,00",
     input_tokens: 7200,
     output_tokens: 12400,
-    color: "#4ade80",
+    color: "#737373",
   },
   {
     model: "mira-thinking",
@@ -180,7 +180,7 @@ const mockModelSpending = [
     amount_rubles: "200,00",
     input_tokens: 13000,
     output_tokens: 26000,
-    color: "#60a5fa",
+    color: "#999999",
   },
   {
     model: "mira-pro",
@@ -190,7 +190,7 @@ const mockModelSpending = [
     amount_rubles: "755,00",
     input_tokens: 32000,
     output_tokens: 68000,
-    color: "#c084fc",
+    color: "#b5b5b5",
   },
   {
     model: "mira-max",
@@ -200,7 +200,7 @@ const mockModelSpending = [
     amount_rubles: "2 770,00",
     input_tokens: 64000,
     output_tokens: 140000,
-    color: "#f472b6",
+    color: "#e5e5e5",
   },
 ];
 
@@ -243,12 +243,12 @@ export default function BillingPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[26px] font-bold text-white">Биллинг</h1>
+          <h1 className="text-[22px] font-medium text-white">Биллинг</h1>
           <p className="text-[15px] text-white/40 mt-2">Баланс, расходы и история транзакций.</p>
         </div>
         <Link
           href="/billing/topup"
-          className="flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
+          className="flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
         >
           <Plus size={16} />
           Пополнить
@@ -270,7 +270,7 @@ export default function BillingPage() {
           </div>
           <Link
             href="/billing/topup"
-            className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[13px] text-white/70 hover:bg-white/[0.1] hover:border-white/[0.12] transition-all"
+            className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[13px] text-white/70 hover:bg-white/[0.1] hover:border-white/[0.12] transition-all"
           >
             <Plus size={14} />
             Пополнить баланс
@@ -470,7 +470,7 @@ export default function BillingPage() {
         </div>
         <Link
           href="/pricing"
-          className="flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[13px] text-white/60 hover:bg-white/[0.1] hover:text-white/80 transition-all"
+          className="flex items-center gap-2 rounded-xl bg-white/[0.06] border border-white/[0.08] px-4 py-2.5 text-[13px] text-white/60 hover:bg-white/[0.1] hover:text-white/80 transition-all"
         >
           Цены
           <ChevronRight size={14} />

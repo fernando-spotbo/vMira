@@ -20,10 +20,10 @@ import {
 // ---- Pricing per 1K tokens (in kopecks) ----
 
 const models = [
-  { key: "mira", label: "Mira Fast", icon: Zap, color: "#4ade80", input_1k: 10, output_1k: 30 },
-  { key: "mira-thinking", label: "Mira Thinking", icon: Brain, color: "#60a5fa", input_1k: 15, output_1k: 50 },
-  { key: "mira-pro", label: "Mira Pro", icon: Rocket, color: "#c084fc", input_1k: 30, output_1k: 90 },
-  { key: "mira-max", label: "Mira Max", icon: Gem, color: "#f472b6", input_1k: 150, output_1k: 600 },
+  { key: "mira", label: "Mira Fast", icon: Zap, color: "#737373", input_1k: 10, output_1k: 30 },
+  { key: "mira-thinking", label: "Mira Thinking", icon: Brain, color: "#999999", input_1k: 15, output_1k: 50 },
+  { key: "mira-pro", label: "Mira Pro", icon: Rocket, color: "#b5b5b5", input_1k: 30, output_1k: 90 },
+  { key: "mira-max", label: "Mira Max", icon: Gem, color: "#e5e5e5", input_1k: 150, output_1k: 600 },
 ];
 
 const presets = [100, 500, 1000, 5000];
@@ -96,7 +96,7 @@ export default function TopupPage() {
       </Link>
 
       {/* Title */}
-      <h1 className="text-[26px] font-bold text-white mb-2">Пополнение баланса</h1>
+      <h1 className="text-[26px] font-medium text-white mb-2">Пополнение баланса</h1>
       <p className="text-[15px] text-white/40 mb-8">Выберите сумму и способ оплаты.</p>
 
       {/* Amount selection */}

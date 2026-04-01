@@ -48,12 +48,12 @@ export default function ApiKeysPage() {
     <div className="max-w-[900px] mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[26px] font-bold text-white">API keys</h1>
+          <h1 className="text-[22px] font-medium text-white">API keys</h1>
           <p className="text-[15px] text-white/40 mt-2">Manage your API keys for accessing the Mira API.</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
+          className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
         >
           <Plus size={16} />
           Create new key
@@ -70,18 +70,18 @@ export default function ApiKeysPage() {
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               placeholder="Key name (e.g., Production, Testing)"
-              className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.05] px-4 py-2.5 text-[14px] text-white placeholder-white/30 focus:outline-none focus:border-white/[0.15]"
+              className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.05] px-4 py-2.5 text-[14px] text-white placeholder-white/30 focus:outline-none focus:border-white/[0.15] transition-all duration-200"
               autoFocus
             />
             <button
               onClick={handleCreate}
-              className="rounded-lg bg-white px-5 py-2.5 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
+              className="rounded-xl bg-white px-5 py-2.5 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
             >
               Create
             </button>
             <button
               onClick={() => { setShowCreate(false); setNewName(""); }}
-              className="rounded-lg px-4 py-2.5 text-[14px] text-white/40 hover:text-white transition-colors"
+              className="rounded-xl px-4 py-2.5 text-[14px] text-white/40 hover:text-white transition-colors"
             >
               Cancel
             </button>

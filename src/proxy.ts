@@ -15,6 +15,13 @@ export function proxy(request: NextRequest) {
 
   const isPlatformSubdomain = hostname.startsWith("platform.");
   const isLocalhost = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
+  const isDocsSubdomain = hostname === "docs.vmira.ai";
+
+  // docs.vmira.ai/* → platform.vmira.ai/docs/*
+  if (isDocsSubdomain) {
+    const docsPath = pathname === "/" ? "/docs" : `/docs${pathname}`;
+    return NextResponse.redirect(new URL(docsPath, PLATFORM_URL), 301);
+  }
 
   // Platform subdomain OR localhost: rewrite clean paths to /platform/* internally
   if (isPlatformSubdomain || isLocalhost) {
@@ -31,7 +38,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Main domain (production): redirect /platform/* and /authorize to subdomain
+  // Main domain (production): redirect /platform/*, /authorize, /docs to subdomain
+  if (pathname.startsWith("/docs")) {
+    return NextResponse.redirect(new URL(pathname, PLATFORM_URL), 301);
+  }
   if (pathname.startsWith("/platform")) {
     const platformPath = pathname.replace("/platform", "") || "/dashboard";
     return NextResponse.redirect(`${PLATFORM_URL}${platformPath}${search}`);

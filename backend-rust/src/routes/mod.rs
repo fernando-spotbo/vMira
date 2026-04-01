@@ -9,6 +9,7 @@ pub mod billing;
 pub mod calendar;
 pub mod chat;
 pub mod completions;
+pub mod device_auth;
 pub mod feedback;
 pub mod health;
 pub mod models;
@@ -30,6 +31,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health::health_check))
         .nest("/api/v1/auth", auth::auth_routes())
+        .nest("/api/v1/auth", device_auth::device_auth_routes())
         .nest("/api/v1/chat", chat::chat_routes())
         .nest("/api/v1/chat/projects", projects::project_routes())
         .nest(

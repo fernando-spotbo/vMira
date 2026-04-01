@@ -324,10 +324,10 @@ function PricingPage({ locale }: { locale: Locale }) {
           isRu ? "Контекст" : "Context",
         ]}
         rows={[
-          ["mira", "100 ₽", "300 ₽", "32K"],
-          ["mira-thinking", "150 ₽", "500 ₽", "32K"],
-          ["mira-pro", "300 ₽", "900 ₽", "64K"],
-          ["mira-max", "1 500 ₽", "6 000 ₽", "128K"],
+          ["mira", "50 ₽", "150 ₽", "32K"],
+          ["mira-thinking", "50 ₽", "200 ₽", "32K"],
+          ["mira-pro", "100 ₽", "300 ₽", "64K"],
+          ["mira-max", "250 ₽", "750 ₽", "128K"],
         ]}
       />
       <Note type="info">
@@ -370,10 +370,10 @@ function PricingPage({ locale }: { locale: Locale }) {
           { label: isRu ? "Вывод" : "Output", calc: isRu ? "1 000 × 200 × 30" : "1,000 × 200 × 30", result: isRu ? "6M токенов/мес" : "6M tokens/mo" },
         ]}
         costs={[
-          { label: isRu ? "Ввод" : "Input", calc: "15M × 100 ₽/1M", result: "1 500 ₽" },
-          { label: isRu ? "Вывод" : "Output", calc: "6M × 300 ₽/1M", result: "1 800 ₽" },
+          { label: isRu ? "Ввод" : "Input", calc: "15M × 50 ₽/1M", result: "750 ₽" },
+          { label: isRu ? "Вывод" : "Output", calc: "6M × 150 ₽/1M", result: "900 ₽" },
         ]}
-        total={isRu ? "3 300 ₽/мес" : "3,300 ₽/mo"}
+        total={isRu ? "1 650 ₽/мес" : "1,650 ₽/mo"}
       />
 
       <CostCard
@@ -387,10 +387,10 @@ function PricingPage({ locale }: { locale: Locale }) {
           { label: isRu ? "Вывод" : "Output", calc: isRu ? "50 × 2 000 × 30" : "50 × 2,000 × 30", result: isRu ? "3M токенов/мес" : "3M tokens/mo" },
         ]}
         costs={[
-          { label: isRu ? "Ввод" : "Input", calc: "12M × 300 ₽/1M", result: "3 600 ₽" },
-          { label: isRu ? "Вывод" : "Output", calc: "3M × 900 ₽/1M", result: "2 700 ₽" },
+          { label: isRu ? "Ввод" : "Input", calc: "12M × 100 ₽/1M", result: "1 200 ₽" },
+          { label: isRu ? "Вывод" : "Output", calc: "3M × 300 ₽/1M", result: "900 ₽" },
         ]}
-        total={isRu ? "6 300 ₽/мес" : "6,300 ₽/mo"}
+        total={isRu ? "2 100 ₽/мес" : "2,100 ₽/mo"}
       />
 
       <H2>{isRu ? "Сравнение с другими провайдерами" : "Comparison with other providers"}</H2>
@@ -407,11 +407,11 @@ function PricingPage({ locale }: { locale: Locale }) {
           isRu ? "Вывод / 1M" : "Output / 1M",
         ]}
         rows={[
-          ["Mira", "mira", "100 ₽", "300 ₽"],
+          ["Mira", "mira", "50 ₽", "150 ₽"],
           ["OpenAI", "GPT-4o mini", "~14 ₽", "~54 ₽"],
-          ["Mira", "mira-pro", "300 ₽", "900 ₽"],
+          ["Mira", "mira-pro", "100 ₽", "300 ₽"],
           ["OpenAI", "GPT-4o", "~225 ₽", "~900 ₽"],
-          ["Mira", "mira-max", "1 500 ₽", "6 000 ₽"],
+          ["Mira", "mira-max", "250 ₽", "750 ₽"],
           ["Anthropic", "Claude Opus", "~1 350 ₽", "~6 750 ₽"],
         ]}
       />
@@ -591,8 +591,8 @@ Computation steps:
       <H2>{isRu ? "Стоимость токенов мышления" : "Thinking token costs"}</H2>
       <P>
         {isRu
-          ? "Токены мышления тарифицируются по ставке выходных токенов (500 ₽ / 1M). Типичный запрос с мышлением использует от 200 до 2 000 дополнительных токенов для цепочки рассуждений. Для простых задач стоимость мышления может превысить стоимость самого ответа, поэтому используйте mira-thinking только когда точность критически важна."
-          : "Thinking tokens are billed at the output token rate (500 ₽ / 1M). A typical thinking request uses between 200 and 2,000 additional tokens for the reasoning chain. For simple tasks, the thinking cost can exceed the response cost, so use mira-thinking only when accuracy is critical."}
+          ? "Токены мышления тарифицируются по ставке выходных токенов (200 ₽ / 1M). Типичный запрос с мышлением использует от 200 до 2 000 дополнительных токенов для цепочки рассуждений. Для простых задач стоимость мышления может превысить стоимость самого ответа, поэтому используйте mira-thinking только когда точность критически важна."
+          : "Thinking tokens are billed at the output token rate (200 ₽ / 1M). A typical thinking request uses between 200 and 2,000 additional tokens for the reasoning chain. For simple tasks, the thinking cost can exceed the response cost, so use mira-thinking only when accuracy is critical."}
       </P>
       <Note type="warning">
         {isRu

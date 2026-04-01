@@ -61,7 +61,7 @@ export default function UsagePage() {
           <span>Tier</span><span>Price</span><span>Notes</span>
         </div>
         {[
-          { tier: "Standard", price: "0,10–6,00 ₽ / 1K токенов", note: "Зависит от модели" },
+          { tier: "Standard", price: "0,05–0,75 ₽ / 1K токенов", note: "Зависит от модели" },
           { tier: "Batch", price: "50% от стандартной цены", note: "Асинхронно, ниже приоритет" },
           { tier: "Free trial", price: "Бесплатно", note: "100K токенов для новых аккаунтов" },
         ].map((r) => (

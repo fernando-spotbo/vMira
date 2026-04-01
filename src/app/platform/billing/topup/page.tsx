@@ -20,10 +20,10 @@ import {
 // ---- Pricing per 1K tokens (in kopecks) ----
 
 const models = [
-  { key: "mira", label: "Mira Fast", icon: Zap, color: "#737373", input_1k: 10, output_1k: 30 },
-  { key: "mira-thinking", label: "Mira Thinking", icon: Brain, color: "#999999", input_1k: 15, output_1k: 50 },
-  { key: "mira-pro", label: "Mira Pro", icon: Rocket, color: "#b5b5b5", input_1k: 30, output_1k: 90 },
-  { key: "mira-max", label: "Mira Max", icon: Gem, color: "#e5e5e5", input_1k: 150, output_1k: 600 },
+  { key: "mira", label: "Mira Fast", icon: Zap, color: "#737373", input_1k: 5, output_1k: 15 },
+  { key: "mira-thinking", label: "Mira Thinking", icon: Brain, color: "#999999", input_1k: 5, output_1k: 20 },
+  { key: "mira-pro", label: "Mira Pro", icon: Rocket, color: "#b5b5b5", input_1k: 10, output_1k: 30 },
+  { key: "mira-max", label: "Mira Max", icon: Gem, color: "#e5e5e5", input_1k: 25, output_1k: 75 },
 ];
 
 const presets = [100, 500, 1000, 5000];

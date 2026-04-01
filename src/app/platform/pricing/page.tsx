@@ -24,8 +24,8 @@ const models = [
     color: "#737373",
     speed: "Мгновенно",
     speedIcon: "zap",
-    input_1k: "0,10",
-    output_1k: "0,30",
+    input_1k: "0,05",
+    output_1k: "0,15",
     best_for: "Быстрые вопросы, простые задачи",
   },
   {
@@ -35,8 +35,8 @@ const models = [
     color: "#999999",
     speed: "Глубокий",
     speedIcon: "brain",
-    input_1k: "0,15",
-    output_1k: "0,50",
+    input_1k: "0,05",
+    output_1k: "0,20",
     best_for: "Сложные рассуждения, аналитика",
   },
   {
@@ -46,8 +46,8 @@ const models = [
     color: "#b5b5b5",
     speed: "Продвинутый",
     speedIcon: "rocket",
-    input_1k: "0,30",
-    output_1k: "0,90",
+    input_1k: "0,10",
+    output_1k: "0,30",
     best_for: "Профессиональные задачи, код",
   },
   {
@@ -57,8 +57,8 @@ const models = [
     color: "#e5e5e5",
     speed: "Максимальный",
     speedIcon: "gem",
-    input_1k: "1,50",
-    output_1k: "6,00",
+    input_1k: "0,25",
+    output_1k: "0,75",
     best_for: "Критически важные задачи",
   },
 ];

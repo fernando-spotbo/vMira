@@ -113,7 +113,7 @@ async fn rate_limit_live(state: &AppState, addr: &SocketAddr) -> Result<(), AppE
     let ip = addr.ip().to_string();
     let key = format!("rl:live:{ip}");
 
-    let (allowed, _remaining) = check_rate_limit(&state.redis, &key, 30, 60)
+    let (allowed, _remaining) = check_rate_limit(&state.redis, &key, 120, 60)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "live data rate limit check failed");

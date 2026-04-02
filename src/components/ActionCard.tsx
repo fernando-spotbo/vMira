@@ -518,7 +518,7 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
     chart: (p.chart as LiveStockData["chart"]) || [],
   };
 
-  const { data, flash } = useLiveStock(symbol, initialData, containerRef, range);
+  const { data, loading, flash } = useLiveStock(symbol, initialData, containerRef, range);
   const d = data || initialData;
   const isUp = d.change >= 0;
   const accentColor = isUp ? "#4ade80" : "#f87171";
@@ -686,6 +686,13 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
           </button>
         ))}
       </div>
+
+      {/* Loading state when switching ranges */}
+      {loading && chartPts.length < 2 && (
+        <div className="flex items-center justify-center h-[90px] mt-4 -mx-1">
+          <div className="h-4 w-4 rounded-full border-2 border-white/10 border-t-white/40 animate-spin" />
+        </div>
+      )}
 
       {/* Interactive Chart + Time Labels */}
       {chartPts.length > 1 && (

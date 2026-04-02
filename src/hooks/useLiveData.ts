@@ -77,21 +77,24 @@ export function useLiveStock(
   range: string = "1d",
 ) {
   const [data, setData] = useState<LiveStockData | null>(initialData);
+  const [loading, setLoading] = useState(false);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
   const visible = useIsVisible(containerRef);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentRangeRef = useRef(range);
   const intervalMs = RANGE_INTERVALS[range] || 15_000;
 
-  const fetchStock = useCallback(async () => {
+  const fetchStock = useCallback(async (isRangeSwitch = false) => {
     if (!symbol) return;
+    if (isRangeSwitch) setLoading(true);
     try {
       const result = await apiCall<LiveStockData>(
         `/live/stock/${encodeURIComponent(symbol)}?range=${encodeURIComponent(range)}`
       );
-      if (result.ok) {
+      if (result.ok && currentRangeRef.current === range) {
         setData((prev) => {
-          if (prev && prev.price !== result.data.price) {
+          if (prev && prev.price !== result.data.price && !isRangeSwitch) {
             setPrevPrice(prev.price);
             setFlash(result.data.price > prev.price ? "up" : "down");
             setTimeout(() => setFlash(null), 800);
@@ -101,24 +104,38 @@ export function useLiveStock(
       }
     } catch {
       // Silent fail — keep showing last data
+    } finally {
+      setLoading(false);
     }
   }, [symbol, range]);
 
-  // Re-fetch immediately when range changes
+  // On range change: clear chart immediately so user sees loading, then fetch
+  useEffect(() => {
+    currentRangeRef.current = range;
+    // Keep the price/name but clear chart to indicate loading
+    setData((prev) => prev ? { ...prev, chart: [] } : prev);
+    if (visible && symbol) fetchStock(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range]);
+
+  // Polling loop
   useEffect(() => {
     if (!visible || !symbol) {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       return;
     }
 
-    fetchStock();
-    timerRef.current = setInterval(fetchStock, intervalMs);
+    // Only start immediately if we have no data yet (range switch handled above)
+    if (!data?.chart?.length) fetchStock(true);
+
+    timerRef.current = setInterval(() => fetchStock(false), intervalMs);
     return () => {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     };
-  }, [visible, symbol, range, intervalMs, fetchStock]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, symbol, intervalMs]);
 
-  return { data, prevPrice, flash };
+  return { data, loading, prevPrice, flash };
 }
 
 // ── useLiveWeather ───────────────────────────────────────

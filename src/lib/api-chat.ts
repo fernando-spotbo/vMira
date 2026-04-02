@@ -101,6 +101,7 @@ export interface SearchResultItem {
 export type StreamEvent =
   | { type: "queue"; position: number; estimated_wait: number }
   | { type: "processing" }
+  | { type: "thinking"; content: string }
   | { type: "token"; content: string }
   | { type: "search"; query: string }
   | { type: "search_results"; query: string; results: SearchResultItem[] }
@@ -198,9 +199,11 @@ export async function* streamMessage(
           // Try to parse as JSON event (new format)
           try {
             const parsed = JSON.parse(data);
-            const validTypes = ["queue", "processing", "token", "search", "search_results", "reminder_created", "scheduled_content_created", "action_proposed", "done", "error"];
+            const validTypes = ["queue", "processing", "thinking", "token", "search", "search_results", "reminder_created", "scheduled_content_created", "action_proposed", "done", "error"];
             if (parsed && typeof parsed.type === "string" && validTypes.includes(parsed.type)) {
-              const event: StreamEvent = parsed.type === "token"
+              const event: StreamEvent = parsed.type === "thinking"
+                ? { type: "thinking", content: String(parsed.content || "") }
+                : parsed.type === "token"
                 ? { type: "token", content: String(parsed.content || "") }
                 : parsed.type === "queue"
                 ? { type: "queue", position: Number(parsed.position || 0), estimated_wait: Number(parsed.estimated_wait || 0) }
@@ -341,7 +344,8 @@ export async function* streamAnonymous(
           if (data === "[DONE]") return;
           try {
             const parsed = JSON.parse(data);
-            if (parsed.type === "token") yield { type: "token", content: String(parsed.content || "") };
+            if (parsed.type === "thinking") yield { type: "thinking", content: String(parsed.content || "") };
+            else if (parsed.type === "token") yield { type: "token", content: String(parsed.content || "") };
             else if (parsed.type === "done") yield { type: "done" };
             else if (parsed.type === "error") yield { type: "error", message: String(parsed.message || "Error") };
             else if (parsed.type === "search") yield { type: "search", query: String(parsed.query || "") };

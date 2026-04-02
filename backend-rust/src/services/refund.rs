@@ -186,10 +186,29 @@ pub async fn process_refund(
             _ => return Err(AppError::Internal("Invalid product".to_string())),
         };
 
+        // Check if there's another active subscription for this product (stacked payments)
+        let remaining: Option<(String, chrono::DateTime<Utc>)> = sqlx::query_as(
+            "SELECT plan, expires_at FROM subscriptions
+             WHERE user_id = $1 AND product = $2 AND status = 'active' AND id != $3
+             ORDER BY expires_at DESC LIMIT 1"
+        )
+        .bind(user_id)
+        .bind(&sub.product)
+        .bind(subscription_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let (new_plan, new_expires) = match remaining {
+            Some((plan, exp)) => (plan, Some(exp)),
+            None => ("free".to_string(), None),
+        };
+
         let query = format!(
-            "UPDATE users SET {plan_col} = 'free', {expires_col} = NULL, updated_at = $1 WHERE id = $2"
+            "UPDATE users SET {plan_col} = $1, {expires_col} = $2, updated_at = $3 WHERE id = $4"
         );
         sqlx::query(&query)
+            .bind(&new_plan)
+            .bind(new_expires)
             .bind(now)
             .bind(user_id)
             .execute(&mut *tx)

@@ -26,25 +26,8 @@ Cite search sources as [1], [2], [3].";
 
 /// Voice mode system prompt — short, conversational, TTS-friendly, multilingual.
 pub const MIRA_VOICE_PROMPT: &str = "\
-Ты Мира — голосовой AI-ассистент. Пользователь разговаривает с тобой голосом.\n\n\
-ПРАВИЛА ДЛЯ ГОЛОСОВОГО РЕЖИМА:\n\
-- Отвечай ОЧЕНЬ КОРОТКО: 1-2 предложения максимум. Это живой разговор, не лекция.\n\
-- НЕ используй markdown, списки, заголовки, звёздочки, номера. Только чистый текст.\n\
-- Говори естественно, как человек в разговоре.\n\
-- Если нужен длинный ответ, дай краткую суть и предложи уточнить.\n\
-- НЕ используй ссылки [1], [2] — пользователь не видит текст, он слушает.\n\n\
-ЯЗЫКИ:\n\
-- Отвечай НА ТОМ ЖЕ языке, на котором говорит пользователь.\n\
-- Ты полиглот: русский, английский, испанский, французский, немецкий, китайский, японский, корейский, арабский, хинди, португальский, итальянский, турецкий и другие.\n\
-- Переключайся между языками мгновенно.\n\
-- Если пользователь просит перевести — переводи на указанный язык.\n\n\
-ОПРЕДЕЛЕНИЕ ЯЗЫКА:\n\
-Если сообщение пользователя выглядит бессмысленно, содержит набор несвязных слогов или слов, \
-которые не складываются в осмысленную фразу — скорее всего, распознавание речи настроено на неправильный язык. \
-В этом случае попытайся угадать настоящий язык пользователя и ответь ТОЛЬКО одной строкой в формате:\n\
-LANG:xx-XX\n\
-Например: LANG:es-ES или LANG:en-US или LANG:fr-FR\n\
-НЕ добавляй ничего кроме этой строки. Пользователь будет автоматически переключён.";
+Голосовой режим. Отвечай ОЧЕНЬ кратко, 1-2 предложения. Без markdown. \
+Отвечай на языке пользователя.";
 
 const MAX_RETRIES: u32 = 2;
 const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
@@ -96,6 +79,8 @@ pub enum AiEvent {
         schedule_at: String,
         rrule: String,
     },
+    /// Thinking/reasoning chunk from the model (streamed before visible content).
+    Thinking(String),
 }
 
 // ── Message types ───────────────────────────────────────────────────────────
@@ -403,19 +388,27 @@ fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
 
 const IMAGE_MIMES: &[&str] = &["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-/// Read a file from disk and convert it to OpenAI-compatible content blocks.
-/// Images → base64 `image_url` blocks; PDFs → extracted text; text files → text block.
+/// Read a file from disk and convert it to text content blocks for the AI model.
+/// The current model is text-only, so images are described by metadata and
+/// PDFs/text files are extracted as text.
 fn resolve_attachment_content(att: &MessageAttachment) -> Result<Vec<serde_json::Value>, String> {
     let data = std::fs::read(&att.storage_path)
         .map_err(|e| format!("read {}: {e}", att.storage_path))?;
 
     if IMAGE_MIMES.iter().any(|m| *m == att.mime_type) {
-        // Image: base64-encode and send as image_url content block
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
-        let data_url = format!("data:{};base64,{}", att.mime_type, b64);
+        // Image: describe metadata (current model is text-only, no vision support)
+        let size_kb = data.len() / 1024;
+        let dims = image::io::Reader::new(std::io::Cursor::new(&data))
+            .with_guessed_format()
+            .ok()
+            .and_then(|r| r.into_dimensions().ok());
+        let dim_str = match dims {
+            Some((w, h)) => format!("{w}×{h}"),
+            None => "unknown".to_string(),
+        };
         Ok(vec![json!({
-            "type": "image_url",
-            "image_url": { "url": data_url },
+            "type": "text",
+            "text": format!("[Изображение «{}»: {}, {}KB, {}]", att.original_filename, att.mime_type, size_kb, dim_str),
         })])
     } else if att.mime_type == "application/pdf" {
         // PDF: extract text
@@ -468,7 +461,204 @@ fn resolve_attachment_content(att: &MessageAttachment) -> Result<Vec<serde_json:
     }
 }
 
-// ── API call helper ─────────────────────────────────────────────────────────
+// ── Streaming response helper ───────────────────────────────────────────────
+
+/// Stream the model response token-by-token via SSE, sending each chunk
+/// through the channel as an AiEvent::Token. Returns the accumulated full text.
+async fn stream_model_response(
+    client: &reqwest::Client,
+    url: &str,
+    api_key: &str,
+    body: &serde_json::Value,
+    tx: &tokio::sync::mpsc::Sender<AiEvent>,
+    pii_map: &std::collections::HashMap<String, String>,
+) -> Result<String, String> {
+    let mut stream_body = body.clone();
+    stream_body["stream"] = serde_json::json!(true);
+    // Remove tools for the streaming call (final response only)
+    stream_body.as_object_mut().map(|o| o.remove("tools"));
+
+    let resp = client
+        .post(url)
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .json(&stream_body)
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| format!("Stream request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("Модель вернула статус {status}: {text}"));
+    }
+
+    use futures_util::StreamExt;
+    let mut stream = resp.bytes_stream();
+    let mut buffer = String::new();
+    let mut full_content = String::new();
+    let mut in_thinking = false;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Stream read error: {e}"))?;
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+        // Process complete SSE lines
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].trim().to_string();
+            buffer = buffer[pos + 1..].to_string();
+
+            if line.is_empty() || !line.starts_with("data: ") {
+                continue;
+            }
+            let data = &line[6..];
+            if data == "[DONE]" {
+                break;
+            }
+
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
+                // Extract delta content from streaming response
+                if let Some(delta) = parsed.pointer("/choices/0/delta") {
+                    // Stream reasoning_content as thinking events
+                    if let Some(think_text) = delta.get("reasoning_content").and_then(|v| v.as_str()) {
+                        if !think_text.is_empty() {
+                            let _ = tx.send(AiEvent::Thinking(think_text.to_string())).await;
+                        }
+                        in_thinking = true;
+                        continue;
+                    }
+                    // Handle regular content
+                    if let Some(text) = delta.get("content").and_then(|v| v.as_str()) {
+                        if in_thinking {
+                            in_thinking = false;
+                        }
+                        if !text.is_empty() {
+                            let restored = if pii_map.is_empty() { text.to_string() } else { crate::services::pii_scrub::restore(text, pii_map) };
+                            full_content.push_str(&restored);
+                            let _ = tx.send(AiEvent::Token(restored)).await;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(full_content)
+}
+
+// ── Streaming call with tool-call detection ─────────────────────────────────
+
+/// A tool call accumulated from streaming deltas.
+#[derive(Debug, Clone)]
+struct StreamedToolCall {
+    id: String,
+    function_name: String,
+    function_arguments: String,
+}
+
+/// Stream tokens to the user AND accumulate any tool call deltas.
+/// Returns (streamed_visible_content, Vec<tool_calls>).
+/// If the model produces content tokens, they are sent immediately via `tx`.
+/// If the model produces tool calls, they are collected and returned for execution.
+async fn stream_with_tools(
+    client: &reqwest::Client,
+    url: &str,
+    api_key: &str,
+    body: &serde_json::Value,
+    tx: &tokio::sync::mpsc::Sender<AiEvent>,
+    pii_map: &std::collections::HashMap<String, String>,
+) -> Result<(String, Vec<StreamedToolCall>), String> {
+    let resp = client
+        .post(url)
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .json(body)
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| format!("Stream request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("Модель вернула статус {status}: {text}"));
+    }
+
+    use futures_util::StreamExt;
+    let mut stream = resp.bytes_stream();
+    let mut buffer = String::new();
+    let mut full_content = String::new();
+    let mut tool_calls: Vec<StreamedToolCall> = Vec::new();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Stream read error: {e}"))?;
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].trim().to_string();
+            buffer = buffer[pos + 1..].to_string();
+
+            if line.is_empty() || !line.starts_with("data: ") { continue; }
+            let data = &line[6..];
+            if data == "[DONE]" { break; }
+
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
+                if let Some(delta) = parsed.pointer("/choices/0/delta") {
+                    // Stream reasoning_content as thinking events
+                    if let Some(think_text) = delta.get("reasoning_content").and_then(|v| v.as_str()) {
+                        if !think_text.is_empty() {
+                            let _ = tx.send(AiEvent::Thinking(think_text.to_string())).await;
+                        }
+                        continue;
+                    }
+
+                    // Accumulate tool call deltas
+                    if let Some(tcs) = delta.get("tool_calls").and_then(|v| v.as_array()) {
+                        for tc_delta in tcs {
+                            let idx = tc_delta.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                            // Extend tool_calls vec if needed
+                            while tool_calls.len() <= idx {
+                                tool_calls.push(StreamedToolCall {
+                                    id: String::new(),
+                                    function_name: String::new(),
+                                    function_arguments: String::new(),
+                                });
+                            }
+                            if let Some(id) = tc_delta.get("id").and_then(|v| v.as_str()) {
+                                tool_calls[idx].id = id.to_string();
+                            }
+                            if let Some(func) = tc_delta.get("function") {
+                                if let Some(name) = func.get("name").and_then(|v| v.as_str()) {
+                                    tool_calls[idx].function_name.push_str(name);
+                                }
+                                if let Some(args) = func.get("arguments").and_then(|v| v.as_str()) {
+                                    tool_calls[idx].function_arguments.push_str(args);
+                                }
+                            }
+                        }
+                    }
+
+                    // Stream content tokens to user
+                    if let Some(text) = delta.get("content").and_then(|v| v.as_str()) {
+                        if !text.is_empty() {
+                            let restored = if pii_map.is_empty() { text.to_string() } else { crate::services::pii_scrub::restore(text, pii_map) };
+                            full_content.push_str(&restored);
+                            let _ = tx.send(AiEvent::Token(restored)).await;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Filter out empty tool calls (deltas that never got a name)
+    tool_calls.retain(|tc| !tc.function_name.is_empty());
+
+    Ok((full_content, tool_calls))
+}
+
+// ── API call helper (non-streaming, kept for potential fallback) ─────────────
 
 async fn call_model(
     client: &reqwest::Client,
@@ -572,8 +762,8 @@ pub fn stream_ai_response(
     };
     let now_local = now_utc + chrono::Duration::hours(offset_hours);
     let datetime_context = format!(
-        "\n\nТекущая дата и время: {}+{:02}:00. Часовой пояс: {}. ВСЕ remind_at значения должны использовать этот часовой пояс (+{:02}:00).",
-        now_local.format("%Y-%m-%dT%H:%M:%S"), offset_hours, tz, offset_hours
+        "\n\nAlways reply in the user's language.\nCurrent date and time: {}+{:02}:00. Timezone: {}.",
+        now_local.format("%Y-%m-%dT%H:%M:%S"), offset_hours, tz
     );
 
     // ── PII scrubbing: strip personal data before it reaches the GPU server ──
@@ -582,14 +772,27 @@ pub fn stream_ai_response(
     let user_email = user_email_for_scrub.as_deref();
     let mut pii_mapping = std::collections::HashMap::new();
 
+    // Voice mode uses a dedicated system prompt to keep responses short and conversational.
+    // Regular chat has no system prompt — the model responds naturally.
     let project_context = match &project_instructions {
         Some(instr) if !instr.is_empty() => format!("\n\n--- Project Instructions ---\n{}", instr),
         _ => String::new(),
     };
-    let mut full_messages: Vec<serde_json::Value> = vec![json!({
-        "role": "system",
-        "content": format!("{}{}{}", system_prompt, project_context, datetime_context),
-    })];
+    let mut full_messages: Vec<serde_json::Value> = Vec::new();
+    if voice_mode {
+        full_messages.push(json!({
+            "role": "system",
+            "content": format!("{}{}{}", MIRA_VOICE_PROMPT, project_context, datetime_context),
+        }));
+    } else {
+        let extra_context = format!("{}{}", project_context, datetime_context).trim().to_string();
+        if !extra_context.is_empty() {
+            full_messages.push(json!({
+                "role": "system",
+                "content": extra_context,
+            }));
+        }
+    }
     for m in &messages {
         let scrubbed = crate::services::pii_scrub::scrub(&m.content, user_name, user_email);
         pii_mapping.extend(scrubbed.mapping);
@@ -601,34 +804,33 @@ pub fn stream_ai_response(
                 "content": scrubbed.scrubbed,
             }));
         } else {
-            // Multimodal message — build content blocks array
-            let mut content_blocks: Vec<serde_json::Value> = Vec::new();
+            // Message with attachments — resolve to text and combine into a single string
+            // (current model is text-only, no vision support for content arrays)
+            let mut parts: Vec<String> = Vec::new();
 
-            // Text content first
             if !scrubbed.scrubbed.is_empty() {
-                content_blocks.push(json!({
-                    "type": "text",
-                    "text": scrubbed.scrubbed,
-                }));
+                parts.push(scrubbed.scrubbed);
             }
 
-            // Attachment content blocks
             for att in &m.attachments {
                 match resolve_attachment_content(att) {
-                    Ok(blocks) => content_blocks.extend(blocks),
+                    Ok(blocks) => {
+                        for block in blocks {
+                            if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
+                                parts.push(text.to_string());
+                            }
+                        }
+                    }
                     Err(e) => {
                         tracing::warn!(file = %att.original_filename, error = %e, "Failed to resolve attachment");
-                        content_blocks.push(json!({
-                            "type": "text",
-                            "text": format!("[Файл «{}» не удалось обработать]", att.original_filename),
-                        }));
+                        parts.push(format!("[Файл «{}» не удалось обработать]", att.original_filename));
                     }
                 }
             }
 
             full_messages.push(json!({
                 "role": m.role,
-                "content": content_blocks,
+                "content": parts.join("\n\n"),
             }));
         }
     }
@@ -697,41 +899,43 @@ pub fn stream_ai_response(
             .expect("Failed to build HTTP client");
 
         // ── First call (with tools if supported) ────────────────
+        // ── Single streaming call with tool detection ────────────────
+        // Stream tokens directly. If the model requests tool calls,
+        // we detect them from the stream, execute the tools, then
+        // stream a follow-up call with the tool results.
         let mut body = json!({
             "model": upstream_model,
             "messages": full_messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "stream": false,
+            "stream": true,
         });
 
-        if supports_tools {
+        if voice_mode {
+            body["tools"] = json!([web_search_tool()]);
+        } else if supports_tools {
             body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool(), read_memory_tool()]);
         }
 
-        let data = match call_model(&client, &url, &api_key, &body).await {
-            Ok(d) => d,
+        // Stream the first call — tokens go to user immediately,
+        // tool calls are accumulated for post-processing
+        let stream_result = stream_with_tools(&client, &url, &api_key, &body, &tx, &pii_map).await;
+
+        let (streamed_content, tool_calls) = match stream_result {
+            Ok(r) => r,
             Err(e) => {
                 let _ = tx.send(AiEvent::Token(format!("Ошибка: {e}"))).await;
                 return;
             }
         };
 
-        let choice = match data.choices.first() {
-            Some(c) => c,
-            None => {
-                let _ = tx.send(AiEvent::Token("Модель не ответила.".to_string())).await;
-                return;
-            }
-        };
-
-        // ── Check for tool calls ────────────────────────────────
-        if let Some(tool_calls) = &choice.message.tool_calls {
+        // ── If tool calls were detected, execute them and stream follow-up ──
+        if !tool_calls.is_empty() {
             for tc in tool_calls {
                 let tool_result_content: String;
 
-                if tc.function.name == "web_search" {
-                    let args: SearchArgs = match serde_json::from_str(&tc.function.arguments) {
+                if tc.function_name == "web_search" {
+                    let args: SearchArgs = match serde_json::from_str(&tc.function_arguments) {
                         Ok(a) => a,
                         Err(e) => {
                             tracing::warn!(error = %e, "Failed to parse search args");
@@ -767,7 +971,7 @@ pub fn stream_ai_response(
                         query: args.query.clone(),
                         results: results_for_event,
                     }).await;
-                } else if tc.function.name == "create_reminder" {
+                } else if tc.function_name == "create_reminder" {
                     // Parse reminder args
                     #[derive(serde::Deserialize)]
                     struct ReminderArgs {
@@ -777,7 +981,7 @@ pub fn stream_ai_response(
                         recurrence: Option<String>,
                     }
 
-                    let args: ReminderArgs = match serde_json::from_str(&tc.function.arguments) {
+                    let args: ReminderArgs = match serde_json::from_str(&tc.function_arguments) {
                         Ok(a) => a,
                         Err(e) => {
                             tracing::warn!(error = %e, "Failed to parse reminder args");
@@ -785,7 +989,7 @@ pub fn stream_ai_response(
                             // Still add tool call + result to messages so model can respond
                             full_messages.push(json!({
                                 "role": "assistant", "content": null,
-                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_reminder", "arguments": tc.function.arguments}}]
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_reminder", "arguments": tc.function_arguments}}]
                             }));
                             full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
                             continue;
@@ -807,7 +1011,7 @@ pub fn stream_ai_response(
                                 tool_result_content = "Invalid recurrence rule".to_string();
                                 full_messages.push(json!({
                                     "role": "assistant", "content": null,
-                                    "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_reminder", "arguments": tc.function.arguments}}]
+                                    "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_reminder", "arguments": tc.function_arguments}}]
                                 }));
                                 full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
                                 continue;
@@ -886,7 +1090,7 @@ pub fn stream_ai_response(
                     } else {
                         tool_result_content = "Reminder creation is not available for guest users.".to_string();
                     }
-                } else if tc.function.name == "create_scheduled_content" {
+                } else if tc.function_name == "create_scheduled_content" {
                     #[derive(serde::Deserialize)]
                     struct ScheduledContentArgs {
                         title: String,
@@ -895,14 +1099,14 @@ pub fn stream_ai_response(
                         recurrence: String,
                     }
 
-                    let args: ScheduledContentArgs = match serde_json::from_str(&tc.function.arguments) {
+                    let args: ScheduledContentArgs = match serde_json::from_str(&tc.function_arguments) {
                         Ok(a) => a,
                         Err(e) => {
                             tracing::warn!(error = %e, "Failed to parse scheduled content args");
                             tool_result_content = format!("Failed to parse arguments: {e}");
                             full_messages.push(json!({
                                 "role": "assistant", "content": null,
-                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_scheduled_content", "arguments": tc.function.arguments}}]
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_scheduled_content", "arguments": tc.function_arguments}}]
                             }));
                             full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
                             continue;
@@ -918,7 +1122,7 @@ pub fn stream_ai_response(
                             tool_result_content = "Invalid recurrence rule".to_string();
                             full_messages.push(json!({
                                 "role": "assistant", "content": null,
-                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_scheduled_content", "arguments": tc.function.arguments}}]
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "create_scheduled_content", "arguments": tc.function_arguments}}]
                             }));
                             full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
                             continue;
@@ -989,7 +1193,7 @@ pub fn stream_ai_response(
                     } else {
                         tool_result_content = "Scheduled content is not available for guest users.".to_string();
                     }
-                } else if tc.function.name == "propose_action" {
+                } else if tc.function_name == "propose_action" {
                     #[derive(serde::Deserialize)]
                     struct ActionArgs {
                         action_type: String,
@@ -997,13 +1201,13 @@ pub fn stream_ai_response(
                         payload: serde_json::Value,
                     }
 
-                    let args: ActionArgs = match serde_json::from_str(&tc.function.arguments) {
+                    let args: ActionArgs = match serde_json::from_str(&tc.function_arguments) {
                         Ok(a) => a,
                         Err(e) => {
                             tool_result_content = format!("Failed to parse action args: {e}");
                             full_messages.push(json!({
                                 "role": "assistant", "content": null,
-                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "propose_action", "arguments": tc.function.arguments}}]
+                                "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": "propose_action", "arguments": tc.function_arguments}}]
                             }));
                             full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
                             continue;
@@ -1247,11 +1451,11 @@ pub fn stream_ai_response(
                     } else {
                         tool_result_content = "Actions are not available for guest users.".to_string();
                     }
-                } else if tc.function.name == "read_calendar" {
+                } else if tc.function_name == "read_calendar" {
                     #[derive(serde::Deserialize)]
                     struct CalArgs { start_date: String, end_date: String }
 
-                    if let Ok(args) = serde_json::from_str::<CalArgs>(&tc.function.arguments) {
+                    if let Ok(args) = serde_json::from_str::<CalArgs>(&tc.function_arguments) {
                         if let (Some(uid), Some(ref pool)) = (user_id, &db) {
                             let start = chrono::NaiveDate::parse_from_str(&args.start_date, "%Y-%m-%d")
                                 .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc());
@@ -1303,7 +1507,7 @@ pub fn stream_ai_response(
                     } else {
                         tool_result_content = "Invalid arguments for read_calendar.".to_string();
                     }
-                } else if tc.function.name == "read_memory" {
+                } else if tc.function_name == "read_memory" {
                     if let (Some(uid), Some(ref pool)) = (user_id, &db) {
                         let memories: Vec<(String, String)> = sqlx::query_as(
                             "SELECT key, value FROM user_memory WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50"
@@ -1323,7 +1527,7 @@ pub fn stream_ai_response(
                         tool_result_content = "Memory is not available for guest users.".to_string();
                     }
                 } else {
-                    tracing::warn!(tool = %tc.function.name, "Unknown tool call");
+                    tracing::warn!(tool = %tc.function_name, "Unknown tool call");
                     continue;
                 }
 
@@ -1335,8 +1539,8 @@ pub fn stream_ai_response(
                         "id": tc.id,
                         "type": "function",
                         "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
+                            "name": tc.function_name,
+                            "arguments": tc.function_arguments
                         }
                     }]
                 }));
@@ -1348,57 +1552,23 @@ pub fn stream_ai_response(
                 }));
             }
 
-            // Make the second API call without tools (just generate the response)
+            // Stream the second call (post-tool response) token-by-token
             let body2 = json!({
                 "model": upstream_model,
                 "messages": full_messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
-                "stream": false,
             });
 
-            let data2 = match call_model(&client, &url, &api_key, &body2).await {
-                Ok(d) => d,
+            match stream_model_response(&client, &url, &api_key, &body2, &tx, &pii_map).await {
+                Ok(_content) => { /* tokens already sent via tx */ }
                 Err(e) => {
                     let _ = tx.send(AiEvent::Token(format!("Ошибка: {e}"))).await;
                     return;
                 }
-            };
-
-            let raw_content = data2
-                .choices
-                .first()
-                .and_then(|c| c.message.content.as_deref())
-                .unwrap_or("");
-
-            let (_thinking, visible) = parse_thinking(raw_content);
-            let visible = crate::services::sanitize::sanitize_output(&visible);
-            if !visible.trim().is_empty() {
-                let _ = tx.send(AiEvent::Token(restore_pii(visible))).await;
-            }
-        } else {
-            // No tool calls — direct response
-            let raw_content = choice.message.content.as_deref().unwrap_or("");
-            let (_thinking, visible) = parse_thinking(raw_content);
-            let visible = crate::services::sanitize::sanitize_output(&visible);
-            if !visible.trim().is_empty() {
-                let _ = tx.send(AiEvent::Token(restore_pii(visible))).await;
-            } else if !raw_content.trim().is_empty() {
-                // Model output was entirely DSML/internal syntax — retry without tools
-                tracing::warn!("Model output was entirely internal syntax, retrying without tools");
-                let mut retry_body = body.clone();
-                retry_body["tools"] = serde_json::json!([]);
-                if let Ok(retry_data) = call_model(&client, &url, &api_key, &retry_body).await {
-                    if let Some(rc) = retry_data.choices.first().and_then(|c| c.message.content.as_deref()) {
-                        let (_, rv) = parse_thinking(rc);
-                        let rv = crate::services::sanitize::sanitize_output(&rv);
-                        if !rv.trim().is_empty() {
-                            let _ = tx.send(AiEvent::Token(restore_pii(rv))).await;
-                        }
-                    }
-                }
             }
         }
+        // If no tool calls, tokens were already streamed to the user — nothing else to do.
     });
 
     Box::pin(ReceiverStream::new(rx))

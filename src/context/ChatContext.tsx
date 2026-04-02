@@ -547,6 +547,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         try {
           let fullContent = "";
+          let thinkingContent = "";
           let streamingStarted = false;
           const searches: SearchQuery[] = [];
           let currentSearchQuery = "";
@@ -570,6 +571,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               case "processing":
                 setQueuePosition(null);
                 setIsThinking(true);
+                break;
+
+              case "thinking":
+                setIsThinking(true);
+                // Update assistant message with thinking content
+                thinkingContent += event.content;
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === convId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === asstId
+                              ? { ...m, thinking: thinkingContent }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
                 break;
 
               case "search":

@@ -343,12 +343,12 @@ const translations: Record<string, Record<Locale, string>> = {
   "pricing.enterpriseDesc": { ru: "Для команд", en: "For teams" },
 
   // Функции тарифов
-  "pricing.f.free.1": { ru: "20 сообщений в день", en: "20 messages per day" },
+  "pricing.f.free.1": { ru: "1 000 сообщений в день", en: "1,000 messages per day" },
   "pricing.f.free.2": { ru: "Стандартная скорость", en: "Standard response speed" },
   "pricing.f.free.3": { ru: "Текстовый чат", en: "Text chat" },
   "pricing.f.free.4": { ru: "Доступ в интернет", en: "Web access" },
   "pricing.f.pro.1": { ru: "Режим размышлений", en: "Thinking mode" },
-  "pricing.f.pro.2": { ru: "500 сообщений в день", en: "500 messages per day" },
+  "pricing.f.pro.2": { ru: "5 000 сообщений в день", en: "5,000 messages per day" },
   "pricing.f.pro.3": { ru: "Быстрые ответы", en: "Faster responses" },
   "pricing.f.pro.4": { ru: "Загрузка файлов", en: "File uploads" },
   "pricing.f.pro.5": { ru: "Расширенный контекст", en: "Extended context" },

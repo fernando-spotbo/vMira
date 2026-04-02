@@ -311,8 +311,8 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
             <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] px-5 py-4">
               <p className="text-[13px] text-white/40 leading-relaxed">
                 {isRu
-                  ? "Пополните баланс криптовалютой — первое пополнение автоматически активирует Pro. Тарификация по токенам, баланс общий с Мира."
-                  : "Top up with crypto — first top-up activates Pro. Pay-per-token billing, shared balance with Mira."}
+                  ? "Подписка Mira Code оплачивается ежемесячно через CryptoCloud. План активируется на 30 дней с увеличенными лимитами и доступом ко всем моделям."
+                  : "Mira Code subscription is billed monthly via CryptoCloud. Your plan activates for 30 days with increased limits and access to all models."}
               </p>
             </div>
           </div>
@@ -322,8 +322,8 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
         <div className="px-8 py-5 text-center border-t border-white/[0.04] shrink-0">
           <p className="text-[14px] text-white/30">
             {isRu
-              ? "Оплата криптовалютой через CryptoCloud. Баланс общий для Мира и Mira Code."
-              : "Crypto payments via CryptoCloud. Shared balance for Mira and Mira Code."}
+              ? "Оплата криптовалютой через CryptoCloud. Подписка Mira Code независима от подписки Мира."
+              : "Crypto payments via CryptoCloud. Mira Code subscription is independent from Mira chat."}
           </p>
         </div>
       </div>

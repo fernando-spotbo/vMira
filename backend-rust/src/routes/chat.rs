@@ -214,7 +214,10 @@ async fn create_conversation(
     .fetch_one(&state.db)
     .await?;
 
-    let max_conversations: i64 = match user.plan.as_str() {
+    let chat_plan_for_limit = crate::services::subscription::check_and_enforce_expiry(
+        &state.db, user.id, "chat",
+    ).await.unwrap_or_else(|_| "free".to_string());
+    let max_conversations: i64 = match chat_plan_for_limit.as_str() {
         "free" => 100,
         "pro" => 1000,
         "max" | "enterprise" => 10000,
@@ -480,8 +483,8 @@ async fn send_message(
             rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
         })?;
 
-    // Free plan: additional hourly rate limit (10 messages/hour)
-    let is_free = user.plan == "free";
+    // Free chat plan: additional hourly rate limit (10 messages/hour)
+    let is_free = chat_plan == "free";
     if is_free {
         let hourly_key = format!("rl:hourly:{}", user.id);
         let (hourly_ok, _) = rate_limit::check_rate_limit(&state.redis, &hourly_key, 10, 3600)
@@ -1005,7 +1008,7 @@ async fn send_message(
             history,
             model_name.clone(),
             0.7,
-            if voice_mode { 256 } else if user_plan == "free" { 2048 } else { 4096 },
+            if voice_mode { 1024 } else if user_plan == "free" { 2048 } else { 4096 },
             &user_plan,
             voice_mode,
             &state_clone.config,
@@ -1033,6 +1036,13 @@ async fn send_message(
                             full_content.push_str(&chunk);
                             let event_data = serde_json::json!({
                                 "type": "token",
+                                "content": chunk,
+                            });
+                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                        }
+                        Some(ai_proxy::AiEvent::Thinking(chunk)) => {
+                            let event_data = serde_json::json!({
+                                "type": "thinking",
                                 "content": chunk,
                             });
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
@@ -1434,6 +1444,10 @@ async fn anonymous_stream(
                 }
                 Some(ai_proxy::AiEvent::ActionProposed { .. }) => {
                     // Guests can't propose actions — ignore
+                }
+                Some(ai_proxy::AiEvent::Thinking(chunk)) => {
+                    let data = serde_json::json!({"type": "thinking", "content": chunk});
+                    yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));
                 }
                 None => break,
             }

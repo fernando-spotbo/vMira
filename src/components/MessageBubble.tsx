@@ -39,6 +39,130 @@ function stripDSML(text: string): string {
 }
 import ExternalLinkModal from "./ExternalLinkModal";
 
+/**
+ * ThinkingBlock — a frosted-glass window into the model's reasoning.
+ *
+ * While streaming: expanded with a breathing gradient left-edge and
+ * auto-scrolling text. After completion: collapses to a single clickable
+ * summary line. The entire aesthetic is subordinate — whisper-quiet,
+ * monochrome, almost invisible until you look for it.
+ */
+function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming: boolean }) {
+  const [expanded, setExpanded] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const wasStreamingRef = useRef(false);
+
+  // Auto-collapse 600ms after thinking finishes
+  useEffect(() => {
+    if (isStreaming) {
+      wasStreamingRef.current = true;
+      setExpanded(true);
+    } else if (wasStreamingRef.current) {
+      const t = setTimeout(() => setExpanded(false), 600);
+      return () => clearTimeout(t);
+    }
+  }, [isStreaming]);
+
+  // Auto-scroll to bottom as content grows
+  useEffect(() => {
+    if (expanded && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [content, expanded]);
+
+  // Show last ~120 chars as collapsed summary
+  const summary = content.length > 120
+    ? "..." + content.slice(-120).replace(/\n/g, " ").trim()
+    : content.replace(/\n/g, " ").trim();
+
+  return (
+    <div className="mb-4 relative">
+      {/* Collapsed state — subtle one-liner */}
+      {!expanded && content && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="group flex items-center gap-2 w-full text-left"
+        >
+          <div className="flex items-center gap-1.5 shrink-0">
+            <svg width="14" height="14" viewBox="0 0 14 14" className="text-white/20 group-hover:text-white/35 transition-colors">
+              <circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="3 2" />
+              <circle cx="7" cy="7" r="1.5" fill="currentColor" />
+            </svg>
+            <span className="text-[12px] tracking-wide uppercase text-white/20 group-hover:text-white/35 transition-colors">
+              Thought
+            </span>
+          </div>
+          <span className="text-[12px] text-white/15 group-hover:text-white/25 transition-colors truncate">
+            {summary}
+          </span>
+          <ChevronDown size={12} className="shrink-0 -rotate-90 text-white/15 group-hover:text-white/30 transition-colors" />
+        </button>
+      )}
+
+      {/* Expanded state — streaming reasoning */}
+      {expanded && (
+        <div
+          className="relative overflow-hidden rounded-lg transition-all duration-300"
+          style={{
+            background: "linear-gradient(135deg, rgba(255,255,255,0.015) 0%, rgba(255,255,255,0.005) 100%)",
+          }}
+        >
+          {/* Left edge — breathing gradient while active, hairline when done */}
+          <div
+            className={`absolute left-0 top-0 bottom-0 w-[2px] rounded-full transition-opacity duration-500 ${
+              isStreaming ? "opacity-100" : "opacity-30"
+            }`}
+            style={{
+              background: isStreaming
+                ? "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.06) 100%)"
+                : "rgba(255,255,255,0.06)",
+              backgroundSize: isStreaming ? "100% 200%" : undefined,
+              animation: isStreaming ? "thinking-breathe 2s ease-in-out infinite" : undefined,
+            }}
+          />
+
+          {/* Header */}
+          <div className="flex items-center justify-between pl-4 pr-2 pt-2.5 pb-1">
+            <div className="flex items-center gap-2">
+              {isStreaming && (
+                <div className="flex gap-[3px] items-center">
+                  <span className="block w-[3px] h-[3px] rounded-full bg-white/20 animate-[thinking-dot_1.4s_ease-in-out_infinite]" />
+                  <span className="block w-[3px] h-[3px] rounded-full bg-white/20 animate-[thinking-dot_1.4s_ease-in-out_0.2s_infinite]" />
+                  <span className="block w-[3px] h-[3px] rounded-full bg-white/20 animate-[thinking-dot_1.4s_ease-in-out_0.4s_infinite]" />
+                </div>
+              )}
+              <span className="text-[11px] tracking-[0.08em] uppercase text-white/20">
+                {isStreaming ? "Thinking" : "Thought"}
+              </span>
+            </div>
+            <button
+              onClick={() => setExpanded(false)}
+              className="p-1 text-white/15 hover:text-white/35 transition-colors rounded"
+            >
+              <ChevronDown size={13} />
+            </button>
+          </div>
+
+          {/* Scrollable thinking content */}
+          <div
+            ref={scrollRef}
+            className="pl-4 pr-3 pb-3 max-h-[180px] overflow-y-auto scrollbar-thin"
+            style={{
+              maskImage: "linear-gradient(to bottom, transparent 0%, black 8%, black 85%, transparent 100%)",
+              WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 8%, black 85%, transparent 100%)",
+            }}
+          >
+            <p className="text-[12.5px] leading-[1.65] text-white/[0.18] whitespace-pre-wrap break-words font-[system-ui]">
+              {content}
+            </p>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 interface MessageBubbleProps {
   message: Message;
   isNew?: boolean;
@@ -755,7 +879,14 @@ export default function MessageBubble({
               {showPricing && createPortal(<PricingModal onClose={() => setShowPricing(false)} />, document.body)}
               {showAuthModal && createPortal(<AuthModal mode="register" onClose={() => setShowAuthModal(false)} />, document.body)}
             </>
-          ) : hasSteps ? (
+          ) : null}
+
+          {/* Thinking block — shows model reasoning as it streams */}
+          {!isUser && message.thinking && (
+            <ThinkingBlock content={message.thinking} isStreaming={isStreaming && !message.content} />
+          )}
+
+          {hasSteps ? (
             <div className="markdown-body text-[16px] leading-7 text-white">
               {message.steps!.map((step, i) => {
                 if (step.type === "reasoning") {
@@ -769,9 +900,6 @@ export default function MessageBubble({
                 return (
                   <div key={i}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{textContent}</ReactMarkdown>
-                    {isLastStep && isStreaming && !isComplete && (
-                      <span className="inline-block h-[18px] w-[2px] animate-pulse bg-white/50 ml-0.5 align-middle rounded-full" />
-                    )}
                   </div>
                 );
               })}
@@ -781,9 +909,6 @@ export default function MessageBubble({
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {contentToRender}
               </ReactMarkdown>
-              {isStreaming && !isComplete && (
-                <span className="inline-block h-[18px] w-[2px] animate-pulse bg-white/50 ml-0.5 align-middle rounded-full" />
-              )}
             </div>
           )}
 

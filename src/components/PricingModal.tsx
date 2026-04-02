@@ -267,9 +267,8 @@ export default function PricingModal({ onClose }: PricingModalProps) {
           <div className="px-8 pb-6">
             <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] px-5 py-4">
               <p className="text-[13px] text-white/40 leading-relaxed">
-                Мира использует модель оплаты за использование. Пополните баланс криптовалютой —
-                первое пополнение автоматически активирует план Pro с увеличенными лимитами и доступом
-                к модели Mira Pro. Средства списываются за токены по тарифу.
+                Подписка оплачивается ежемесячно через CryptoCloud. После оплаты план активируется
+                на 30 дней с увеличенными лимитами и доступом к дополнительным моделям.
               </p>
             </div>
           </div>

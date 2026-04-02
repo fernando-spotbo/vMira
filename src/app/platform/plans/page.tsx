@@ -10,19 +10,32 @@ import { apiCall } from "@/lib/api-client";
 
 interface UserInfo {
   plan: string;
+  chat_plan: string;
+  code_plan: string;
+  chat_plan_expires_at: string | null;
+  code_plan_expires_at: string | null;
   balance_kopecks: number;
   daily_messages_used: number;
   allow_overage_billing: boolean;
 }
 
-// ---- Plan config ----
+// ---- Plan config (limits must match backend enforcement) ----
 
-function planConfig(plan: string) {
+function chatPlanConfig(plan: string) {
   switch (plan) {
-    case "pro": return { name: "Pro", chatLimit: 5000, apiLimit: 500 };
-    case "max": return { name: "Max", chatLimit: -1, apiLimit: -1 };
-    case "enterprise": return { name: "Enterprise", chatLimit: -1, apiLimit: -1 };
-    default: return { name: "Free", chatLimit: 1000, apiLimit: 20 };
+    case "pro": return { name: "Pro", limit: 5000 };
+    case "max": return { name: "Max", limit: -1 };
+    case "enterprise": return { name: "Enterprise", limit: -1 };
+    default: return { name: "Free", limit: 1000 };
+  }
+}
+
+function codePlanConfig(plan: string) {
+  switch (plan) {
+    case "pro": return { name: "Pro", limit: 500 };
+    case "max": return { name: "Max", limit: 2000 };
+    case "enterprise": return { name: "Enterprise", limit: -1 };
+    default: return { name: "Free", limit: 30 };
   }
 }
 
@@ -170,7 +183,8 @@ export default function PlansPage() {
     );
   }
 
-  const plan = planConfig(user?.plan ?? "free");
+  const chat = chatPlanConfig(user?.chat_plan ?? "free");
+  const code = codePlanConfig(user?.code_plan ?? "free");
 
   return (
     <div className="max-w-[860px] mx-auto">
@@ -186,9 +200,9 @@ export default function PlansPage() {
         <SubscriptionBlock
           title="Мира"
           subtitle="AI-ассистент"
-          planName={plan.name}
+          planName={chat.name}
           used={user?.daily_messages_used ?? 0}
-          limit={plan.chatLimit}
+          limit={chat.limit}
           unit="сообщений"
           onUpgrade={() => setMiraPricingOpen(true)}
         />
@@ -196,9 +210,9 @@ export default function PlansPage() {
         <SubscriptionBlock
           title="Mira Code"
           subtitle="AI для разработчиков"
-          planName={plan.name}
+          planName={code.name}
           used={0}
-          limit={plan.apiLimit}
+          limit={code.limit}
           unit="запросов"
           onUpgrade={() => setCodePricingOpen(true)}
         />

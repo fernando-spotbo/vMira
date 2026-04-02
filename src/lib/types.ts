@@ -76,6 +76,7 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  thinking?: string;
   versions?: string[];
   versionIndex?: number;
   steps?: MessageStep[];

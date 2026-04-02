@@ -11,6 +11,7 @@ import { t } from "@/lib/i18n";
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ALLOWED_FILE_TYPES = [...ALLOWED_IMAGE_TYPES, "application/pdf", "text/plain"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILES_PER_MESSAGE = 10;
 
 interface InputBarProps {
   centered?: boolean;
@@ -102,15 +103,18 @@ export default function InputBar({ centered = false }: InputBarProps) {
 
   // File validation and adding
   const validateAndAddFiles = useCallback((files: FileList | File[]) => {
+    const remaining = MAX_FILES_PER_MESSAGE - pendingFiles.length;
+    if (remaining <= 0) return;
     const valid: File[] = [];
     for (const file of Array.from(files)) {
+      if (valid.length >= remaining) break;
       if (!ALLOWED_FILE_TYPES.includes(file.type)) continue;
       if (file.size > MAX_FILE_SIZE) continue;
       if (file.size === 0) continue;
       valid.push(file);
     }
     if (valid.length > 0) addPendingFiles(valid);
-  }, [addPendingFiles]);
+  }, [addPendingFiles, pendingFiles.length]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) validateAndAddFiles(e.target.files);

@@ -23,8 +23,8 @@ const models = [
     color: "#737373",
     speed: "Мгновенно",
     speedIcon: "zap",
-    input_1k: "0,05",
-    output_1k: "0,15",
+    input_1k: "0,10",
+    output_1k: "0,30",
     best_for: "Быстрые вопросы, простые задачи",
   },
   {
@@ -34,8 +34,8 @@ const models = [
     color: "#b5b5b5",
     speed: "Продвинутый",
     speedIcon: "rocket",
-    input_1k: "0,10",
-    output_1k: "0,30",
+    input_1k: "0,30",
+    output_1k: "0,90",
     best_for: "Сложные рассуждения, код, аналитика",
   },
   {
@@ -45,8 +45,8 @@ const models = [
     color: "#e5e5e5",
     speed: "Максимальный",
     speedIcon: "gem",
-    input_1k: "0,25",
-    output_1k: "0,75",
+    input_1k: "1,50",
+    output_1k: "6,00",
     best_for: "Критически важные задачи, исследования",
   },
 ];
@@ -59,7 +59,7 @@ const plans = [
     period: "",
     description: "Начните с Мирой бесплатно",
     features: [
-      "20 сообщений в день",
+      "1 000 сообщений в день",
       "Только Mira Fast",
       "Стандартная скорость",
       "Текстовый чат",
@@ -77,7 +77,7 @@ const plans = [
     period: "/мес",
     description: "Для продвинутых пользователей",
     features: [
-      "500 сообщений в день",
+      "5 000 сообщений в день",
       "Все модели (Fast, Pro)",
       "Режим размышлений (Pro, Max)",
       "Быстрые ответы",
@@ -86,7 +86,7 @@ const plans = [
       "Поиск в интернете",
     ],
     buttonText: "Перейти на Pro",
-    buttonHref: "/billing/topup",
+    buttonHref: "/platform/plans",
     popular: true,
     current: false,
   },
@@ -106,7 +106,7 @@ const plans = [
       "Ранний доступ к функциям",
     ],
     buttonText: "Перейти на Max",
-    buttonHref: "/billing/topup",
+    buttonHref: "/platform/plans",
     popular: false,
     current: false,
   },
@@ -135,7 +135,7 @@ const plans = [
 const faqItems = [
   {
     q: "Как работает оплата?",
-    a: "Вы пополняете баланс криптовалютой через CryptoCloud. Средства списываются за использование моделей по тарифу за токен. Минимальная сумма пополнения — 10 ₽. Первое пополнение активирует план Pro.",
+    a: "Подписка (Pro/Max) оплачивается ежемесячно через CryptoCloud и действует 30 дней. Для API — пополняйте баланс криптовалютой, средства списываются за токены по тарифу. Минимальная сумма пополнения — 10 ₽.",
   },
   {
     q: "Что такое токен?",
@@ -151,7 +151,7 @@ const faqItems = [
   },
   {
     q: "Какие способы оплаты поддерживаются?",
-    a: "Криптовалюта: BTC, ETH, USDT, USDC, TON, SOL, LTC, BNB и другие. Оплата через CryptoCloud. Первое пополнение автоматически активирует план Pro.",
+    a: "Криптовалюта: BTC, ETH, USDT, USDC, TON, SOL, LTC, BNB и другие. Оплата через CryptoCloud — как для подписки, так и для пополнения баланса API.",
   },
   {
     q: "Есть ли API для разработчиков?",
@@ -355,7 +355,7 @@ export default function PricingPage() {
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center mb-4">
         <h3 className="text-[20px] font-medium text-white mb-2">Готовы начать?</h3>
         <p className="text-[14px] text-white/40 mb-6 max-w-md mx-auto">
-          Начните бесплатно с 20 сообщениями в день или пополните баланс для полного доступа ко всем моделям.
+          Начните бесплатно с 1 000 сообщениями в день или подпишитесь для полного доступа ко всем моделям.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link

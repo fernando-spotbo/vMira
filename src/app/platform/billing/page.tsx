@@ -11,6 +11,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { getBalance, getTransactions, type Balance, type Transaction } from "@/lib/api-billing";
+import { useAuth } from "@/context/AuthContext";
 
 // ---- Helpers ----
 
@@ -34,15 +35,23 @@ export default function BillingPage() {
   const [visibleCount, setVisibleCount] = useState(8);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) { setLoading(false); setError("Войдите в аккаунт для просмотра биллинга"); return; }
+
     async function load() {
       try {
         const [balRes, txsRes] = await Promise.all([
           getBalance(),
           getTransactions(50, 0),
         ]);
-        if (balRes.ok) setBalance(balRes.data);
+        if (balRes.ok) {
+          setBalance(balRes.data);
+        } else {
+          setError(balRes.status === 401 ? "Сессия истекла. Обновите страницу." : "Не удалось загрузить баланс");
+        }
         if (txsRes.ok) setTransactions(txsRes.data);
       } catch (e) {
         setError("Не удалось загрузить данные биллинга");
@@ -52,7 +61,7 @@ export default function BillingPage() {
       }
     }
     load();
-  }, []);
+  }, [user, authLoading]);
 
   if (loading) {
     return (

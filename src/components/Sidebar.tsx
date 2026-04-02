@@ -211,7 +211,7 @@ export default function Sidebar() {
   const userName = user?.name || "User";
   const userEmail = user?.email || user?.phone || "";
   const userInitial = userName.charAt(0).toUpperCase();
-  const userPlan = user?.plan || "free";
+  const userPlan = user?.chat_plan || user?.plan || "free";
   const planLabels: Record<string, string> = { free: t("plan.free"), pro: t("plan.pro"), max: t("plan.max"), enterprise: t("plan.enterprise") };
 
   const [showUserMenu, setShowUserMenu] = useState(false);

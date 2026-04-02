@@ -68,7 +68,8 @@ export default function InputBar({ centered = false }: InputBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { activeConversationId, createNewChat, sendMessage: sendChatMessage, cancelMessage, isStreaming, isThinking, pendingFiles, addPendingFiles, removePendingFile, setActiveConversationId } = useChat();
   const { user } = useAuth();
-  const hasPaidPlan = user?.plan === "pro" || user?.plan === "max" || user?.plan === "enterprise";
+  const chatPlan = user?.chat_plan || user?.plan || "free";
+  const hasPaidPlan = chatPlan === "pro" || chatPlan === "max" || chatPlan === "enterprise";
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

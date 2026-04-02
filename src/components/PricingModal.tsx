@@ -183,7 +183,7 @@ export default function PricingModal({ onClose }: PricingModalProps) {
         <div className="flex-1 overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-8 pt-6">
             {plans.map((plan) => {
-              const isUpgrade = !plan.isCurrent && !plan.isDowngrade && plan.id !== "free";
+              const isUpgrade = !plan.isCurrent && !plan.isDowngrade && plan.id !== "free" && !plan.isEnterprise;
               return (
                 <div
                   key={plan.id}

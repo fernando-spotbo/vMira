@@ -18,6 +18,6 @@ pub use api_key::ApiKey;
 pub use attachment::Attachment;
 pub use billing::{ModelPricing, Transaction};
 pub use notification::{Notification, NotificationSettings, Reminder, TelegramLink};
-pub use project::Project;
+pub use project::{Project, ProjectFile};
 pub use session::RefreshToken;
 pub use usage::UsageRecord;

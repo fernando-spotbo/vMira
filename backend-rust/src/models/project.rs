@@ -9,7 +9,20 @@ pub struct Project {
     pub user_id: Uuid,
     pub name: String,
     pub emoji: Option<String>,
+    pub instructions: Option<String>,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ProjectFile {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub filename: String,
+    pub original_filename: String,
+    pub mime_type: String,
+    pub size_bytes: i64,
+    pub storage_path: String,
+    pub created_at: DateTime<Utc>,
 }

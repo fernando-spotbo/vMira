@@ -91,9 +91,21 @@ export interface Project {
   id: string;
   name: string;
   emoji?: string | null;
+  instructions?: string | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProjectFile {
+  id: string;
+  projectId: string;
+  filename: string;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+  createdAt: string;
 }
 
 export interface Conversation {

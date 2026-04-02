@@ -269,6 +269,9 @@ pub struct ProjectCreate {
 
     #[validate(length(max = 16))]
     pub emoji: Option<String>,
+
+    #[validate(length(max = 10000))]
+    pub instructions: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -279,6 +282,9 @@ pub struct ProjectUpdate {
     #[validate(length(max = 16))]
     pub emoji: Option<String>,
 
+    #[validate(length(max = 10000))]
+    pub instructions: Option<String>,
+
     pub sort_order: Option<i32>,
 }
 
@@ -287,9 +293,22 @@ pub struct ProjectResponse {
     pub id: Uuid,
     pub name: String,
     pub emoji: Option<String>,
+    pub instructions: Option<String>,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProjectFileResponse {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub filename: String,
+    pub original_filename: String,
+    pub mime_type: String,
+    pub size_bytes: i64,
+    pub url: String,
+    pub created_at: DateTime<Utc>,
 }
 
 // ═══════════════════════════════════════════════════════════════

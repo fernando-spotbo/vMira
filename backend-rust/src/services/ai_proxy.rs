@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use base64::Engine as _;
 use futures_util::Stream;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -109,6 +110,17 @@ pub struct ChatMessage {
     pub tool_call_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Attached files (images, PDFs, text) to include as multimodal content blocks.
+    #[serde(skip)]
+    pub attachments: Vec<MessageAttachment>,
+}
+
+/// An attachment resolved from the database for inclusion in AI requests.
+#[derive(Debug, Clone)]
+pub struct MessageAttachment {
+    pub mime_type: String,
+    pub original_filename: String,
+    pub storage_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -387,6 +399,75 @@ fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
     }
 }
 
+// ── Attachment → content block conversion ──────────────────────────────────
+
+const IMAGE_MIMES: &[&str] = &["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+/// Read a file from disk and convert it to OpenAI-compatible content blocks.
+/// Images → base64 `image_url` blocks; PDFs → extracted text; text files → text block.
+fn resolve_attachment_content(att: &MessageAttachment) -> Result<Vec<serde_json::Value>, String> {
+    let data = std::fs::read(&att.storage_path)
+        .map_err(|e| format!("read {}: {e}", att.storage_path))?;
+
+    if IMAGE_MIMES.iter().any(|m| *m == att.mime_type) {
+        // Image: base64-encode and send as image_url content block
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+        let data_url = format!("data:{};base64,{}", att.mime_type, b64);
+        Ok(vec![json!({
+            "type": "image_url",
+            "image_url": { "url": data_url },
+        })])
+    } else if att.mime_type == "application/pdf" {
+        // PDF: extract text
+        match pdf_extract::extract_text_from_mem(&data) {
+            Ok(text) => {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    Ok(vec![json!({
+                        "type": "text",
+                        "text": format!("[PDF «{}» — не удалось извлечь текст (возможно, отсканированный документ)]", att.original_filename),
+                    })])
+                } else {
+                    // Limit extracted text to ~32k chars to avoid blowing up context
+                    let capped = if trimmed.len() > 32_000 {
+                        format!("{}…\n[Текст обрезан, всего {} символов]", &trimmed[..32_000], trimmed.len())
+                    } else {
+                        trimmed.to_string()
+                    };
+                    Ok(vec![json!({
+                        "type": "text",
+                        "text": format!("📄 Содержимое PDF «{}»:\n\n{}", att.original_filename, capped),
+                    })])
+                }
+            }
+            Err(e) => {
+                tracing::warn!(file = %att.original_filename, error = %e, "PDF text extraction failed");
+                Ok(vec![json!({
+                    "type": "text",
+                    "text": format!("[PDF «{}» — ошибка извлечения текста]", att.original_filename),
+                })])
+            }
+        }
+    } else if att.mime_type == "text/plain" {
+        // Text file: read as UTF-8
+        let text = String::from_utf8_lossy(&data);
+        let capped = if text.len() > 32_000 {
+            format!("{}…\n[Текст обрезан, всего {} символов]", &text[..32_000], text.len())
+        } else {
+            text.to_string()
+        };
+        Ok(vec![json!({
+            "type": "text",
+            "text": format!("📎 Файл «{}»:\n\n{}", att.original_filename, capped),
+        })])
+    } else {
+        Ok(vec![json!({
+            "type": "text",
+            "text": format!("[Файл «{}» — формат {} не поддерживается для анализа]", att.original_filename, att.mime_type),
+        })])
+    }
+}
+
 // ── API call helper ─────────────────────────────────────────────────────────
 
 async fn call_model(
@@ -455,6 +536,7 @@ pub fn stream_ai_response(
     user_timezone: Option<String>,
     user_name: Option<String>,
     user_email: Option<String>,
+    project_instructions: Option<String>,
 ) -> Pin<Box<dyn Stream<Item = AiEvent> + Send>> {
     let url = format!("{}/chat/completions", config.ai_model_url);
     let api_key = config.ai_model_api_key.clone();
@@ -500,17 +582,55 @@ pub fn stream_ai_response(
     let user_email = user_email_for_scrub.as_deref();
     let mut pii_mapping = std::collections::HashMap::new();
 
+    let project_context = match &project_instructions {
+        Some(instr) if !instr.is_empty() => format!("\n\n--- Project Instructions ---\n{}", instr),
+        _ => String::new(),
+    };
     let mut full_messages: Vec<serde_json::Value> = vec![json!({
         "role": "system",
-        "content": format!("{}{}", system_prompt, datetime_context),
+        "content": format!("{}{}{}", system_prompt, project_context, datetime_context),
     })];
     for m in &messages {
         let scrubbed = crate::services::pii_scrub::scrub(&m.content, user_name, user_email);
         pii_mapping.extend(scrubbed.mapping);
-        full_messages.push(json!({
-            "role": m.role,
-            "content": scrubbed.scrubbed,
-        }));
+
+        if m.attachments.is_empty() {
+            // Plain text message — no attachments
+            full_messages.push(json!({
+                "role": m.role,
+                "content": scrubbed.scrubbed,
+            }));
+        } else {
+            // Multimodal message — build content blocks array
+            let mut content_blocks: Vec<serde_json::Value> = Vec::new();
+
+            // Text content first
+            if !scrubbed.scrubbed.is_empty() {
+                content_blocks.push(json!({
+                    "type": "text",
+                    "text": scrubbed.scrubbed,
+                }));
+            }
+
+            // Attachment content blocks
+            for att in &m.attachments {
+                match resolve_attachment_content(att) {
+                    Ok(blocks) => content_blocks.extend(blocks),
+                    Err(e) => {
+                        tracing::warn!(file = %att.original_filename, error = %e, "Failed to resolve attachment");
+                        content_blocks.push(json!({
+                            "type": "text",
+                            "text": format!("[Файл «{}» не удалось обработать]", att.original_filename),
+                        }));
+                    }
+                }
+            }
+
+            full_messages.push(json!({
+                "role": m.role,
+                "content": content_blocks,
+            }));
+        }
     }
 
     // Self-hosted llama-server ignores the model name in the request —

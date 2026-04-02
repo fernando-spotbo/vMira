@@ -56,12 +56,15 @@ interface ChatContextType {
   updateProjectEmoji: (id: string, emoji: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   moveConversationToProject: (conversationId: string, projectId: string | null) => Promise<void>;
+  setPendingProjectId: (id: string | null) => void;
+  updateProjectInstructions: (id: string, instructions: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const sendingRef = useRef(false);
+  const pendingProjectIdRef = useRef<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() =>
@@ -105,6 +108,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           id: p.id,
           name: p.name,
           emoji: p.emoji,
+          instructions: p.instructions,
           sortOrder: p.sort_order,
           createdAt: p.created_at,
           updatedAt: p.updated_at,
@@ -375,7 +379,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const createProjectCb = useCallback(async (name: string, emoji?: string): Promise<Project | null> => {
     const p = await chatApi.createProject(name, emoji);
     if (!p) return null;
-    const project: Project = { id: p.id, name: p.name, emoji: p.emoji, sortOrder: p.sort_order, createdAt: p.created_at, updatedAt: p.updated_at };
+    const project: Project = { id: p.id, name: p.name, emoji: p.emoji, instructions: p.instructions, sortOrder: p.sort_order, createdAt: p.created_at, updatedAt: p.updated_at };
     setProjects((prev) => [...prev, project]);
     return project;
   }, []);
@@ -404,6 +408,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setConversations((prev) =>
       prev.map((c) => c.id === conversationId ? { ...c, projectId } : c)
     );
+  }, []);
+
+  const setPendingProjectId = useCallback((id: string | null) => {
+    pendingProjectIdRef.current = id;
+  }, []);
+
+  const updateProjectInstructions = useCallback(async (id: string, instructions: string) => {
+    await chatApi.updateProject(id, { instructions });
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, instructions } : p));
   }, []);
 
   // Cancel current streaming request
@@ -481,6 +494,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             title: content.slice(0, 80),
             messages: [userMsg],
             createdAt: new Date().toISOString().split("T")[0],
+            projectId: pendingProjectIdRef.current || undefined,
           },
           ...prev,
         ]);
@@ -488,7 +502,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Create real conversation in background, swap ID (skip for guests)
         if (isLive && getAccessToken()) {
-          const conv = await chatApi.createConversation(content.slice(0, 80));
+          const conv = await chatApi.createConversation(content.slice(0, 80), undefined, pendingProjectIdRef.current || undefined);
           if (!conv) return;
           const oldId = convId;
           convId = conv.id;
@@ -497,6 +511,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             prev.map((c) => c.id === oldId ? { ...c, id: conv.id } : c)
           );
           setActiveConversationId(conv.id);
+          pendingProjectIdRef.current = null;
         }
       } else {
         addMessage(convId, userMsg);
@@ -927,6 +942,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         updateProjectEmoji,
         deleteProject: deleteProjectCb,
         moveConversationToProject,
+        setPendingProjectId,
+        updateProjectInstructions,
       }}
     >
       {children}

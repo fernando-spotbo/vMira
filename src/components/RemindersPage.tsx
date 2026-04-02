@@ -242,7 +242,7 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-5 pb-10">
+        <div className="max-w-3xl mx-auto px-5 pb-10">
 
           {loading ? (
             <div className="flex items-center justify-center py-20">

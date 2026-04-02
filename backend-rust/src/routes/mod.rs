@@ -33,7 +33,11 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/auth", auth::auth_routes())
         .nest("/api/v1/auth", device_auth::device_auth_routes())
         .nest("/api/v1/chat", chat::chat_routes())
-        .nest("/api/v1/chat/projects", projects::project_routes())
+        .nest(
+            "/api/v1/chat/projects",
+            projects::project_routes()
+                .layer(DefaultBodyLimit::max(upload_limit)),
+        )
         .nest(
             "/api/v1/chat/conversations/{conv_id}/attachments",
             attachments::upload_routes()

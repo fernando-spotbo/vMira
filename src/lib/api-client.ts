@@ -5,6 +5,8 @@
  * HMAC signatures server-side. The browser never talks to the backend directly.
  */
 
+import type { ApiProjectFile } from "./api-chat";
+
 const PROXY_URL = "/api/proxy";
 
 // ---- Auth token management (client-side) ----
@@ -302,6 +304,77 @@ export async function uploadFile(
     data = await res.json();
   } catch {
     data = [] as UploadedAttachment[];
+  }
+
+  return { data, ok: res.ok, status: res.status };
+}
+
+// ---- Project file upload ----
+
+export async function uploadProjectFile(
+  projectId: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ data: ApiProjectFile[]; ok: boolean; status: number }> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  // Use XMLHttpRequest for progress tracking
+  if (onProgress) {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${PROXY_URL}/chat/projects/${projectId}/files`);
+
+      Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+      xhr.withCredentials = true;
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        let data: ApiProjectFile[];
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch {
+          data = [] as ApiProjectFile[];
+        }
+        resolve({ data, ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status });
+      };
+
+      xhr.onerror = () => {
+        resolve({ data: [] as ApiProjectFile[], ok: false, status: 0 });
+      };
+
+      xhr.send(formData);
+    });
+  }
+
+  // Simple fetch for no-progress uploads
+  const res = await fetch(
+    `${PROXY_URL}/chat/projects/${projectId}/files`,
+    {
+      method: "POST",
+      headers,
+      body: formData,
+      credentials: "include",
+    },
+  );
+
+  let data: ApiProjectFile[];
+  try {
+    data = await res.json();
+  } catch {
+    data = [] as ApiProjectFile[];
   }
 
   return { data, ok: res.ok, status: res.status };

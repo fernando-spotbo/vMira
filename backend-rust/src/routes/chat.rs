@@ -699,15 +699,50 @@ async fn send_message(
     .fetch_all(&state.db)
     .await?;
 
+    // Collect message IDs for attachment lookup
+    let msg_ids: Vec<uuid::Uuid> = history_rows.iter().map(|m| m.id).collect();
+
+    // Fetch all attachments for these messages in one query
+    let attachments = if msg_ids.is_empty() {
+        vec![]
+    } else {
+        sqlx::query_as::<_, crate::models::Attachment>(
+            "SELECT * FROM attachments WHERE message_id = ANY($1) ORDER BY created_at ASC"
+        )
+        .bind(&msg_ids)
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default()
+    };
+
+    // Group attachments by message_id
+    let mut att_by_msg: std::collections::HashMap<uuid::Uuid, Vec<crate::services::ai_proxy::MessageAttachment>> =
+        std::collections::HashMap::new();
+    for att in attachments {
+        if let Some(mid) = att.message_id {
+            att_by_msg.entry(mid).or_default().push(
+                crate::services::ai_proxy::MessageAttachment {
+                    mime_type: att.mime_type,
+                    original_filename: att.original_filename,
+                    storage_path: att.storage_path,
+                }
+            );
+        }
+    }
+
     let history: Vec<ChatMessage> = history_rows
         .into_iter()
         .rev()
-        .map(|m| ChatMessage {
-            role: m.role,
-            content: m.content,
-            tool_calls: None,
-            tool_call_id: None,
-            name: None,
+        .map(|m| {
+            let msg_attachments = att_by_msg.remove(&m.id).unwrap_or_default();
+            ChatMessage {
+                role: m.role,
+                content: m.content,
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                attachments: msg_attachments,
+            }
         })
         .collect();
 
@@ -720,6 +755,7 @@ async fn send_message(
     let model_name = body.model.clone();
     let voice_mode = body.voice;
     let conversation_id = conv.id;
+    let conv_project_id = conv.project_id;
     let user_id = user.id;
     let user_plan = chat_plan.clone();
     let user_in_overage = is_overage;
@@ -950,6 +986,21 @@ async fn send_message(
         .ok()
         .flatten();
 
+        // Fetch project instructions if conversation belongs to a project
+        let project_instructions = if let Some(pid) = conv_project_id {
+            sqlx::query_scalar::<_, Option<String>>(
+                "SELECT instructions FROM projects WHERE id = $1"
+            )
+            .bind(pid)
+            .fetch_optional(&state_clone.db)
+            .await
+            .ok()
+            .flatten()
+            .flatten()
+        } else {
+            None
+        };
+
         let ai_stream = ai_proxy::stream_ai_response(
             history,
             model_name.clone(),
@@ -963,6 +1014,7 @@ async fn send_message(
             user_tz,
             user_name_scrub.clone(),
             user_email_scrub.clone(),
+            project_instructions,
         );
 
         tokio::pin!(ai_stream);
@@ -1329,6 +1381,7 @@ async fn anonymous_stream(
             tool_calls: None,
             tool_call_id: None,
             name: None,
+            attachments: vec![],
         }];
 
         let ai_stream = ai_proxy::stream_ai_response(
@@ -1344,6 +1397,7 @@ async fn anonymous_stream(
             None,  // no timezone for guests
             None,  // no user name for guests
             None,  // no user email for guests
+            None,  // no project instructions for guests
         );
 
         tokio::pin!(ai_stream);

@@ -12,13 +12,17 @@ import {
   FolderOpen,
   Star,
   FileText,
-  BookOpen,
+  X,
+  FileUp,
   ArrowUp,
   Clock,
 } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
-import type { Project } from "@/lib/types";
+import { uploadProjectFile } from "@/lib/api-client";
+import { fetchProjectFiles, deleteProjectFile } from "@/lib/api-chat";
+import type { Project, ProjectFile } from "@/lib/types";
+import InputBar from "./InputBar";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -53,6 +57,12 @@ function lastUpdated(dateStr: string): string {
   } catch {
     return "";
   }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -133,7 +143,7 @@ function ProjectList({
 
   return (
     <div className="flex h-full flex-col bg-[#161616]">
-      {/* ── Header — matches RemindersPage ── */}
+      {/* ── Header ── */}
       <div className="shrink-0 px-5 pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between h-14">
           <h1 className="text-[18px] font-semibold text-white">
@@ -151,7 +161,7 @@ function ProjectList({
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-5 pb-10">
+        <div className="max-w-3xl mx-auto px-5 pb-10">
           {/* Search */}
           {projects.length >= 1 && (
             <div className="mb-5">
@@ -190,7 +200,7 @@ function ProjectList({
             </div>
           )}
 
-          {/* Empty state — matches RemindersPage */}
+          {/* Empty state */}
           {projects.length === 0 && !creating ? (
             <div className="flex flex-col items-center justify-center py-24">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.03] mb-5">
@@ -203,7 +213,6 @@ function ProjectList({
             </div>
           ) : (
             <>
-              {/* Search empty */}
               {search && filtered.length === 0 && (
                 <div className="flex flex-col items-center py-16">
                   <Search size={20} strokeWidth={1.4} className="text-white/15 mb-3" />
@@ -229,10 +238,8 @@ function ProjectList({
                       <h3 className="text-[15px] font-medium text-white leading-snug mb-1.5 pr-2 line-clamp-2">
                         {project.name}
                       </h3>
-
                       <p className="text-[13px] text-white/25 mb-4">{lastUpdated(updated)}</p>
 
-                      {/* Preview of recent conversations */}
                       {convs.length > 0 ? (
                         <div className="space-y-1.5">
                           {convs.slice(0, 3).map((c) => (
@@ -241,16 +248,13 @@ function ProjectList({
                             </p>
                           ))}
                           {convs.length > 3 && (
-                            <p className="text-[13px] text-white/15">
-                              +{convs.length - 3} more
-                            </p>
+                            <p className="text-[13px] text-white/15">+{convs.length - 3} more</p>
                           )}
                         </div>
                       ) : (
                         <p className="text-[13px] text-white/15 italic">No chats yet</p>
                       )}
 
-                      {/* Bottom meta */}
                       <div className="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-1.5">
                         <MessageSquare size={12} strokeWidth={1.8} className="text-white/20" />
                         <span className="text-[13px] text-white/20">
@@ -286,38 +290,66 @@ function ProjectDetail({
     deleteProject,
     setActiveConversationId,
     setShowProjects,
-    sendMessage,
-    moveConversationToProject,
     activeConversationId,
+    setPendingProjectId,
+    updateProjectInstructions,
   } = useChat();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(project.name);
-  const [input, setInput] = useState("");
+  const [instructions, setInstructions] = useState(project.instructions || "");
+  const [instructionsEditing, setInstructionsEditing] = useState(false);
+  const [files, setFiles] = useState<ProjectFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Track when we launch a chat from this project so we can auto-assign it
-  const pendingProjectAssign = useRef<string | null>(null);
+  const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevConvIdRef = useRef(activeConversationId);
 
   const projectConvs = useMemo(
     () => conversations.filter((c) => c.projectId === project.id),
     [conversations, project.id]
   );
 
-  // When active conversation changes and we have a pending project assign, do it
+  // Set pending project ID so any new chat gets assigned to this project
   useEffect(() => {
-    if (pendingProjectAssign.current && activeConversationId) {
-      const pid = pendingProjectAssign.current;
-      pendingProjectAssign.current = null;
-      const timer = setTimeout(() => {
-        moveConversationToProject(activeConversationId, pid);
-      }, 500);
-      return () => clearTimeout(timer);
+    setPendingProjectId(project.id);
+    return () => setPendingProjectId(null);
+  }, [project.id, setPendingProjectId]);
+
+  // Auto-close when a new conversation is created (via InputBar send)
+  useEffect(() => {
+    if (activeConversationId && activeConversationId !== prevConvIdRef.current) {
+      setShowProjects(false);
     }
-  }, [activeConversationId, moveConversationToProject]);
+    prevConvIdRef.current = activeConversationId;
+  }, [activeConversationId, setShowProjects]);
+
+  // Load project files
+  useEffect(() => {
+    fetchProjectFiles(project.id).then((apiFiles) => {
+      setFiles(
+        apiFiles.map((f) => ({
+          id: f.id,
+          projectId: f.project_id,
+          filename: f.filename,
+          originalFilename: f.original_filename,
+          mimeType: f.mime_type,
+          sizeBytes: f.size_bytes,
+          url: f.url,
+          createdAt: f.created_at,
+        }))
+      );
+    });
+  }, [project.id]);
+
+  // Sync instructions from project prop
+  useEffect(() => {
+    setInstructions(project.instructions || "");
+  }, [project.instructions]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -335,6 +367,12 @@ function ProjectDetail({
     }
   }, [renaming]);
 
+  useEffect(() => {
+    if (instructionsEditing && instructionsRef.current) {
+      instructionsRef.current.focus();
+    }
+  }, [instructionsEditing]);
+
   const handleRename = () => {
     const name = renameValue.trim();
     if (name && name !== project.name) renameProject(project.id, name);
@@ -347,30 +385,47 @@ function ProjectDetail({
     onBack();
   };
 
-  const handleSend = () => {
-    const text = input.trim();
-    if (!text) return;
-    setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
-    pendingProjectAssign.current = project.id;
-    setShowProjects(false);
-    requestAnimationFrame(() => {
-      sendMessage(text);
-    });
-  };
-
-  const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const handleInstructionsSave = () => {
+    setInstructionsEditing(false);
+    const trimmed = instructions.trim();
+    if (trimmed !== (project.instructions || "").trim()) {
+      updateProjectInstructions(project.id, trimmed);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value.replace(/^\s+/, ""));
-    const el = e.target;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  const handleFileUpload = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    setUploading(true);
+    for (const file of Array.from(fileList)) {
+      try {
+        const result = await uploadProjectFile(project.id, file);
+        if (result.ok && result.data.length > 0) {
+          const f = result.data[0];
+          setFiles((prev) => [
+            ...prev,
+            {
+              id: f.id,
+              projectId: f.project_id,
+              filename: f.filename,
+              originalFilename: f.original_filename,
+              mimeType: f.mime_type,
+              sizeBytes: f.size_bytes,
+              url: f.url,
+              createdAt: f.created_at,
+            },
+          ]);
+        }
+      } catch (e) {
+        console.error("File upload failed:", e);
+      }
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleFileDelete = async (fileId: string) => {
+    const ok = await deleteProjectFile(project.id, fileId);
+    if (ok) setFiles((prev) => prev.filter((f) => f.id !== fileId));
   };
 
   const openConversation = (convId: string) => {
@@ -463,33 +518,9 @@ function ProjectDetail({
           <div className="flex gap-6 flex-col lg:flex-row">
             {/* ── Left: Chat + Conversations ── */}
             <div className="flex-1 min-w-0">
-              {/* Embedded chat input — matches mira-input-container */}
-              <div className="mira-input-container rounded-2xl px-5 pt-4 pb-3 mb-6">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleInputKeyDown}
-                  placeholder="How can I help you today?"
-                  rows={1}
-                  className="w-full max-h-[160px] resize-none overflow-y-auto bg-transparent text-[17px] leading-relaxed text-white placeholder-white/25 focus:outline-none"
-                />
-                <div className="flex items-center justify-between mt-3">
-                  <button className="flex h-9 w-9 items-center justify-center rounded-[10px] text-white/30 hover:text-white/60 hover:bg-black/30 transition-colors">
-                    <Plus size={22} strokeWidth={1.8} />
-                  </button>
-                  <button
-                    onClick={handleSend}
-                    disabled={!input.trim()}
-                    className={`flex h-9 w-9 items-center justify-center rounded-[10px] transition-all duration-200 ${
-                      input.trim()
-                        ? "bg-white text-[#161616] hover:bg-white/90 active:scale-95"
-                        : "text-white/15"
-                    }`}
-                  >
-                    <ArrowUp size={20} strokeWidth={2.5} />
-                  </button>
-                </div>
+              {/* Reuse the real InputBar component */}
+              <div className="mb-6">
+                <InputBar centered />
               </div>
 
               {/* Conversations list */}
@@ -529,43 +560,117 @@ function ProjectDetail({
               {/* Instructions */}
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
                 <div className="flex items-center justify-between px-4 py-3.5">
-                  <div>
-                    <h3 className="text-[15px] font-medium text-white">Instructions</h3>
-                    <p className="text-[13px] text-white/30 mt-0.5">
+                  <h3 className="text-[15px] font-medium text-white">Instructions</h3>
+                  {!instructionsEditing && (
+                    <button
+                      onClick={() => setInstructionsEditing(true)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-white/25 hover:text-white/50 hover:bg-white/[0.06] transition-colors"
+                    >
+                      {instructions ? <Pencil size={14} strokeWidth={1.8} /> : <Plus size={16} strokeWidth={1.8} />}
+                    </button>
+                  )}
+                </div>
+
+                {instructionsEditing ? (
+                  <div className="px-4 pb-4">
+                    <textarea
+                      ref={instructionsRef}
+                      value={instructions}
+                      onChange={(e) => setInstructions(e.target.value)}
+                      onBlur={handleInstructionsSave}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") handleInstructionsSave();
+                      }}
+                      placeholder="Add instructions to tailor Mira's responses for this project..."
+                      rows={4}
+                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[13px] text-white placeholder-white/20 leading-relaxed resize-none focus:outline-none focus:border-white/[0.15] transition-colors"
+                    />
+                    <div className="flex justify-end mt-2">
+                      <button
+                        onClick={handleInstructionsSave}
+                        className="text-[12px] text-white/40 hover:text-white/70 transition-colors"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                ) : instructions ? (
+                  <div className="px-4 pb-4">
+                    <p className="text-[13px] text-white/40 leading-relaxed whitespace-pre-wrap line-clamp-6">
+                      {instructions}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="px-4 pb-4">
+                    <p className="text-[13px] text-white/20">
                       Add instructions to tailor responses
                     </p>
                   </div>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-lg text-white/25 hover:text-white/50 hover:bg-white/[0.06] transition-colors">
-                    <Plus size={16} strokeWidth={1.8} />
-                  </button>
-                </div>
+                )}
               </div>
 
               {/* Files */}
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
                 <div className="flex items-center justify-between px-4 py-3.5">
                   <h3 className="text-[15px] font-medium text-white">Files</h3>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-lg text-white/25 hover:text-white/50 hover:bg-white/[0.06] transition-colors">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/25 hover:text-white/50 hover:bg-white/[0.06] transition-colors disabled:opacity-40"
+                  >
                     <Plus size={16} strokeWidth={1.8} />
                   </button>
                 </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.md,.csv,.json"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files)}
+                />
+
                 <div className="px-4 pb-4">
-                  <div className="rounded-xl border border-dashed border-white/[0.06] bg-white/[0.01] flex flex-col items-center justify-center py-10 px-4">
-                    <div className="flex items-center gap-1 mb-3">
-                      <div className="w-8 h-10 rounded border border-white/[0.08] bg-white/[0.03] flex items-center justify-center">
-                        <FileText size={14} className="text-white/15" />
-                      </div>
-                      <div className="w-8 h-10 rounded border border-white/[0.08] bg-white/[0.03] flex items-center justify-center -ml-1.5">
-                        <BookOpen size={14} className="text-white/15" />
-                      </div>
-                      <div className="w-8 h-10 rounded border border-dashed border-white/[0.1] bg-white/[0.02] flex items-center justify-center -ml-1.5">
-                        <Plus size={14} className="text-white/15" />
-                      </div>
+                  {files.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {files.map((file) => (
+                        <div
+                          key={file.id}
+                          className="group/file flex items-center gap-2.5 rounded-lg px-3 py-2.5 bg-white/[0.02] border border-white/[0.04]"
+                        >
+                          <FileText size={14} strokeWidth={1.8} className="text-white/25 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] text-white/60 truncate">{file.originalFilename}</p>
+                            <p className="text-[11px] text-white/20">{formatFileSize(file.sizeBytes)}</p>
+                          </div>
+                          <button
+                            onClick={() => handleFileDelete(file.id)}
+                            className="shrink-0 opacity-0 group-hover/file:opacity-100 flex h-6 w-6 items-center justify-center rounded text-white/20 hover:text-red-400 transition-all"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-[13px] text-white/25 text-center leading-relaxed">
-                      Add PDFs, documents, or other text to reference in this project.
-                    </p>
-                  </div>
+                  ) : (
+                    <div
+                      className="rounded-xl border border-dashed border-white/[0.06] bg-white/[0.01] flex flex-col items-center justify-center py-8 px-4 cursor-pointer hover:border-white/[0.1] hover:bg-white/[0.02] transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <FileUp size={20} strokeWidth={1.4} className="text-white/15 mb-2.5" />
+                      <p className="text-[13px] text-white/25 text-center leading-relaxed">
+                        Add PDFs, documents, or text files to reference in this project.
+                      </p>
+                    </div>
+                  )}
+
+                  {uploading && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-4 w-4 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
+                      <span className="text-[12px] text-white/30">Uploading...</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

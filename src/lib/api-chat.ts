@@ -21,6 +21,7 @@ export interface ApiProject {
   id: string;
   name: string;
   emoji?: string | null;
+  instructions?: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -54,10 +55,10 @@ export async function fetchConversations(): Promise<ApiConversation[]> {
   return result.ok ? result.data : [];
 }
 
-export async function createConversation(title: string = "New chat", model: string = "mira"): Promise<ApiConversation | null> {
+export async function createConversation(title: string = "New chat", model: string = "mira", projectId?: string): Promise<ApiConversation | null> {
   const result = await apiCall<ApiConversation>("/chat/conversations", {
     method: "POST",
-    body: JSON.stringify({ title, model }),
+    body: JSON.stringify({ title, model, ...(projectId ? { project_id: projectId } : {}) }),
   });
   return result.ok ? result.data : null;
 }
@@ -252,7 +253,7 @@ export async function createProject(name: string, emoji?: string): Promise<ApiPr
   return result.ok ? result.data : null;
 }
 
-export async function updateProject(id: string, data: { name?: string; emoji?: string; sort_order?: number }): Promise<boolean> {
+export async function updateProject(id: string, data: { name?: string; emoji?: string; sort_order?: number; instructions?: string }): Promise<boolean> {
   const result = await apiCall(`/chat/projects/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
@@ -262,6 +263,29 @@ export async function updateProject(id: string, data: { name?: string; emoji?: s
 
 export async function deleteProject(id: string): Promise<boolean> {
   const result = await apiCall(`/chat/projects/${id}`, { method: "DELETE" });
+  return result.ok;
+}
+
+// ---- Project Files ----
+
+export interface ApiProjectFile {
+  id: string;
+  project_id: string;
+  filename: string;
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  url: string;
+  created_at: string;
+}
+
+export async function fetchProjectFiles(projectId: string): Promise<ApiProjectFile[]> {
+  const result = await apiCall<ApiProjectFile[]>(`/chat/projects/${projectId}/files`);
+  return result.ok ? result.data : [];
+}
+
+export async function deleteProjectFile(projectId: string, fileId: string): Promise<boolean> {
+  const result = await apiCall(`/chat/projects/${projectId}/files/${fileId}`, { method: "DELETE" });
   return result.ok;
 }
 

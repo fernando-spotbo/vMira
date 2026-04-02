@@ -221,6 +221,7 @@ async fn chat_completions(
             tool_calls: None,
             tool_call_id: None,
             name: None,
+            attachments: vec![],
         })
         .collect();
 
@@ -354,6 +355,7 @@ async fn chat_completions(
                 &state_clone.config,
                 None, None, None,
                 user_name_scrub.clone(), user_email_scrub.clone(),
+                None, // no project instructions for API completions
             );
 
             tokio::pin!(ai_stream);
@@ -575,6 +577,7 @@ async fn chat_completions(
             &state.config,
             None, None, None,
             Some(user.name.clone()), user.email.clone(),
+            None, // no project instructions for API completions
         );
 
         tokio::pin!(ai_stream);

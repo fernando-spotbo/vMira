@@ -760,21 +760,30 @@ export default function MessageBubble({
   // Extract sources for citation rendering
   const sources = extractSources(message.steps);
 
+  // Process citation markers in any React children tree
+  const processCiteChildren = (children: React.ReactNode): React.ReactNode => {
+    if (sources.length === 0) return children;
+    const arr = Array.isArray(children) ? children : [children];
+    return arr.map((child, ci) => {
+      if (typeof child === "string" && child.includes("⟨cite:")) {
+        return <span key={ci}>{renderWithCitations(child, sources, setExternalLink)}</span>;
+      }
+      return child;
+    });
+  };
+
   const markdownComponents = {
-    // Render paragraphs with inline [1], [2] citations
     p({ children }: { children?: React.ReactNode }) {
-      if (sources.length === 0) return <p>{children}</p>;
-      const processed = Array.isArray(children) ? children : [children];
-      return (
-        <p>
-          {processed.map((child, ci) => {
-            if (typeof child === "string") {
-              return <span key={ci}>{renderWithCitations(child, sources, setExternalLink)}</span>;
-            }
-            return child;
-          })}
-        </p>
-      );
+      return <p>{processCiteChildren(children)}</p>;
+    },
+    li({ children }: { children?: React.ReactNode }) {
+      return <li>{processCiteChildren(children)}</li>;
+    },
+    strong({ children }: { children?: React.ReactNode }) {
+      return <strong>{processCiteChildren(children)}</strong>;
+    },
+    em({ children }: { children?: React.ReactNode }) {
+      return <em>{processCiteChildren(children)}</em>;
     },
     a({ href, children, ...props }: { href?: string; children?: React.ReactNode; [key: string]: any }) {
       const cleanHref = (href || "").replace(/[\s\x00-\x1f]/g, "");

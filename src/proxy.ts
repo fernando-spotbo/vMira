@@ -38,7 +38,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Main domain (production): redirect /platform/*, /authorize, /docs to subdomain
+  // Main domain (production): redirect platform routes to subdomain
   if (pathname.startsWith("/docs")) {
     return NextResponse.redirect(new URL(pathname, PLATFORM_URL), 301);
   }
@@ -47,6 +47,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(`${PLATFORM_URL}${platformPath}${search}`);
   }
   if (pathname === "/authorize" || pathname.startsWith("/authorize")) {
+    return NextResponse.redirect(`${PLATFORM_URL}${pathname}${search}`);
+  }
+  // Redirect platform routes (billing, plans, pricing, etc.) to subdomain
+  if (isPlatformRoute(pathname)) {
     return NextResponse.redirect(`${PLATFORM_URL}${pathname}${search}`);
   }
 

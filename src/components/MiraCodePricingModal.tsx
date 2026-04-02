@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Check, Terminal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { X, Check, Terminal, ArrowRight } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface MiraCodePricingModalProps {
   onClose: () => void;
 }
+
+const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, max: 2, enterprise: 3 };
 
 const PLANS = [
   {
@@ -28,7 +32,6 @@ const PLANS = [
         "Code explanations",
       ],
     },
-    current: true,
   },
   {
     id: "pro",
@@ -111,6 +114,7 @@ const PLANS = [
         "Audit logging & access control",
       ],
     },
+    isEnterprise: true,
   },
 ];
 
@@ -121,18 +125,26 @@ function getLocale(): "ru" | "en" {
 
 export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalProps) {
   const [visible, setVisible] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [locale, setLocale] = useState<"ru" | "en">("ru");
   const modalRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { user } = useAuth();
+  const currentPlan = user?.plan ?? "free";
+  const currentRank = PLAN_RANK[currentPlan] ?? 0;
 
   useEffect(() => {
     setLocale(getLocale());
     requestAnimationFrame(() => setVisible(true));
   }, []);
 
+  const close = useCallback(() => {
+    setVisible(false);
+    setTimeout(onClose, 250);
+  }, [onClose]);
+
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => { if (e.key === "Escape") { setVisible(false); setTimeout(onClose, 250); } },
-    [onClose]
+    (e: KeyboardEvent) => { if (e.key === "Escape") close(); },
+    [close]
   );
 
   useEffect(() => {
@@ -141,9 +153,7 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
   }, [handleKeyDown]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      setVisible(false); setTimeout(onClose, 250);
-    }
+    if (modalRef.current && !modalRef.current.contains(e.target as Node)) close();
   };
 
   const handleSelect = (planId: string) => {
@@ -152,11 +162,8 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
       return;
     }
     // Redirect to topup — payment activates the plan
-    setVisible(false);
-    setTimeout(() => {
-      onClose();
-      window.location.href = "/billing/topup";
-    }, 250);
+    close();
+    router.push("/billing/topup");
   };
 
   const isRu = locale === "ru";
@@ -189,7 +196,7 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
             </div>
           </div>
           <button
-            onClick={() => { setVisible(false); setTimeout(onClose, 250); }}
+            onClick={close}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
           >
             <X size={18} />
@@ -199,81 +206,101 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
         {/* Plans */}
         <div className="flex-1 overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-8 pt-6">
-            {PLANS.map((plan) => (
-              <div
-                key={plan.id}
-                className={`relative flex flex-col rounded-xl border p-5 transition-all duration-200 ${
-                  plan.popular
-                    ? "border-white/[0.15] bg-white/[0.04]"
-                    : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1]"
-                }`}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-0.5 text-[11px] font-semibold text-[#161616]">
-                    {isRu ? "Популярный" : "Most popular"}
-                  </div>
-                )}
+            {PLANS.map((plan) => {
+              const planRank = PLAN_RANK[plan.id] ?? 0;
+              const isCurrent = plan.id === currentPlan;
+              const isUpgrade = !isCurrent && planRank > currentRank && !plan.isEnterprise;
+              const isDowngrade = planRank < currentRank;
 
-                {plan.current && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white/[0.1] border border-white/[0.15] px-3 py-0.5 text-[11px] font-medium text-white/60">
-                    {isRu ? "Текущий" : "Current"}
-                  </div>
-                )}
-
-                <div className="mb-4">
-                  <span className="text-[16px] font-medium text-white">{plan.name}</span>
-                  <div className="flex items-baseline gap-1 mt-2">
-                    {plan.price === 0 ? (
-                      <span className="text-2xl font-medium text-white">{isRu ? "Бесплатно" : "Free"}</span>
-                    ) : plan.price === -1 ? (
-                      <span className="text-2xl font-medium text-white">{isRu ? "Индивидуально" : "Custom"}</span>
-                    ) : (
-                      <>
-                        <span className="text-2xl font-medium text-white">{plan.price} ₽</span>
-                        <span className="text-[15px] text-white/40">{plan.period ? i(plan.period as { ru: string; en: string }) : ""}</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-[14px] text-white/50 mt-1">{i(plan.description)}</p>
-                </div>
-
-                <ul className="flex-1 space-y-2.5 mb-5">
-                  {plan.features[locale].map((feature) => (
-                    <li key={feature} className="flex items-start gap-2.5">
-                      <Check size={14} className="shrink-0 mt-0.5 text-white/60" />
-                      <span className="text-[14px] text-white/80">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  onClick={() => !plan.current && handleSelect(plan.id)}
-                  disabled={!!plan.current || selectedPlan === plan.id}
-                  className={`w-full rounded-xl py-2.5 text-[15px] font-medium transition-all ${
-                    selectedPlan === plan.id
-                      ? "bg-white/20 text-white cursor-default"
-                      : plan.current
-                      ? "bg-white/[0.04] text-white/30 cursor-default border border-white/[0.06]"
-                      : plan.popular
-                      ? "bg-white text-[#161616] hover:bg-white/90 active:scale-[0.98]"
-                      : "bg-white/[0.06] text-white/80 hover:bg-white/[0.1] border border-white/[0.06]"
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col rounded-xl border p-5 transition-all duration-200 ${
+                    plan.popular
+                      ? "border-white/[0.15] bg-white/[0.04]"
+                      : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1]"
                   }`}
                 >
-                  {selectedPlan === plan.id ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Check size={14} />
-                      {isRu ? "Выбрано" : "Selected"}
-                    </span>
-                  ) : plan.current ? (
-                    isRu ? "Текущий" : "Current plan"
-                  ) : plan.price === -1 ? (
-                    isRu ? "Связаться" : "Contact sales"
-                  ) : (
-                    `${isRu ? "Перейти на" : "Upgrade to"} ${plan.name}`
+                  {plan.popular && !isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-0.5 text-[11px] font-semibold text-[#161616]">
+                      {isRu ? "Популярный" : "Most popular"}
+                    </div>
                   )}
-                </button>
-              </div>
-            ))}
+
+                  {isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white/[0.1] border border-white/[0.15] px-3 py-0.5 text-[11px] font-medium text-white/60">
+                      {isRu ? "Текущий" : "Current"}
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <span className="text-[16px] font-medium text-white">{plan.name}</span>
+                    <div className="flex items-baseline gap-1 mt-2">
+                      {plan.price === 0 ? (
+                        <span className="text-2xl font-medium text-white">{isRu ? "Бесплатно" : "Free"}</span>
+                      ) : plan.price === -1 ? (
+                        <span className="text-2xl font-medium text-white">{isRu ? "Индивидуально" : "Custom"}</span>
+                      ) : (
+                        <>
+                          <span className="text-2xl font-medium text-white">{plan.price} ₽</span>
+                          <span className="text-[15px] text-white/40">{plan.period ? i(plan.period as { ru: string; en: string }) : ""}</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-[14px] text-white/50 mt-1">{i(plan.description)}</p>
+                  </div>
+
+                  <ul className="flex-1 space-y-2.5 mb-5">
+                    {plan.features[locale].map((feature) => (
+                      <li key={feature} className="flex items-start gap-2.5">
+                        <Check size={14} className="shrink-0 mt-0.5 text-white/60" />
+                        <span className="text-[14px] text-white/80">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    onClick={() => (isUpgrade || plan.isEnterprise) ? handleSelect(plan.id) : undefined}
+                    disabled={isCurrent || isDowngrade || plan.id === "free"}
+                    className={`w-full rounded-xl py-2.5 text-[15px] font-medium transition-all flex items-center justify-center gap-2 ${
+                      isCurrent
+                        ? "bg-white/[0.04] text-white/30 cursor-default border border-white/[0.06]"
+                        : isUpgrade
+                        ? plan.popular
+                          ? "bg-white text-[#161616] hover:bg-white/90 active:scale-[0.98]"
+                          : "bg-white/[0.06] text-white/80 hover:bg-white/[0.1] border border-white/[0.06]"
+                        : plan.isEnterprise
+                        ? "bg-white/[0.06] text-white/80 hover:bg-white/[0.1] border border-white/[0.06]"
+                        : "bg-white/[0.04] text-white/20 cursor-default border border-white/[0.06]"
+                    }`}
+                  >
+                    {isCurrent ? (
+                      isRu ? "Текущий план" : "Current plan"
+                    ) : isUpgrade ? (
+                      <>
+                        {isRu ? "Пополнить баланс" : "Top up balance"}
+                        <ArrowRight size={14} />
+                      </>
+                    ) : plan.isEnterprise ? (
+                      isRu ? "Связаться" : "Contact sales"
+                    ) : (
+                      plan.name
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Explanation */}
+          <div className="px-8 pb-6">
+            <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] px-5 py-4">
+              <p className="text-[13px] text-white/40 leading-relaxed">
+                {isRu
+                  ? "Пополните баланс криптовалютой — первое пополнение автоматически активирует Pro. Тарификация по токенам, баланс общий с Мира."
+                  : "Top up with crypto — first top-up activates Pro. Pay-per-token billing, shared balance with Mira."}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -281,8 +308,8 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
         <div className="px-8 py-5 text-center border-t border-white/[0.04] shrink-0">
           <p className="text-[14px] text-white/30">
             {isRu
-              ? "Тарифицируется отдельно от подписки Мира. Ежемесячная оплата."
-              : "Billed separately from Mira subscription. Billed monthly."}
+              ? "Оплата криптовалютой через CryptoCloud. Баланс общий для Мира и Mira Code."
+              : "Crypto payments via CryptoCloud. Shared balance for Mira and Mira Code."}
           </p>
         </div>
       </div>

@@ -31,7 +31,9 @@ pub async fn transcribe(
         form = form.text("language", lang);
     }
 
-    let url = format!("{}/transcribe", config.whisper_url);
+    // Use GPU voice server if available, fall back to local Whisper
+    let base_url = if config.whisper_url.is_empty() { "http://127.0.0.1:8787" } else { &config.whisper_url };
+    let url = format!("{}/transcribe", base_url);
 
     let client = reqwest::Client::new();
     let res = client

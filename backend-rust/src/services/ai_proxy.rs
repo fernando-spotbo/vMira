@@ -912,6 +912,8 @@ pub fn stream_ai_response(
         });
 
         if voice_mode {
+            // Disable thinking for instant responses — no <think> tags generated
+            body["enable_thinking"] = json!(false);
             body["tools"] = json!([web_search_tool()]);
         } else if supports_tools {
             body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool(), read_memory_tool()]);

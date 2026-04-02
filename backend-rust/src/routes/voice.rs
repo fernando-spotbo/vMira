@@ -126,12 +126,11 @@ async fn synthesize(
     let lang = req.language.as_deref().unwrap_or("en");
 
     match tts::synthesize(&state.config, text, lang).await {
-        Ok(audio) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "audio/mpeg")],
-            audio,
-        )
-            .into_response(),
+        Ok(audio) => {
+            // Detect format: WAV starts with "RIFF", otherwise assume MP3
+            let mime = if audio.len() > 4 && &audio[..4] == b"RIFF" { "audio/wav" } else { "audio/mpeg" };
+            (StatusCode::OK, [(header::CONTENT_TYPE, mime)], audio).into_response()
+        }
         Err(e) => {
             tracing::error!("TTS synthesis failed: {e}");
             (

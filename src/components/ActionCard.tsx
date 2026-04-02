@@ -475,15 +475,30 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ── LiveStockCard — polls while visible
+// ── LiveStockCard — polls while visible, range selector, time labels
 // ═══════════════════════════════════════════════════════════════════════
+
+const RANGES = ["1d", "5d", "1mo", "1y"] as const;
+const RANGE_KEYS: Record<string, string> = { "1d": "stock.1d", "5d": "stock.1w", "1mo": "stock.1m", "1y": "stock.1y" };
+
+function formatTimeLabel(ts: number, range: string): string {
+  const d = new Date(ts * 1000);
+  switch (range) {
+    case "1d": return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    case "5d": return d.toLocaleDateString("en-US", { weekday: "short" });
+    case "1mo": return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    case "1y": return d.toLocaleDateString("en-US", { month: "short" });
+    default: return "";
+  }
+}
 
 function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [priceKey, setPriceKey] = useState(0);
-  const [liveTime, setLiveTime] = useState<string>("");
+  const [liveTime, setLiveTime] = useState("");
+  const [range, setRange] = useState<string>("1d");
   const p = payload;
   const symbol = String(p.symbol || "");
 
@@ -503,22 +518,27 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
     chart: (p.chart as LiveStockData["chart"]) || [],
   };
 
-  // Poll every 5 seconds
-  const { data, flash } = useLiveStock(symbol, initialData, containerRef, 5_000);
+  const { data, flash } = useLiveStock(symbol, initialData, containerRef, range);
   const d = data || initialData;
   const isUp = d.change >= 0;
   const accentColor = isUp ? "#4ade80" : "#f87171";
   const lineColor = isUp ? "rgba(74,222,128,0.7)" : "rgba(248,113,113,0.7)";
   const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Bump animation key on price change
-  useEffect(() => {
-    if (flash) setPriceKey((k) => k + 1);
-  }, [flash]);
+  useEffect(() => { if (flash) setPriceKey((k) => k + 1); }, [flash]);
 
-  // Live clock — updates every second to show freshness
+  // Live clock with timezone
   useEffect(() => {
-    const tick = () => setLiveTime(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    const tick = () => {
+      try {
+        setLiveTime(new Intl.DateTimeFormat("en-US", {
+          hour: "2-digit", minute: "2-digit", second: "2-digit",
+          hour12: true, timeZoneName: "short",
+        }).format(new Date()));
+      } catch {
+        setLiveTime(new Date().toLocaleTimeString());
+      }
+    };
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
@@ -530,11 +550,12 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
     if (d.chart.length < 2) return [];
     const prices = d.chart.map(c => c.price);
     const minP = Math.min(...prices), maxP = Math.max(...prices);
-    const range = maxP - minP || 1;
+    const rng = maxP - minP || 1;
     return d.chart.map((c, i) => ({
       x: PAD + (i / (d.chart.length - 1)) * (W - PAD * 2),
-      y: PAD + (1 - (c.price - minP) / range) * (H - PAD * 2),
+      y: PAD + (1 - (c.price - minP) / rng) * (H - PAD * 2),
       price: c.price,
+      time: c.time,
     }));
   }, [d.chart]);
 
@@ -560,8 +581,8 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
     if (d.previous_close <= 0 || d.chart.length < 2) return null;
     const prices = d.chart.map(c => c.price);
     const minP = Math.min(...prices), maxP = Math.max(...prices);
-    const range = maxP - minP || 1;
-    return PAD + (1 - (d.previous_close - minP) / range) * (H - PAD * 2);
+    const rng = maxP - minP || 1;
+    return PAD + (1 - (d.previous_close - minP) / rng) * (H - PAD * 2);
   }, [d.chart, d.previous_close]);
 
   const hoverPt = useMemo(() => {
@@ -581,20 +602,33 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
     setHoverX((e.clientX - rect.left) / rect.width * W);
   };
 
-  // Compute live dot position as % for an overlay div (avoids SVG distortion)
+  // X-axis time labels (5 evenly spaced)
+  const timeLabels = useMemo(() => {
+    if (d.chart.length < 2) return [];
+    const count = 5;
+    const step = Math.floor(d.chart.length / count);
+    const labels: { x: number; label: string }[] = [];
+    for (let i = 0; i < count; i++) {
+      const idx = Math.min(i * step, d.chart.length - 1);
+      const pt = chartPts[idx];
+      if (pt) labels.push({ x: pt.x, label: formatTimeLabel(d.chart[idx].time, range) });
+    }
+    return labels;
+  }, [d.chart, chartPts, range]);
+
   const dotPos = lastPt ? { left: `${(lastPt.x / W) * 100}%`, top: `${(lastPt.y / H) * 100}%` } : null;
 
   const keyframes = `
-    @keyframes stock-ring-pulse { 0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: 0.5; } 50% { transform: translate(-50%,-50%) scale(2.2); opacity: 0; } }
-    @keyframes stock-price-flash { 0% { transform: scale(1.05); } 100% { transform: scale(1); } }
-    @keyframes stock-draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
+    @keyframes stock-ring-pulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.5}50%{transform:translate(-50%,-50%) scale(2.2);opacity:0}}
+    @keyframes stock-price-flash{0%{transform:scale(1.05)}100%{transform:scale(1)}}
+    @keyframes stock-draw{from{stroke-dashoffset:2000}to{stroke-dashoffset:0}}
   `;
 
   return (
     <div ref={containerRef} className="px-5 pb-5 pt-1">
       <style dangerouslySetInnerHTML={{ __html: keyframes }} />
 
-      {/* Symbol + Name + Live clock */}
+      {/* Header: Symbol + Live clock with timezone */}
       <div className="flex items-baseline justify-between">
         <div>
           {d.name !== d.symbol && <p className="text-[13px] text-white/30">{d.name}</p>}
@@ -603,13 +637,13 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-white/20">
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor, opacity: 0.7 }} />
-            Live
+            {t("stock.live")}
           </span>
-          <span className="text-[11px] text-white/15 tabular-nums">{liveTime}</span>
+          <span className="text-[10px] text-white/15 tabular-nums">{liveTime}</span>
         </div>
       </div>
 
-      {/* Price — flash on change */}
+      {/* Price — smooth transition + flash */}
       <div className="flex items-baseline gap-3 mt-2">
         <span
           key={priceKey}
@@ -625,7 +659,7 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
         <span className="text-[13px] text-white/30">{d.currency}</span>
       </div>
 
-      {/* Change badge */}
+      {/* Change */}
       <div className="flex items-center gap-2 mt-1">
         {isUp
           ? <TrendingUp size={14} strokeWidth={1.8} style={{ color: `${accentColor}b0` }} />
@@ -636,88 +670,98 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
         </span>
       </div>
 
-      {/* Interactive Chart */}
+      {/* Range selector tabs */}
+      <div className="flex gap-1 mt-4 mb-3">
+        {RANGES.map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`px-3 py-1 rounded-md text-[12px] font-medium transition-all duration-200 ${
+              range === r
+                ? "bg-white/[0.1] text-white"
+                : "text-white/30 hover:text-white/60 hover:bg-white/[0.04]"
+            }`}
+          >
+            {t(RANGE_KEYS[r])}
+          </button>
+        ))}
+      </div>
+
+      {/* Interactive Chart + Time Labels */}
       {chartPts.length > 1 && (
-        <div
-          ref={chartAreaRef}
-          className="mt-4 -mx-1 relative cursor-crosshair"
-          onMouseMove={handleChartMouse}
-          onMouseLeave={() => setHoverX(null)}
-        >
-          <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block">
-            <defs>
-              <linearGradient id={`stock-grad-${symbol}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={accentColor} stopOpacity="0.12" />
-                <stop offset="100%" stopColor={accentColor} stopOpacity="0" />
-              </linearGradient>
-            </defs>
+        <>
+          <div
+            ref={chartAreaRef}
+            className="-mx-1 relative cursor-crosshair"
+            onMouseMove={handleChartMouse}
+            onMouseLeave={() => setHoverX(null)}
+          >
+            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block">
+              <defs>
+                <linearGradient id={`stock-grad-${symbol}-${range}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accentColor} stopOpacity="0.12" />
+                  <stop offset="100%" stopColor={accentColor} stopOpacity="0" />
+                </linearGradient>
+              </defs>
 
-            {prevCloseY !== null && (
-              <line x1={0} y1={prevCloseY} x2={W} y2={prevCloseY} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />
-            )}
+              {prevCloseY !== null && range === "1d" && (
+                <line x1={0} y1={prevCloseY} x2={W} y2={prevCloseY} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />
+              )}
 
-            {chartFill && <path d={chartFill} fill={`url(#stock-grad-${symbol})`} />}
+              {chartFill && <path d={chartFill} fill={`url(#stock-grad-${symbol}-${range})`} />}
 
-            {chartPath && (
-              <path d={chartPath} fill="none" stroke={lineColor} strokeWidth="1.8" strokeLinecap="round"
-                style={{ strokeDasharray: 2000, strokeDashoffset: 0, animation: "stock-draw 1.2s cubic-bezier(0.16, 1, 0.3, 1)" }}
-              />
-            )}
+              {chartPath && (
+                <path key={range} d={chartPath} fill="none" stroke={lineColor} strokeWidth="1.8" strokeLinecap="round"
+                  style={{ strokeDasharray: 2000, strokeDashoffset: 0, animation: "stock-draw 1s cubic-bezier(0.16, 1, 0.3, 1)" }}
+                />
+              )}
 
-            {/* Hover crosshair — inside SVG for the line */}
+              {hoverPt && (
+                <line x1={hoverPt.x} y1={0} x2={hoverPt.x} y2={H} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+              )}
+            </svg>
+
+            {/* Hover dot */}
             {hoverPt && (
-              <line x1={hoverPt.x} y1={0} x2={hoverPt.x} y2={H} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-            )}
-          </svg>
-
-          {/* Hover dot — rendered as overlay div so it stays circular */}
-          {hoverPt && (
-            <div className="absolute pointer-events-none" style={{ left: `${(hoverPt.x / W) * 100}%`, top: `${(hoverPt.y / H) * 100}%`, transform: "translate(-50%,-50%)" }}>
-              <div className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: accentColor, boxShadow: `0 0 6px ${accentColor}80` }} />
-            </div>
-          )}
-
-          {/* Live endpoint dot — overlay div (not SVG) for perfect circle */}
-          {dotPos && !hoverPt && (
-            <div className="absolute pointer-events-none" style={{ left: dotPos.left, top: dotPos.top, transform: "translate(-50%,-50%)" }}>
-              {/* Pulse ring */}
-              <div
-                className="absolute w-5 h-5 rounded-full"
-                style={{
-                  backgroundColor: accentColor,
-                  opacity: 0.15,
-                  top: "50%", left: "50%",
-                  animation: "stock-ring-pulse 2.5s ease-in-out infinite",
-                }}
-              />
-              {/* Solid dot */}
-              <div
-                className="relative w-[7px] h-[7px] rounded-full border-[1.5px] border-[#161616]"
-                style={{ backgroundColor: accentColor, boxShadow: `0 0 8px ${accentColor}60` }}
-              />
-            </div>
-          )}
-
-          {/* Hover price tooltip */}
-          {hoverPt && (
-            <div className="absolute pointer-events-none" style={{ left: `${(hoverPt.x / W) * 100}%`, top: -4, transform: "translateX(-50%) translateY(-100%)" }}>
-              <div className="px-2.5 py-1 rounded-md text-[11px] tabular-nums text-white/80"
-                style={{ backgroundColor: "rgba(20,20,20,0.92)", border: "1px solid rgba(255,255,255,0.08)" }}
-              >
-                {fmt(hoverPt.price)}
+              <div className="absolute pointer-events-none" style={{ left: `${(hoverPt.x / W) * 100}%`, top: `${(hoverPt.y / H) * 100}%`, transform: "translate(-50%,-50%)" }}>
+                <div className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: accentColor, boxShadow: `0 0 6px ${accentColor}80` }} />
               </div>
-            </div>
-          )}
-        </div>
+            )}
+
+            {/* Live endpoint dot */}
+            {dotPos && !hoverPt && (
+              <div className="absolute pointer-events-none" style={{ left: dotPos.left, top: dotPos.top, transform: "translate(-50%,-50%)" }}>
+                <div className="absolute w-5 h-5 rounded-full" style={{ backgroundColor: accentColor, opacity: 0.15, top: "50%", left: "50%", animation: "stock-ring-pulse 2.5s ease-in-out infinite" }} />
+                <div className="relative w-[7px] h-[7px] rounded-full border-[1.5px] border-[#161616]" style={{ backgroundColor: accentColor, boxShadow: `0 0 8px ${accentColor}60` }} />
+              </div>
+            )}
+
+            {/* Hover tooltip */}
+            {hoverPt && (
+              <div className="absolute pointer-events-none" style={{ left: `${(hoverPt.x / W) * 100}%`, top: -4, transform: "translateX(-50%) translateY(-100%)" }}>
+                <div className="px-2.5 py-1 rounded-md text-[11px] tabular-nums text-white/80" style={{ backgroundColor: "rgba(20,20,20,0.92)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  {fmt(hoverPt.price)}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* X-axis time labels */}
+          <div className="flex justify-between -mx-1 mt-1.5 px-1">
+            {timeLabels.map((tl, i) => (
+              <span key={i} className="text-[10px] text-white/20 tabular-nums">{tl.label}</span>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* Details row — same font as price (no monospace) */}
+      {/* Details row — i18n labels */}
       <div className="flex gap-4 mt-3 pt-3 border-t border-white/[0.06]">
         {[
-          { label: "Open", value: d.open },
-          { label: "Prev Close", value: d.previous_close },
-          { label: "High", value: d.high },
-          { label: "Low", value: d.low },
+          { label: t("stock.open"), value: d.open },
+          { label: t("stock.prevClose"), value: d.previous_close },
+          { label: t("stock.high"), value: d.high },
+          { label: t("stock.low"), value: d.low },
         ].map((item, i) => (
           <div key={i} className="flex-1">
             <p className="text-[11px] text-white/20">{item.label}</p>

@@ -1319,7 +1319,7 @@ pub fn stream_ai_response(
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("SPY");
 
-                            match crate::services::stock::get_stock_quote(symbol).await {
+                            match crate::services::stock::get_stock_quote(symbol, None).await {
                                 Ok(quote) => {
                                     let stock_payload = json!({
                                         "symbol": quote.symbol,

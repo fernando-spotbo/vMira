@@ -7,10 +7,11 @@
 //! (30 requests per 60 seconds per IP) to prevent abuse.
 
 use axum::{
-    extract::{ConnectInfo, Path, State},
+    extract::{ConnectInfo, Path, Query, State},
     routing::get,
     Json, Router,
 };
+use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use crate::db::AppState;
@@ -31,10 +32,12 @@ async fn get_stock(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Path(symbol): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     rate_limit_live(&state, &addr).await?;
 
-    let quote = crate::services::stock::get_stock_quote(&symbol)
+    let range = params.get("range").map(|s| s.as_str());
+    let quote = crate::services::stock::get_stock_quote(&symbol, range)
         .await
         .map_err(|e| AppError::BadRequest(e))?;
 

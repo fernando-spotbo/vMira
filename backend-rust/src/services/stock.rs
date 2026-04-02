@@ -137,14 +137,20 @@ async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
 
 // ── Yahoo Finance (US/global stocks, no key needed) ─────────────────────
 
-async fn fetch_yahoo(symbol: &str) -> Result<StockQuote, String> {
+async fn fetch_yahoo(symbol: &str, range: Option<&str>) -> Result<StockQuote, String> {
     let client = reqwest::Client::new();
     let upper = symbol.to_uppercase();
 
-    // Fetch intraday (5min intervals, 1 day) for chart
+    let (api_range, api_interval) = match range.unwrap_or("1d") {
+        "5d" => ("5d", "30m"),
+        "1mo" => ("1mo", "1d"),
+        "1y" => ("1y", "1wk"),
+        _ => ("1d", "5m"),  // default
+    };
+
     let url = format!(
-        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=5m&range=1d&includePrePost=true",
-        upper
+        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval={}&range={}&includePrePost=true",
+        upper, api_interval, api_range
     );
 
     let resp = client.get(&url)
@@ -225,10 +231,10 @@ async fn fetch_yahoo(symbol: &str) -> Result<StockQuote, String> {
 
 // ── Public API ──────────────────────────────────────────────────────────
 
-pub async fn get_stock_quote(symbol: &str) -> Result<StockQuote, String> {
+pub async fn get_stock_quote(symbol: &str, range: Option<&str>) -> Result<StockQuote, String> {
     if is_moex_ticker(symbol) {
         fetch_moex(symbol).await
     } else {
-        fetch_yahoo(symbol).await
+        fetch_yahoo(symbol, range).await
     }
 }

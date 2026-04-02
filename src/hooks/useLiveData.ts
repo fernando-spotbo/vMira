@@ -61,23 +61,34 @@ function useIsVisible(ref: React.RefObject<HTMLElement | null>) {
 
 // ── useLiveStock ─────────────────────────────────────────
 
-/** Polls stock data every `intervalMs` while the ref element is visible. */
+/** Poll intervals per range (ms). 1D is aggressive, longer ranges less so. */
+const RANGE_INTERVALS: Record<string, number> = {
+  "1d": 15_000,
+  "5d": 60_000,
+  "1mo": 120_000,
+  "1y": 300_000,
+};
+
+/** Polls stock data while the ref element is visible. Supports range param. */
 export function useLiveStock(
   symbol: string,
   initialData: LiveStockData | null,
   containerRef: React.RefObject<HTMLElement | null>,
-  intervalMs = 20_000, // 20 seconds
+  range: string = "1d",
 ) {
   const [data, setData] = useState<LiveStockData | null>(initialData);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
   const visible = useIsVisible(containerRef);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalMs = RANGE_INTERVALS[range] || 15_000;
 
   const fetchStock = useCallback(async () => {
     if (!symbol) return;
     try {
-      const result = await apiCall<LiveStockData>(`/live/stock/${encodeURIComponent(symbol)}`);
+      const result = await apiCall<LiveStockData>(
+        `/live/stock/${encodeURIComponent(symbol)}?range=${encodeURIComponent(range)}`
+      );
       if (result.ok) {
         setData((prev) => {
           if (prev && prev.price !== result.data.price) {
@@ -91,22 +102,21 @@ export function useLiveStock(
     } catch {
       // Silent fail — keep showing last data
     }
-  }, [symbol]);
+  }, [symbol, range]);
 
+  // Re-fetch immediately when range changes
   useEffect(() => {
     if (!visible || !symbol) {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       return;
     }
 
-    // Fetch immediately on becoming visible
     fetchStock();
-
     timerRef.current = setInterval(fetchStock, intervalMs);
     return () => {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     };
-  }, [visible, symbol, intervalMs, fetchStock]);
+  }, [visible, symbol, range, intervalMs, fetchStock]);
 
   return { data, prevPrice, flash };
 }

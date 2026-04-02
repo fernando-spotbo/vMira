@@ -633,7 +633,7 @@ function ChatItem({
       {menuOpen && (
         <div
           ref={menuRef}
-          className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+          className="absolute right-0 top-full z-50 mt-1 w-48 overflow-visible rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
         >
           <button
             onClick={() => { starConversation(conv.id); setMenuOpen(false); }}

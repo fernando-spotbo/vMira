@@ -50,89 +50,121 @@ const UPGRADE_PLANS = [
   { id: "max", name: "Max", price: "990 ₽/мес", messages: "Безлимит" },
 ];
 
-function ErrorBanner({ error, onUpgrade, onLogin }: { error: MessageError; onUpgrade?: () => void; onLogin?: () => void }) {
-  const config = {
+function ErrorBanner({
+  error,
+  onRetry,
+  onUpgrade,
+  onLogin,
+}: {
+  error: MessageError;
+  onRetry?: () => void;
+  onUpgrade?: () => void;
+  onLogin?: () => void;
+}) {
+  const config: Record<string, { icon: React.ReactNode; label: string; labelColor: string }> = {
     rate_limit: {
-      icon: <Clock size={15} />,
-      accent: "text-white/60",
-      bg: "bg-white/[0.03]",
-      border: "border-white/[0.06]",
+      icon: <Clock size={13} strokeWidth={1.8} />,
+      label: "Rate limited",
+      labelColor: "text-white/40",
     },
     payment: {
-      icon: <CreditCard size={15} />,
-      accent: "text-white/60",
-      bg: "bg-white/[0.03]",
-      border: "border-white/[0.06]",
+      icon: <CreditCard size={13} strokeWidth={1.8} />,
+      label: "Insufficient balance",
+      labelColor: "text-white/40",
     },
     cancelled: {
-      icon: <AlertCircle size={15} />,
-      accent: "text-white/35",
-      bg: "bg-white/[0.02]",
-      border: "border-white/[0.05]",
+      icon: <AlertCircle size={13} strokeWidth={1.8} />,
+      label: "Cancelled",
+      labelColor: "text-white/25",
     },
     generic: {
-      icon: <AlertCircle size={15} />,
-      accent: "text-white/50",
-      bg: "bg-white/[0.03]",
-      border: "border-white/[0.06]",
+      icon: <AlertCircle size={13} strokeWidth={1.8} />,
+      label: "Error",
+      labelColor: "text-white/40",
     },
-  }[error.type];
+  };
+
+  const c = config[error.type] || config.generic;
+  const canRetry = error.type === "generic" || error.type === "cancelled";
 
   return (
-    <div className="mt-1.5 space-y-2.5 error-banner-enter">
-      {/* Error message */}
-      <div className={`flex items-start gap-2.5 rounded-xl ${config.bg} border ${config.border} px-3.5 py-2.5`}>
-        <div className={`mt-[1px] shrink-0 ${config.accent}`}>
-          {config.icon}
+    <div className="mt-2 space-y-3 error-banner-enter">
+      <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
+        {/* Badge + message */}
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 shrink-0 text-white/25">{c.icon}</div>
+          <div className="flex-1 min-w-0">
+            {/* Type badge */}
+            <span className={`inline-block text-[11px] uppercase tracking-[0.08em] font-medium ${c.labelColor} mb-1`}>
+              {c.label}
+            </span>
+            <p className="text-[14px] leading-relaxed text-white/45">{error.message}</p>
+
+            {/* Payment CTA */}
+            {error.type === "payment" && (
+              <a
+                href="https://platform.vmira.ai/billing/topup"
+                className="inline-flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 mt-2 transition-colors"
+              >
+                {t("error.topupCta")}
+                <span className="text-[11px]">&rarr;</span>
+              </a>
+            )}
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className={`text-[13.5px] leading-relaxed ${config.accent}`}>
-            {error.message}
-          </p>
-          {error.type === "payment" && (
-            <a
-              href="https://platform.vmira.ai/billing/topup"
-              className="inline-flex items-center gap-1 text-[16px] text-white/50 hover:text-white/70 mt-1.5 transition-colors duration-200"
-            >
-              {t("error.topupCta")}
-              <span className="text-[14px]">→</span>
-            </a>
-          )}
-        </div>
+
+        {/* Action row */}
+        {(canRetry || error.type === "rate_limit") && (
+          <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-white/[0.04]">
+            {canRetry && onRetry && (
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[13px] text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
+              >
+                <RotateCcw size={12} strokeWidth={1.8} />
+                Retry
+              </button>
+            )}
+
+            {error.type === "rate_limit" && error.retryAfterMinutes && (
+              <span className="text-[12px] text-white/20 tabular-nums">
+                Available in {error.retryAfterMinutes}m
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Guest limit — offer login */}
+      {/* Guest limit — login CTA */}
       {error.type === "rate_limit" && error.message === t("error.guestLimit") && onLogin && (
-        <div className="error-banner-enter" style={{ animationDelay: "120ms" }}>
-          <button
-            onClick={onLogin}
-            className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-[16px] text-white/60 hover:text-white/80 hover:bg-white/[0.07] transition-all"
-          >
-            {t("error.loginCta")} <span className="text-[14px]">→</span>
-          </button>
-        </div>
+        <button
+          onClick={onLogin}
+          className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5 text-[13px] text-white/50 hover:text-white/80 hover:bg-white/[0.05] transition-all error-banner-enter"
+          style={{ animationDelay: "100ms" }}
+        >
+          {t("error.loginCta")}
+          <span className="text-[11px]">&rarr;</span>
+        </button>
       )}
 
-      {/* Upgrade cards for rate limit (authenticated users only) */}
+      {/* Upgrade cards for rate limit (authenticated users) */}
       {error.type === "rate_limit" && error.message !== t("error.guestLimit") && (
-        <div className="space-y-2 error-banner-enter" style={{ animationDelay: "120ms" }}>
-          <p className="text-[16px] text-white/30">{t("error.upgradeCta")}</p>
+        <div className="space-y-2 error-banner-enter" style={{ animationDelay: "100ms" }}>
+          <p className="text-[12px] text-white/25">{t("error.upgradeCta")}</p>
           <div className="flex gap-2">
             {UPGRADE_PLANS.map((plan, i) => (
               <button
                 key={plan.id}
                 onClick={onUpgrade}
-                className="upgrade-card flex-1 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3 text-left error-banner-enter"
-                style={{
-                  animationDelay: `${180 + i * 80}ms`,
-                }}
+                className="upgrade-card flex-1 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3.5 py-3 text-left error-banner-enter"
+                style={{ animationDelay: `${160 + i * 70}ms` }}
               >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="h-1.5 w-1.5 rounded-full bg-white/30" />
-                  <span className="text-[16px] font-medium text-white/80">{plan.name}</span>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-1.5 w-1.5 rounded-full bg-white/20" />
+                  <span className="text-[14px] font-medium text-white/70">{plan.name}</span>
                 </div>
-                <p className="text-[16px] text-white/40">{plan.messages}</p>
-                <p className="text-[16px] text-white/20 mt-0.5">{plan.price}</p>
+                <p className="text-[13px] text-white/35">{plan.messages}</p>
+                <p className="text-[12px] text-white/20 mt-0.5">{plan.price}</p>
               </button>
             ))}
           </div>
@@ -418,7 +450,21 @@ export default function MessageBubble({
   const [externalLink, setExternalLink] = useState<string | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === "user";
-  const { activeConversationId, addMessage, replaceMessage, replaceMessageAndTruncate, resendMessage } = useChat();
+  const { activeConversationId, activeConversation, addMessage, replaceMessage, replaceMessageAndTruncate, resendMessage } = useChat();
+
+  // Find the last user message (for retry on error)
+  const lastUserContent = (() => {
+    if (!activeConversation) return "";
+    const msgs = activeConversation.messages;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") return msgs[i].content;
+    }
+    return "";
+  })();
+
+  const handleRetry = () => {
+    if (lastUserContent) resendMessage(lastUserContent);
+  };
 
   const versions = message.versions ?? [message.content];
   const versionIndex = message.versionIndex ?? versions.length - 1;
@@ -702,6 +748,7 @@ export default function MessageBubble({
             <>
               <ErrorBanner
                 error={message.error!}
+                onRetry={handleRetry}
                 onUpgrade={() => setShowPricing(true)}
                 onLogin={() => setShowAuthModal(true)}
               />
@@ -828,6 +875,7 @@ export default function MessageBubble({
                   <ThumbsDown size={15} />
                 </button>
                 <button
+                  onClick={handleRetry}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white/70 transition-colors"
                   title="Retry"
                 >

@@ -161,7 +161,7 @@ function ProjectList({
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-5 pb-10">
+        <div className="max-w-4xl mx-auto px-5 pb-10">
           {/* Search */}
           {projects.length >= 1 && (
             <div className="mb-5">
@@ -450,7 +450,7 @@ function ProjectDetail({
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-5 pb-10">
+        <div className="max-w-4xl mx-auto px-5 pb-10">
           {/* Project title row */}
           <div className="flex items-start gap-3 mb-8">
             <div className="flex-1 min-w-0">

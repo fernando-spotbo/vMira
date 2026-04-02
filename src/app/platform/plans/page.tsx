@@ -18,8 +18,8 @@ const miraPlan = {
 
 const codePlan = {
   name: "Free",
-  limit: 50,
-  used: 32,
+  limit: 30,
+  used: 22,
   unit: "запросов",
   period: "сегодня",
   resetsAt: "00:00 МСК",

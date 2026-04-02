@@ -1068,8 +1068,8 @@ def call_with_retry(messages, max_retries=3):
 
       <Note type="tip">
         {isRu
-          ? "Для приложений с высокой нагрузкой рекомендуется тариф Max с безлимитными запросами. Это исключает простои из-за лимитов."
-          : "For high-traffic applications, the Max tier with unlimited requests is recommended. This eliminates downtime due to rate limits."}
+          ? "Для приложений с высокой нагрузкой рекомендуется тариф Max. При превышении лимита запросы автоматически оплачиваются из баланса."
+          : "For high-traffic applications, the Max tier is recommended. When the limit is exceeded, requests are automatically charged from your balance."}
       </Note>
 
       <H2>{isRu ? "Следующие шаги" : "Next steps"}</H2>

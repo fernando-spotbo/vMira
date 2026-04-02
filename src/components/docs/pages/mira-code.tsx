@@ -1000,7 +1000,7 @@ function MiraCodePricingPage({ locale }: { locale: Locale }) {
           "", "Free",  "Pro — 499 ₽/" + (isRu ? "мес" : "mo"), "Max — 990 ₽/" + (isRu ? "мес" : "mo"),
         ]}
         rows={[
-          [isRu ? "Запросов в день" : "Requests/day", "50", "1 000", isRu ? "Безлимит" : "Unlimited"],
+          [isRu ? "Запросов в день" : "Requests/day", "30", "500", "2 000"],
           [isRu ? "Модели" : "Models", "Mira Fast", isRu ? "Все (Fast, Pro, Max)" : "All (Fast, Pro, Max)", isRu ? "Все + приоритет" : "All + priority"],
           [isRu ? "Режим мышления" : "Thinking mode", "—", "✓", "✓"],
           [isRu ? "Контекст" : "Context", "32K", "64K", "128K"],
@@ -1021,8 +1021,8 @@ function MiraCodePricingPage({ locale }: { locale: Locale }) {
       <H3>{isRu ? "Могу ли я использовать Mira Code бесплатно?" : "Can I use Mira Code for free?"}</H3>
       <P>
         {isRu
-          ? "Да. Бесплатный план включает 50 запросов в день с моделью Mira Fast. Этого достаточно для знакомства с продуктом."
-          : "Yes. The free plan includes 50 requests per day with the Mira Fast model. Enough to get familiar with the product."}
+          ? "Да. Бесплатный план включает 30 запросов в день с моделью Mira Fast. Этого достаточно для знакомства с продуктом."
+          : "Yes. The free plan includes 30 requests per day with the Mira Fast model. Enough to get familiar with the product."}
       </P>
       <H3>{isRu ? "Связана ли подписка с чатом Мира?" : "Is the subscription linked to Mira chat?"}</H3>
       <P>
@@ -1033,8 +1033,8 @@ function MiraCodePricingPage({ locale }: { locale: Locale }) {
       <H3>{isRu ? "Что произойдёт, если я превышу лимит?" : "What happens if I exceed the limit?"}</H3>
       <P>
         {isRu
-          ? "Запросы сверх дневного лимита будут отклонены до следующего дня. Вы можете обновить план в любой момент."
-          : "Requests beyond the daily limit will be rejected until the next day. You can upgrade your plan at any time."}
+          ? "На платных планах запросы сверх лимита оплачиваются из вашего баланса по тарифу за токен. На бесплатном плане — ожидание до следующего дня."
+          : "On paid plans, requests beyond the limit are charged from your balance at per-token rates. On the free plan, you wait until the next day."}
       </P>
     </>
   );

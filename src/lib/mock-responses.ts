@@ -120,10 +120,10 @@ const steppedResponses: { steps: MessageStep[]; content: string }[] = [
       },
       {
         type: "text",
-        content: "Here's what the latest data shows:\n\n| Tool | Free Tier | Pro Price | Key Strength |\n|------|-----------|-----------|---------------|\n| Copilot | Limited | $19/mo | Deep IDE integration |\n| Cursor | 50 requests | $20/mo | Full-file edits |\n| Mira Code | 100 requests | $10/mo | Reasoning + search |\n\n**My recommendation**: For most developers, the sweet spot is a tool that integrates reasoning with code context. The trend is moving away from simple autocomplete toward **agentic coding** — where the AI can plan, search, and execute multi-step changes.\n\nWant me to dive deeper into any specific tool?",
+        content: "Here's what the latest data shows:\n\n| Tool | Free Tier | Pro Price | Key Strength |\n|------|-----------|-----------|---------------|\n| Copilot | Limited | $19/mo | Deep IDE integration |\n| Cursor | 50 requests | $20/mo | Full-file edits |\n| Mira Code | 30 requests | $5/mo | Reasoning + search |\n\n**My recommendation**: For most developers, the sweet spot is a tool that integrates reasoning with code context. The trend is moving away from simple autocomplete toward **agentic coding** — where the AI can plan, search, and execute multi-step changes.\n\nWant me to dive deeper into any specific tool?",
       },
     ],
-    content: "Here's what the latest data shows:\n\n| Tool | Free Tier | Pro Price | Key Strength |\n|------|-----------|-----------|---------------|\n| Copilot | Limited | $19/mo | Deep IDE integration |\n| Cursor | 50 requests | $20/mo | Full-file edits |\n| Mira Code | 100 requests | $10/mo | Reasoning + search |\n\n**My recommendation**: For most developers, the sweet spot is a tool that integrates reasoning with code context.",
+    content: "Here's what the latest data shows:\n\n| Tool | Free Tier | Pro Price | Key Strength |\n|------|-----------|-----------|---------------|\n| Copilot | Limited | $19/mo | Deep IDE integration |\n| Cursor | 50 requests | $20/mo | Full-file edits |\n| Mira Code | 30 requests | $5/mo | Reasoning + search |\n\n**My recommendation**: For most developers, the sweet spot is a tool that integrates reasoning with code context.",
   },
   {
     // Pattern: text → thinking → text

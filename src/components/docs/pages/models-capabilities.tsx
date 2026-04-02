@@ -341,17 +341,17 @@ function PricingPage({ locale }: { locale: Locale }) {
         model="mira"
         scenario={isRu ? "Чат-бот" : "Chatbot"}
         desc={isRu
-          ? "1 000 запросов/день · 500 токенов ввода · 200 токенов вывода"
-          : "1,000 requests/day · 500 input tokens · 200 output tokens"}
+          ? "500 запросов/день · 500 токенов ввода · 200 токенов вывода"
+          : "500 requests/day · 500 input tokens · 200 output tokens"}
         volume={[
-          { label: isRu ? "Ввод" : "Input", calc: isRu ? "1 000 × 500 × 30" : "1,000 × 500 × 30", result: isRu ? "15M токенов/мес" : "15M tokens/mo" },
-          { label: isRu ? "Вывод" : "Output", calc: isRu ? "1 000 × 200 × 30" : "1,000 × 200 × 30", result: isRu ? "6M токенов/мес" : "6M tokens/mo" },
+          { label: isRu ? "Ввод" : "Input", calc: isRu ? "500 × 500 × 30" : "500 × 500 × 30", result: isRu ? "7,5M токенов/мес" : "7.5M tokens/mo" },
+          { label: isRu ? "Вывод" : "Output", calc: isRu ? "500 × 200 × 30" : "500 × 200 × 30", result: isRu ? "3M токенов/мес" : "3M tokens/mo" },
         ]}
         costs={[
-          { label: isRu ? "Ввод" : "Input", calc: "15M × 50 ₽/1M", result: "750 ₽" },
-          { label: isRu ? "Вывод" : "Output", calc: "6M × 150 ₽/1M", result: "900 ₽" },
+          { label: isRu ? "Ввод" : "Input", calc: "7,5M × 50 ₽/1M", result: "375 ₽" },
+          { label: isRu ? "Вывод" : "Output", calc: "3M × 150 ₽/1M", result: "450 ₽" },
         ]}
-        total={isRu ? "1 650 ₽/мес" : "1,650 ₽/mo"}
+        total={isRu ? "825 ₽/мес" : "825 ₽/mo"}
       />
 
       <CostCard

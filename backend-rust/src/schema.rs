@@ -518,6 +518,29 @@ pub struct SubscribeResponse {
     pub expires_at: String,
 }
 
+// ── Refund DTOs ───────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RefundRequest {
+    /// Subscription ID to refund
+    pub subscription_id: Uuid,
+    /// Wallet address to send refund to (USDT TRC20 by default)
+    pub wallet_address: String,
+    /// Optional: override refund currency (default USDT_TRC20)
+    pub currency: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RefundResponse {
+    pub refund_kopecks: i64,
+    pub refund_rubles: String,
+    pub usdt_amount: f64,
+    pub currency: String,
+    pub wallet_address: String,
+    pub withdrawal_id: String,
+    pub days_used: i64,
+}
+
 // ── Pricing ───────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]

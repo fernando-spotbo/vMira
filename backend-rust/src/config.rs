@@ -63,6 +63,7 @@ pub struct Config {
     pub cryptocloud_api_key: String,
     pub cryptocloud_shop_id: String,
     pub cryptocloud_secret_key: String,
+    pub cryptocloud_withdrawal_api_key: String,
 
     // ── File uploads ─────────────────────────────────────────
     pub upload_dir: String,
@@ -207,6 +208,7 @@ impl Config {
             cryptocloud_api_key: env_or("CRYPTOCLOUD_API_KEY", ""),
             cryptocloud_shop_id: env_or("CRYPTOCLOUD_SHOP_ID", ""),
             cryptocloud_secret_key: env_or("CRYPTOCLOUD_SECRET_KEY", ""),
+            cryptocloud_withdrawal_api_key: env_or("CRYPTOCLOUD_WITHDRAWAL_API_KEY", ""),
 
             upload_dir: env_or("UPLOAD_DIR", "/opt/mira/uploads"),
             max_upload_size: env_or("MAX_UPLOAD_SIZE", "10485760")

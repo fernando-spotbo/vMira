@@ -18,6 +18,7 @@ use crate::schema::{
 };
 use crate::services::billing;
 use crate::services::payment_crypto;
+use crate::services::refund;
 use crate::services::subscription;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -30,6 +31,7 @@ pub fn billing_routes() -> Router<AppState> {
         .route("/transactions", get(get_transactions))
         .route("/pricing", get(get_pricing))
         .route("/subscribe", post(create_subscription))
+        .route("/refund", post(request_refund))
         .route("/topup", post(create_topup))
         .route("/webhook/crypto", post(webhook_crypto))
         .route("/invoice/{id}", get(get_invoice))
@@ -298,6 +300,36 @@ async fn create_subscription(
         plan: body.plan,
         amount_kopecks,
         expires_at,
+    }))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  POST /refund — Request subscription refund (sends crypto to user wallet)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn request_refund(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Json(body): Json<crate::schema::RefundRequest>,
+) -> Result<Json<crate::schema::RefundResponse>, AppError> {
+    let result = refund::process_refund(
+        &state.db,
+        &state.config,
+        user.id,
+        body.subscription_id,
+        &body.wallet_address,
+        body.currency.as_deref(),
+    )
+    .await?;
+
+    Ok(Json(crate::schema::RefundResponse {
+        refund_kopecks: result.refund_kopecks,
+        refund_rubles: kopecks_to_rubles(result.refund_kopecks),
+        usdt_amount: result.usdt_amount,
+        currency: result.currency,
+        wallet_address: result.wallet_address,
+        withdrawal_id: result.withdrawal_id,
+        days_used: result.days_used,
     }))
 }
 

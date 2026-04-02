@@ -131,9 +131,17 @@ function ProjectList({
       {/* ── Header ── */}
       <div className="shrink-0 px-5 pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between h-14">
-          <h1 className="text-[18px] font-semibold text-white">
-            {t("sidebar.projects")}
-          </h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 transition-colors md:hidden"
+            >
+              <ArrowLeft size={16} strokeWidth={1.8} />
+            </button>
+            <h1 className="text-[18px] font-semibold text-white">
+              {t("sidebar.projects")}
+            </h1>
+          </div>
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 rounded-lg bg-white/[0.06] px-4 py-2 text-[14px] font-medium text-white/80 hover:bg-white/[0.10] hover:text-white transition-colors"

@@ -217,7 +217,15 @@ export default function RemindersPage({ onBack }: RemindersPageProps) {
       {/* ── Header ── */}
       <div className="shrink-0 px-5 pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between h-14">
-          <h1 className="text-[18px] font-semibold text-white">{t("reminders.title")}</h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="flex items-center text-white/40 hover:text-white/70 transition-colors md:hidden"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <h1 className="text-[18px] font-semibold text-white">{t("reminders.title")}</h1>
+          </div>
           <div className="relative">
             <button
               onClick={() => setDeliveryOpen(!deliveryOpen)}

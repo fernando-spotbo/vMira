@@ -104,8 +104,8 @@ export default function PricingModal({ onClose }: PricingModalProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
-  const currentPlan = (user as Record<string, unknown>)?.chat_plan as string ?? "free";
-  const expiresAt = (user as Record<string, unknown>)?.chat_plan_expires_at as string | null;
+  const currentPlan = user?.chat_plan ?? "free";
+  const expiresAt = user?.chat_plan_expires_at ?? null;
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 

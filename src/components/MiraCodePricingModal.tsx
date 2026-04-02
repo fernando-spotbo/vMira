@@ -129,9 +129,9 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
   const [loading, setLoading] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
-  const currentPlan = (user as Record<string, unknown>)?.code_plan as string ?? "free";
+  const currentPlan = user?.code_plan ?? "free";
   const currentRank = PLAN_RANK[currentPlan] ?? 0;
-  const expiresAt = (user as Record<string, unknown>)?.code_plan_expires_at as string | null;
+  const expiresAt = user?.code_plan_expires_at ?? null;
 
   useEffect(() => {
     setLocale(getLocale());

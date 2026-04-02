@@ -12,6 +12,13 @@ interface User {
   avatar_url: string | null;
   plan: string;
   language: string;
+  balance_kopecks: number;
+  daily_messages_used: number;
+  allow_overage_billing: boolean;
+  chat_plan: string;
+  chat_plan_expires_at: string | null;
+  code_plan: string;
+  code_plan_expires_at: string | null;
 }
 
 interface AuthContextType {

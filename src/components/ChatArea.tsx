@@ -6,22 +6,26 @@ import MessageBubble from "./MessageBubble";
 import { ChevronDown } from "lucide-react";
 
 /**
- * Chat scroll strategy:
- * - When a NEW message arrives (user sends), scroll to show it at top of view
- * - During streaming, do NOT auto-scroll — user reads from the top down
- * - If user manually scrolls to bottom, re-enable follow mode
- * - "Scroll to bottom" button appears when not at bottom
+ * Chat scroll — "follow until pinned":
+ *
+ * During streaming, auto-scroll follows the growing content (like before).
+ * BUT once the streaming message's top edge hits the top of the viewport,
+ * auto-scroll stops. The message is now pinned at the top and grows downward
+ * out of view — user scrolls down manually to read more.
+ *
+ * User can scroll manually at any time to disengage auto-follow.
  */
+const PIN_MARGIN = 20;
+
 export default function ChatArea() {
   const { activeConversation, activeConversationId, isThinking, isStreaming, loadMoreMessages } = useChat();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const prevConvId = useRef<string | null>(null);
-  const prevMsgCount = useRef(0);
+  const autoFollow = useRef(true);
   const selfScroll = useRef(false);
   const loadingMore = useRef(false);
-  const streamStartedRef = useRef(false);
 
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
@@ -37,57 +41,68 @@ export default function ChatArea() {
     requestAnimationFrame(() => { selfScroll.current = false; });
   }, []);
 
-  // Scroll so the last user message is near the top of the viewport
-  const scrollToLastUserMessage = useCallback(() => {
+  /**
+   * Follow the stream, but stop once the assistant message top is pinned.
+   * Returns true if we should keep following, false if pinned.
+   */
+  const followOrPin = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    // Find the last user message element
-    const userMsgs = el.querySelectorAll("[data-role='user']");
-    const lastUser = userMsgs[userMsgs.length - 1] as HTMLElement | undefined;
-    if (lastUser) {
+    if (!el || !autoFollow.current) return;
+
+    // Find the streaming assistant message
+    const asstMsgs = el.querySelectorAll("[data-role='assistant']");
+    const lastAsst = asstMsgs[asstMsgs.length - 1] as HTMLElement | undefined;
+    if (!lastAsst) {
+      // No assistant message yet — just follow bottom
       selfScroll.current = true;
-      // Position the user message near the top with some padding
-      const targetTop = lastUser.offsetTop - 24;
-      el.scrollTop = targetTop;
+      el.scrollTop = el.scrollHeight;
       requestAnimationFrame(() => { selfScroll.current = false; });
-    } else {
-      scrollToEnd();
+      return;
     }
-  }, [scrollToEnd]);
+
+    // How far is the assistant message top from the viewport top?
+    const asstRect = lastAsst.getBoundingClientRect();
+    const containerRect = el.getBoundingClientRect();
+    const asstTopInView = asstRect.top - containerRect.top;
+
+    if (asstTopInView > PIN_MARGIN) {
+      // Message top is still below the pin point — keep scrolling to bottom
+      selfScroll.current = true;
+      el.scrollTop = el.scrollHeight;
+      requestAnimationFrame(() => { selfScroll.current = false; });
+    }
+    // else: message top has reached (or passed) the pin point — stop scrolling.
+    // Content grows below, user scrolls manually.
+  }, []);
 
   // Conversation switch → scroll to bottom
   useLayoutEffect(() => {
     if (activeConversationId !== prevConvId.current) {
       prevConvId.current = activeConversationId;
-      prevMsgCount.current = messages.length;
-      streamStartedRef.current = false;
+      autoFollow.current = true;
       setShowScrollBtn(false);
       requestAnimationFrame(scrollToEnd);
     }
   });
 
-  // New message added → scroll to show the user message at top
+  // New messages added → scroll if following
   useEffect(() => {
-    if (messages.length > prevMsgCount.current) {
-      prevMsgCount.current = messages.length;
-      // When user sends a message, scroll so their message + the assistant bubble are visible
-      requestAnimationFrame(scrollToLastUserMessage);
-    }
-  }, [messages.length, scrollToLastUserMessage]);
+    if (autoFollow.current) scrollToEnd();
+  }, [messages.length, scrollToEnd]);
 
-  // When streaming starts, do one scroll to pin the user message at top — then stop
+  // Streaming → follow with MutationObserver, but use followOrPin instead of raw scrollToEnd
   useEffect(() => {
-    if (generating && !streamStartedRef.current) {
-      streamStartedRef.current = true;
-      // Small delay to let the assistant bubble render
-      setTimeout(() => scrollToLastUserMessage(), 100);
-    }
-    if (!generating) {
-      streamStartedRef.current = false;
-    }
-  }, [generating, scrollToLastUserMessage]);
+    if (!generating || !autoFollow.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
 
-  // NO MutationObserver auto-scroll — user controls their own scroll during streaming
+    const observer = new MutationObserver(() => {
+      if (!autoFollow.current) return;
+      followOrPin();
+    });
+    observer.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [generating, followOrPin]);
 
   // Scroll handler
   const onScroll = useCallback(() => {
@@ -96,9 +111,15 @@ export default function ChatArea() {
     if (!el) return;
 
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-    setShowScrollBtn(!nearBottom && messages.length > 0);
+    if (nearBottom) {
+      autoFollow.current = true;
+      setShowScrollBtn(false);
+    } else {
+      autoFollow.current = false;
+      if (messages.length > 0) setShowScrollBtn(true);
+    }
 
-    // Infinite scroll — load older messages
+    // Infinite scroll
     if (el.scrollTop < 200 && !loadingMore.current) {
       if (activeConversation?.hasMore && !activeConversation?.loadingMore) {
         loadingMore.current = true;
@@ -149,7 +170,7 @@ export default function ChatArea() {
 
       {showScrollBtn && (
         <button
-          onClick={() => { setShowScrollBtn(false); scrollToEnd(); }}
+          onClick={() => { autoFollow.current = true; setShowScrollBtn(false); scrollToEnd(); }}
           className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-[#252525] border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-[#303030] shadow-lg transition-all"
         >
           <ChevronDown size={16} strokeWidth={2} />

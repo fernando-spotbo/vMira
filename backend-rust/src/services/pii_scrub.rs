@@ -90,26 +90,31 @@ fn is_private_ip(ip: &str) -> bool {
         || ip == "0.0.0.0" || ip == "255.255.255.255"
 }
 
+/// Replace all regex matches in text with UUID-based placeholders.
+fn scrub_regex(
+    re: &Regex,
+    category: &str,
+    text: &mut String,
+    mapping: &mut HashMap<String, String>,
+    validate: Option<&dyn Fn(&str) -> bool>,
+) {
+    let matches: Vec<String> = re.find_iter(text).map(|m| m.as_str().to_string()).collect();
+    for original in matches {
+        if let Some(v) = validate {
+            if !v(&original) { continue; }
+        }
+        let placeholder = make_placeholder(category);
+        mapping.insert(placeholder.clone(), original.clone());
+        *text = text.replacen(&original, &placeholder, 1);
+    }
+}
+
 /// Scrub PII from text, replacing matches with UUID-based placeholders.
 ///
 /// UUID-based placeholders cannot be guessed or injected by attackers.
 pub fn scrub(text: &str, user_name: Option<&str>, user_email: Option<&str>) -> ScrubResult {
     let mut result = text.to_string();
     let mut mapping = HashMap::new();
-
-    // Helper: replace all regex matches with UUID-based placeholders
-    let mut replace_pattern = |re: &Regex, category: &str, text: &mut String, validate: Option<fn(&str) -> bool>| {
-        let matches: Vec<String> = re.find_iter(text).map(|m| m.as_str().to_string()).collect();
-        for original in matches {
-            // Skip validation failures
-            if let Some(v) = validate {
-                if !v(&original) { continue; }
-            }
-            let placeholder = make_placeholder(category);
-            mapping.insert(placeholder.clone(), original.clone());
-            *text = text.replacen(&original, &placeholder, 1);
-        }
-    };
 
     // Scrub user-specific data first (exact match, highest priority)
     if let Some(name) = user_name {
@@ -128,15 +133,15 @@ pub fn scrub(text: &str, user_name: Option<&str>, user_email: Option<&str>) -> S
     }
 
     // Pattern scrubbing (order: specific → general)
-    replace_pattern(&SNILS_RE, "SNILS", &mut result, None);
-    replace_pattern(&CARD_RE, "CARD", &mut result, Some(|s: &str| {
+    scrub_regex(&SNILS_RE, "SNILS", &mut result, &mut mapping, None);
+    scrub_regex(&CARD_RE, "CARD", &mut result, &mut mapping, Some(&|s: &str| {
         let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
         luhn_check(&digits)
     }));
-    replace_pattern(&PASSPORT_RE, "PASSPORT", &mut result, None);
-    replace_pattern(&EMAIL_RE, "EMAIL", &mut result, None);
-    replace_pattern(&PHONE_RE, "PHONE", &mut result, None);
-    replace_pattern(&IPV4_RE, "IP", &mut result, Some(|s: &str| !is_private_ip(s)));
+    scrub_regex(&PASSPORT_RE, "PASSPORT", &mut result, &mut mapping, None);
+    scrub_regex(&EMAIL_RE, "EMAIL", &mut result, &mut mapping, None);
+    scrub_regex(&PHONE_RE, "PHONE", &mut result, &mut mapping, None);
+    scrub_regex(&IPV4_RE, "IP", &mut result, &mut mapping, Some(&|s: &str| !is_private_ip(s)));
 
     // NOTE: INN intentionally excluded — too many false positives (any 10-digit number).
     // INN protection relies on the user not typing their INN in chat, which is rare.

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { X, Check, Terminal, ArrowRight } from "lucide-react";
+import { X, Check, Terminal, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { subscribe } from "@/lib/api-billing";
 
 interface MiraCodePricingModalProps {
   onClose: () => void;
@@ -126,11 +126,12 @@ function getLocale(): "ru" | "en" {
 export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalProps) {
   const [visible, setVisible] = useState(false);
   const [locale, setLocale] = useState<"ru" | "en">("ru");
+  const [loading, setLoading] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const { user } = useAuth();
-  const currentPlan = user?.plan ?? "free";
+  const currentPlan = (user as Record<string, unknown>)?.code_plan as string ?? "free";
   const currentRank = PLAN_RANK[currentPlan] ?? 0;
+  const expiresAt = (user as Record<string, unknown>)?.code_plan_expires_at as string | null;
 
   useEffect(() => {
     setLocale(getLocale());
@@ -156,14 +157,26 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) close();
   };
 
-  const handleSelect = (planId: string) => {
+  const handleSelect = async (planId: string) => {
     if (planId === "enterprise") {
       window.location.href = "mailto:enterprise@vmira.ai";
       return;
     }
-    // Redirect to topup — payment activates the plan
-    close();
-    router.push("/billing/topup");
+    if (planId === "free") return;
+
+    setLoading(planId);
+    try {
+      const res = await subscribe("code", planId as "pro" | "max");
+      if (res.ok && res.data.payment_url) {
+        window.location.href = res.data.payment_url;
+      } else {
+        alert(locale === "ru" ? "Ошибка создания платежа" : "Payment error");
+        setLoading(null);
+      }
+    } catch {
+      alert(locale === "ru" ? "Ошибка соединения" : "Connection error");
+      setLoading(null);
+    }
   };
 
   const isRu = locale === "ru";
@@ -261,7 +274,7 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
 
                   <button
                     onClick={() => (isUpgrade || plan.isEnterprise) ? handleSelect(plan.id) : undefined}
-                    disabled={isCurrent || isDowngrade || plan.id === "free"}
+                    disabled={isCurrent || isDowngrade || plan.id === "free" || loading !== null}
                     className={`w-full rounded-xl py-2.5 text-[15px] font-medium transition-all flex items-center justify-center gap-2 ${
                       isCurrent
                         ? "bg-white/[0.04] text-white/30 cursor-default border border-white/[0.06]"
@@ -274,13 +287,14 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
                         : "bg-white/[0.04] text-white/20 cursor-default border border-white/[0.06]"
                     }`}
                   >
-                    {isCurrent ? (
-                      isRu ? "Текущий план" : "Current plan"
+                    {loading === plan.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : isCurrent ? (
+                      expiresAt
+                        ? `${isRu ? "До" : "Until"} ${new Date(expiresAt).toLocaleDateString(isRu ? "ru-RU" : "en-US")}`
+                        : (isRu ? "Текущий план" : "Current plan")
                     ) : isUpgrade ? (
-                      <>
-                        {isRu ? "Пополнить баланс" : "Top up balance"}
-                        <ArrowRight size={14} />
-                      </>
+                      `${isRu ? "Подписаться" : "Subscribe"} — ${plan.price} ₽`
                     ) : plan.isEnterprise ? (
                       isRu ? "Связаться" : "Contact sales"
                     ) : (

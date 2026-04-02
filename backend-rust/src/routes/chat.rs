@@ -445,7 +445,12 @@ async fn send_message(
 ) -> Result<impl IntoResponse, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
-    // Validate model against allowlist to prevent arbitrary upstream model usage
+    // Check chat subscription expiry (downgrades to free if expired)
+    let chat_plan = crate::services::subscription::check_and_enforce_expiry(
+        &state.db, user.id, "chat"
+    ).await.unwrap_or_else(|_| "free".to_string());
+
+    // Validate model against allowlist
     match body.model.as_str() {
         "mira" | "mira-thinking" | "mira-pro" | "mira-max" => {}
         _ => {
@@ -455,21 +460,14 @@ async fn send_message(
         }
     }
 
-    // Enforce model access by plan (min_plan from model_pricing table)
+    // Enforce model access by chat subscription plan
     if let Ok(pricing) = billing::get_pricing(&state.db, &body.model).await {
-        if !plan_meets_minimum(&user.plan, &pricing.min_plan) {
+        if !plan_meets_minimum(&chat_plan, &pricing.min_plan) {
             return Err(AppError::Forbidden(format!(
-                "Model {} requires {} plan or higher. Current plan: {}",
-                body.model, pricing.min_plan, user.plan
+                "Model {} requires {} plan or higher. Current chat plan: {}",
+                body.model, pricing.min_plan, chat_plan
             )));
         }
-    }
-
-    // Paid users must have positive balance for pay-per-token
-    if user.plan != "free" && user.balance_kopecks <= 0 {
-        return Err(AppError::PaymentRequired(
-            "Insufficient balance. Please top up your account.".to_string(),
-        ));
     }
 
     // Rate limit user (per-minute)
@@ -532,9 +530,8 @@ async fn send_message(
         return Err(AppError::RateLimited { retry_after: 5 });
     }
 
-    // Daily message limit (atomic check + increment with row lock)
-    // If limit exceeded but user has balance → allow as paid overage
-    let limit = plan_limit(&user.plan);
+    // Daily message limit based on chat subscription plan
+    let limit = plan_limit(&chat_plan);
     let mut is_overage = false;
     if limit != -1 {
         let now = Utc::now();
@@ -724,7 +721,7 @@ async fn send_message(
     let voice_mode = body.voice;
     let conversation_id = conv.id;
     let user_id = user.id;
-    let user_plan = user.plan.clone();
+    let user_plan = chat_plan.clone();
     let user_in_overage = is_overage;
     let _user_language = user.language.clone();
     let user_name_scrub = Some(user.name.clone());

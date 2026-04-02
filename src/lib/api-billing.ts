@@ -60,3 +60,21 @@ export async function createTopup(amountRubles: number, returnUrl: string) {
     body: JSON.stringify({ amount_rubles: amountRubles, return_url: returnUrl }),
   });
 }
+
+// ── Subscriptions (Chat / Mira Code) ──
+
+export interface SubscribeResponse {
+  payment_url: string;
+  payment_id: string;
+  product: string;
+  plan: string;
+  amount_kopecks: number;
+  expires_at: string;
+}
+
+export async function subscribe(product: "chat" | "code", plan: "pro" | "max") {
+  return apiCall<SubscribeResponse>("/billing/subscribe", {
+    method: "POST",
+    body: JSON.stringify({ product, plan }),
+  });
+}

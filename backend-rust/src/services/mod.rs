@@ -6,6 +6,7 @@ pub mod payment_crypto;
 pub mod payment_provider;
 pub mod pii_scrub;
 pub mod queue;
+pub mod subscription;
 pub mod rate_limit;
 pub mod sanitize;
 pub mod scheduler;

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { X, Check, ArrowRight } from "lucide-react";
+import { X, Check, Loader2 } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/context/AuthContext";
+import { subscribe } from "@/lib/api-billing";
 
 interface PricingModalProps {
   onClose: () => void;
@@ -101,10 +101,11 @@ function getPlans(currentPlan: string) {
 
 export default function PricingModal({ onClose }: PricingModalProps) {
   const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const { user } = useAuth();
-  const currentPlan = user?.plan ?? "free";
+  const currentPlan = (user as Record<string, unknown>)?.chat_plan as string ?? "free";
+  const expiresAt = (user as Record<string, unknown>)?.chat_plan_expires_at as string | null;
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
@@ -127,14 +128,26 @@ export default function PricingModal({ onClose }: PricingModalProps) {
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) close();
   };
 
-  const handleSelect = (planId: string) => {
+  const handleSelect = async (planId: string) => {
     if (planId === "enterprise") {
       window.location.href = "mailto:enterprise@vmira.ai";
       return;
     }
-    // Redirect to topup page — payment activates the plan
-    close();
-    router.push("/billing/topup");
+    if (planId === "free") return;
+
+    setLoading(planId);
+    try {
+      const res = await subscribe("chat", planId as "pro" | "max");
+      if (res.ok && res.data.payment_url) {
+        window.location.href = res.data.payment_url;
+      } else {
+        alert("Ошибка создания платежа. Попробуйте снова.");
+        setLoading(null);
+      }
+    } catch {
+      alert("Ошибка соединения. Попробуйте снова.");
+      setLoading(null);
+    }
   };
 
   const plans = getPlans(currentPlan);
@@ -219,8 +232,8 @@ export default function PricingModal({ onClose }: PricingModalProps) {
                   </ul>
 
                   <button
-                    onClick={() => isUpgrade || plan.isEnterprise ? handleSelect(plan.id) : undefined}
-                    disabled={plan.isCurrent || plan.isDowngrade || plan.id === "free"}
+                    onClick={() => (isUpgrade || plan.isEnterprise) ? handleSelect(plan.id) : undefined}
+                    disabled={plan.isCurrent || plan.isDowngrade || plan.id === "free" || loading !== null}
                     className={`w-full rounded-xl py-2.5 text-[16px] font-medium transition-all flex items-center justify-center gap-2 ${
                       plan.isCurrent
                         ? "bg-white/[0.04] text-white/30 cursor-default border border-white/[0.06]"
@@ -233,13 +246,12 @@ export default function PricingModal({ onClose }: PricingModalProps) {
                         : "bg-white/[0.04] text-white/20 cursor-default border border-white/[0.06]"
                     }`}
                   >
-                    {plan.isCurrent ? (
-                      t("pricing.currentPlan")
+                    {loading === plan.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : plan.isCurrent ? (
+                      expiresAt ? `До ${new Date(expiresAt).toLocaleDateString("ru-RU")}` : t("pricing.currentPlan")
                     ) : isUpgrade ? (
-                      <>
-                        Пополнить баланс
-                        <ArrowRight size={14} />
-                      </>
+                      `Подписаться — ${plan.price} ₽`
                     ) : plan.isEnterprise ? (
                       t("pricing.contactSales")
                     ) : (

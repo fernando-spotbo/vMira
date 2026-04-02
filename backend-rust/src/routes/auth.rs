@@ -69,6 +69,10 @@ fn user_response(user: &User) -> UserResponse {
         balance_kopecks: user.balance_kopecks,
         daily_messages_used: user.daily_messages_used,
         allow_overage_billing: user.allow_overage_billing,
+        chat_plan: user.chat_plan.clone(),
+        chat_plan_expires_at: user.chat_plan_expires_at,
+        code_plan: user.code_plan.clone(),
+        code_plan_expires_at: user.code_plan_expires_at,
         created_at: user.created_at,
     }
 }

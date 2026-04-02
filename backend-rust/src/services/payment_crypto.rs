@@ -284,9 +284,9 @@ pub async fn handle_postback(
         }
 
         let order_id = postback.order_id.as_deref().unwrap_or("");
-        let user_id = extract_user_id(order_id)?;
+        let payment_method = format!("crypto:{}", postback.currency);
 
-        // Get fiat amount from invoice_info (try amount_in_fiat first, fall back to amount_usd)
+        // Get fiat amount from invoice_info
         let raw_amount = postback
             .invoice_info
             .as_ref()
@@ -296,7 +296,6 @@ pub async fn handle_postback(
             Some(fiat) if fiat.is_finite() && fiat > 0.0 => {
                 let kopecks = (fiat * 100.0).round() as i64;
                 if kopecks <= 0 || kopecks > 10_000_000_00 {
-                    // Cap at 100,000 RUB (10M kopecks) to prevent overflow attacks
                     tracing::error!(invoice_id = %invoice_uuid, fiat = %fiat, "Amount out of range");
                     return Err(AppError::BadRequest("Payment amount out of range".to_string()));
                 }
@@ -308,17 +307,56 @@ pub async fn handle_postback(
             }
         };
 
-        let payment_method = format!("crypto:{}", postback.currency);
+        // Route by order_id prefix: "sub-" = subscription, "mira-" = balance top-up
+        if order_id.starts_with("sub-") {
+            // Subscription payment: sub-{product}-{plan}-{user_id}-{uuid}
+            let parts: Vec<&str> = order_id.splitn(5, '-').collect();
+            if parts.len() < 4 {
+                return Err(AppError::BadRequest("Invalid subscription order_id".to_string()));
+            }
+            let product = parts[1];
+            let plan = parts[2];
+            // user_id is parts[3] which is a UUID (36 chars)
+            let user_id_str = if parts.len() >= 5 && parts[3].len() == 36 {
+                parts[3]
+            } else if order_id.len() >= 4 + product.len() + plan.len() + 3 + 36 {
+                // sub-chat-pro-{uuid starts here}
+                let offset = 4 + product.len() + 1 + plan.len() + 1;
+                &order_id[offset..offset + 36]
+            } else {
+                return Err(AppError::BadRequest("Cannot extract user_id from subscription order".to_string()));
+            };
 
-        billing::topup_user(pool, user_id, amount_kopecks, &invoice_uuid, &payment_method).await?;
+            let user_id: Uuid = user_id_str.parse().map_err(|_| {
+                tracing::error!(order_id = %order_id, "Invalid user_id in subscription order");
+                AppError::BadRequest("Invalid order_id".to_string())
+            })?;
 
-        tracing::info!(
-            invoice_id = %invoice_uuid,
-            user_id = %user_id,
-            amount_kopecks = %amount_kopecks,
-            crypto = %postback.currency,
-            "Crypto balance topped up"
-        );
+            crate::services::subscription::activate_subscription(
+                pool, user_id, product, plan, &invoice_uuid, &payment_method, amount_kopecks,
+            ).await?;
+
+            tracing::info!(
+                invoice_id = %invoice_uuid,
+                user_id = %user_id,
+                product = %product,
+                plan = %plan,
+                "Subscription activated via crypto payment"
+            );
+        } else {
+            // Balance top-up: mira-{user_id}-{uuid}
+            let user_id = extract_user_id(order_id)?;
+
+            billing::topup_user(pool, user_id, amount_kopecks, &invoice_uuid, &payment_method).await?;
+
+            tracing::info!(
+                invoice_id = %invoice_uuid,
+                user_id = %user_id,
+                amount_kopecks = %amount_kopecks,
+                crypto = %postback.currency,
+                "Crypto balance topped up"
+            );
+        }
 
         Ok(WebhookResult::Processed)
     }

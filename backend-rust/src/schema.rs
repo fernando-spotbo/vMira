@@ -137,6 +137,10 @@ pub struct UserResponse {
     pub balance_kopecks: i64,
     pub daily_messages_used: i32,
     pub allow_overage_billing: bool,
+    pub chat_plan: String,
+    pub chat_plan_expires_at: Option<DateTime<Utc>>,
+    pub code_plan: String,
+    pub code_plan_expires_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -493,6 +497,28 @@ pub struct TopupResponse {
     pub amount_kopecks: i64,
     pub provider: String,
 }
+
+// ── Subscription DTOs ─────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct SubscribeRequest {
+    /// Product: "chat" or "code"
+    pub product: String,
+    /// Plan: "pro" or "max"
+    pub plan: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubscribeResponse {
+    pub payment_url: String,
+    pub payment_id: String,
+    pub product: String,
+    pub plan: String,
+    pub amount_kopecks: i64,
+    pub expires_at: String,
+}
+
+// ── Pricing ───────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
 pub struct PricingResponse {

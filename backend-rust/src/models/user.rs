@@ -50,6 +50,12 @@ pub struct User {
     // Overage billing opt-in (continue past daily limits at per-token cost)
     pub allow_overage_billing: bool,
 
+    // Product-specific subscriptions (separate from API plan)
+    pub chat_plan: String,
+    pub chat_plan_expires_at: Option<DateTime<Utc>>,
+    pub code_plan: String,
+    pub code_plan_expires_at: Option<DateTime<Utc>>,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

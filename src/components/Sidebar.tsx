@@ -553,6 +553,7 @@ function SidebarContent({
 }
 
 import type { Project } from "@/lib/types";
+import NewProjectModal from "./NewProjectModal";
 
 function ChatItem({
   conv,
@@ -570,6 +571,7 @@ function ChatItem({
   const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conv.title);
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const moveButtonRef = useRef<HTMLDivElement>(null);
@@ -657,36 +659,32 @@ function ChatItem({
           </button>
 
           {/* Move to project */}
-          {projects.length > 0 && (
-            <>
-              <div className="my-1 border-t border-white/[0.06]" />
-              <div
-                ref={moveButtonRef}
-                className="relative"
-                onMouseEnter={() => {
-                  setProjectSubmenuOpen(true);
-                  if (moveButtonRef.current) {
-                    const rect = moveButtonRef.current.getBoundingClientRect();
-                    setSubmenuPos({ top: rect.top, left: rect.right + 4 });
-                  }
-                }}
-                onMouseLeave={() => setProjectSubmenuOpen(false)}
-              >
-                <button
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
-                >
-                  <CornerDownRight size={15} />
-                  <span className="flex-1 text-left">{t("menu.moveToProject")}</span>
-                  <ChevronRight size={14} className="text-white/40" />
-                </button>
-              </div>
-            </>
-          )}
+          <div className="my-1 border-t border-white/[0.06]" />
+          <div
+            ref={moveButtonRef}
+            className="relative"
+            onMouseEnter={() => {
+              setProjectSubmenuOpen(true);
+              if (moveButtonRef.current) {
+                const rect = moveButtonRef.current.getBoundingClientRect();
+                setSubmenuPos({ top: rect.top, left: rect.right + 4 });
+              }
+            }}
+            onMouseLeave={() => setProjectSubmenuOpen(false)}
+          >
+            <button
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
+            >
+              <CornerDownRight size={15} />
+              <span className="flex-1 text-left">{t("menu.moveToProject")}</span>
+              <ChevronRight size={14} className="text-white/40" />
+            </button>
+          </div>
 
           {/* Project submenu — rendered as fixed portal to escape sidebar overflow */}
-          {projectSubmenuOpen && submenuPos && projects.length > 0 && createPortal(
+          {projectSubmenuOpen && submenuPos && createPortal(
             <div
-              className="fixed z-[100] w-44 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+              className="fixed z-[100] w-48 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
               style={{ top: submenuPos.top, left: submenuPos.left }}
               onMouseEnter={() => setProjectSubmenuOpen(true)}
               onMouseLeave={() => setProjectSubmenuOpen(false)}
@@ -716,6 +714,15 @@ function ChatItem({
                   </button>
                 </>
               )}
+              {/* New project option — always visible */}
+              <div className="my-1 border-t border-white/[0.06]" />
+              <button
+                onClick={() => { setProjectSubmenuOpen(false); setMenuOpen(false); setShowNewProjectModal(true); }}
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-white/60 hover:text-white hover:bg-white/[0.06] transition-colors"
+              >
+                <FolderOpen size={13} className="shrink-0" />
+                <span>{t("project.new")}</span>
+              </button>
             </div>,
             document.body
           )}
@@ -729,6 +736,16 @@ function ChatItem({
             <span>{t("menu.delete")}</span>
           </button>
         </div>
+      )}
+
+      {/* New Project Modal — auto-assigns this conversation to the new project */}
+      {showNewProjectModal && (
+        <NewProjectModal
+          onClose={() => setShowNewProjectModal(false)}
+          onCreated={(projectId) => {
+            moveConversationToProject(conv.id, projectId);
+          }}
+        />
       )}
     </div>
   );

@@ -23,6 +23,7 @@ import { uploadProjectFile } from "@/lib/api-client";
 import { fetchProjectFiles, deleteProjectFile } from "@/lib/api-chat";
 import type { Project, ProjectFile } from "@/lib/types";
 import InputBar from "./InputBar";
+import NewProjectModal from "./NewProjectModal";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -106,25 +107,9 @@ function ProjectList({
   onSelectProject: (id: string) => void;
   onBack: () => void;
 }) {
-  const { projects, conversations, createProject } = useChat();
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
+  const { projects, conversations } = useChat();
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [search, setSearch] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (creating && inputRef.current) inputRef.current.focus();
-  }, [creating]);
-
-  const handleCreate = async () => {
-    const name = newName.trim();
-    if (name) {
-      const project = await createProject(name);
-      if (project) onSelectProject(project.id);
-    }
-    setNewName("");
-    setCreating(false);
-  };
 
   const projectConvs = useCallback(
     (pid: string) => conversations.filter((c) => c.projectId === pid),
@@ -150,10 +135,10 @@ function ProjectList({
             {t("sidebar.projects")}
           </h1>
           <button
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-1.5 text-[13px] font-medium text-white/70 hover:bg-white/[0.08] hover:text-white transition-colors"
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-white/[0.06] px-4 py-2 text-[14px] font-medium text-white/80 hover:bg-white/[0.10] hover:text-white transition-colors"
           >
-            <Plus size={14} strokeWidth={2} />
+            <Plus size={15} strokeWidth={2} />
             <span>{t("project.new")}</span>
           </button>
         </div>
@@ -181,27 +166,8 @@ function ProjectList({
             </div>
           )}
 
-          {/* Create inline */}
-          {creating && (
-            <div className="mb-5 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-              <p className="text-[13px] text-white/40 mb-2.5">New project</p>
-              <input
-                ref={inputRef}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreate();
-                  if (e.key === "Escape") { setCreating(false); setNewName(""); }
-                }}
-                onBlur={handleCreate}
-                placeholder="Project name"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-[14px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.18] transition-colors"
-              />
-            </div>
-          )}
-
           {/* Empty state */}
-          {projects.length === 0 && !creating ? (
+          {projects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.03] mb-5">
                 <FolderOpen size={28} strokeWidth={1.4} className="text-white/15" />
@@ -269,6 +235,14 @@ function ProjectList({
           )}
         </div>
       </div>
+
+      {/* New Project Modal */}
+      {showCreateModal && (
+        <NewProjectModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={(id) => onSelectProject(id)}
+        />
+      )}
     </div>
   );
 }

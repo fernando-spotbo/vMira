@@ -151,8 +151,8 @@ export default function PlansPage() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await apiCall<UserInfo>("/auth/me");
-        setUser(data);
+        const res = await apiCall<UserInfo>("/auth/me");
+        if (res.ok) setUser(res.data);
       } catch (e) {
         console.error("Failed to load user info:", e);
       } finally {

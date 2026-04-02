@@ -147,8 +147,16 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
   };
 
   const handleSelect = (planId: string) => {
-    setSelectedPlan(planId);
-    setTimeout(() => { setVisible(false); setTimeout(onClose, 250); }, 800);
+    if (planId === "enterprise") {
+      window.location.href = "mailto:enterprise@vmira.ai";
+      return;
+    }
+    // Redirect to topup — payment activates the plan
+    setVisible(false);
+    setTimeout(() => {
+      onClose();
+      window.location.href = "/billing/topup";
+    }, 250);
   };
 
   const isRu = locale === "ru";

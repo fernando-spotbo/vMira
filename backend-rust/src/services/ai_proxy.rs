@@ -453,14 +453,21 @@ pub fn stream_ai_response(
     user_id: Option<uuid::Uuid>,
     db: Option<sqlx::PgPool>,
     user_timezone: Option<String>,
+    user_name: Option<String>,
+    user_email: Option<String>,
 ) -> Pin<Box<dyn Stream<Item = AiEvent> + Send>> {
     let url = format!("{}/chat/completions", config.ai_model_url);
     let api_key = config.ai_model_api_key.clone();
     let allowed_hosts = config.ai_model_allowed_hosts.clone();
     let max_search = search_results_for_plan(user_plan);
     let config = Arc::new(config.clone());
+    let user_name_for_scrub = user_name;
+    let user_email_for_scrub = user_email;
 
     let (tx, rx) = tokio::sync::mpsc::channel::<AiEvent>(32);
+
+    // PII restoration closure — wraps tx.send to auto-restore PII in tokens
+    // (pii_mapping is populated during message scrubbing below)
 
     let tz = user_timezone.unwrap_or_else(|| "Europe/Moscow".to_string());
     let system_prompt = if voice_mode { MIRA_VOICE_PROMPT } else { MIRA_SYSTEM_PROMPT };
@@ -487,14 +494,22 @@ pub fn stream_ai_response(
         now_local.format("%Y-%m-%dT%H:%M:%S"), offset_hours, tz, offset_hours
     );
 
+    // ── PII scrubbing: strip personal data before it reaches the GPU server ──
+    // System prompt is safe (no user data). Only scrub user/assistant messages.
+    let user_name = user_name_for_scrub.as_deref();
+    let user_email = user_email_for_scrub.as_deref();
+    let mut pii_mapping = std::collections::HashMap::new();
+
     let mut full_messages: Vec<serde_json::Value> = vec![json!({
         "role": "system",
         "content": format!("{}{}", system_prompt, datetime_context),
     })];
     for m in &messages {
+        let scrubbed = crate::services::pii_scrub::scrub(&m.content, user_name, user_email);
+        pii_mapping.extend(scrubbed.mapping);
         full_messages.push(json!({
             "role": m.role,
-            "content": m.content,
+            "content": scrubbed.scrubbed,
         }));
     }
 
@@ -506,7 +521,14 @@ pub fn stream_ai_response(
     // Mira model supports tool calling via chatml template
     let supports_tools = !model.contains("thinking");
 
+    // Clone PII mapping for the async streaming closure
+    let pii_map = pii_mapping.clone();
+
     tokio::spawn(async move {
+        // Helper: restore PII in a token string before sending to the user
+        let restore_pii = |text: String| -> String {
+            if pii_map.is_empty() { text } else { crate::services::pii_scrub::restore(&text, &pii_map) }
+        };
         if let Err(e) = validate_host(&url, &allowed_hosts) {
             tracing::error!(error = %e, "SSRF protection triggered");
             let _ = tx.send(AiEvent::Token(format!("Ошибка безопасности: {e}"))).await;
@@ -1232,7 +1254,7 @@ pub fn stream_ai_response(
             let (_thinking, visible) = parse_thinking(raw_content);
             let visible = crate::services::sanitize::sanitize_output(&visible);
             if !visible.trim().is_empty() {
-                let _ = tx.send(AiEvent::Token(visible)).await;
+                let _ = tx.send(AiEvent::Token(restore_pii(visible))).await;
             }
         } else {
             // No tool calls — direct response
@@ -1240,7 +1262,7 @@ pub fn stream_ai_response(
             let (_thinking, visible) = parse_thinking(raw_content);
             let visible = crate::services::sanitize::sanitize_output(&visible);
             if !visible.trim().is_empty() {
-                let _ = tx.send(AiEvent::Token(visible)).await;
+                let _ = tx.send(AiEvent::Token(restore_pii(visible))).await;
             } else if !raw_content.trim().is_empty() {
                 // Model output was entirely DSML/internal syntax — retry without tools
                 tracing::warn!("Model output was entirely internal syntax, retrying without tools");
@@ -1251,7 +1273,7 @@ pub fn stream_ai_response(
                         let (_, rv) = parse_thinking(rc);
                         let rv = crate::services::sanitize::sanitize_output(&rv);
                         if !rv.trim().is_empty() {
-                            let _ = tx.send(AiEvent::Token(rv)).await;
+                            let _ = tx.send(AiEvent::Token(restore_pii(rv))).await;
                         }
                     }
                 }

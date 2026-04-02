@@ -38,12 +38,12 @@ export default function BillingPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [bal, txs] = await Promise.all([
+        const [balRes, txsRes] = await Promise.all([
           getBalance(),
           getTransactions(50, 0),
         ]);
-        setBalance(bal);
-        setTransactions(txs);
+        if (balRes.ok) setBalance(balRes.data);
+        if (txsRes.ok) setTransactions(txsRes.data);
       } catch (e) {
         setError("Не удалось загрузить данные биллинга");
         console.error("Billing load error:", e);

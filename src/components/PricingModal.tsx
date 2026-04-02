@@ -1,15 +1,21 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { X, Check } from "lucide-react";
+import { X, Check, ArrowRight } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/context/AuthContext";
 
 interface PricingModalProps {
   onClose: () => void;
 }
 
-function getPlans() {
+const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, max: 2, enterprise: 3 };
+
+function getPlans(currentPlan: string) {
+  const rank = PLAN_RANK[currentPlan] ?? 0;
+
   return [
     {
       id: "free",
@@ -25,8 +31,8 @@ function getPlans() {
         t("pricing.f.free.4"),
       ],
       models: ["Mira Fast"],
-      buttonText: t("pricing.currentPlan"),
-      current: true,
+      isCurrent: currentPlan === "free",
+      isDowngrade: rank > 0,
     },
     {
       id: "pro",
@@ -45,7 +51,8 @@ function getPlans() {
         t("pricing.f.pro.7"),
       ],
       models: ["Mira Fast", "Mira Pro"],
-      buttonText: `${t("pricing.upgrade")} Pro`,
+      isCurrent: currentPlan === "pro",
+      isDowngrade: rank > 1,
       popular: true,
     },
     {
@@ -65,7 +72,8 @@ function getPlans() {
         t("pricing.f.max.7"),
       ],
       models: ["Mira Fast", "Mira Pro", "Mira Max"],
-      buttonText: `${t("pricing.upgrade")} Max`,
+      isCurrent: currentPlan === "max",
+      isDowngrade: rank > 2,
     },
     {
       id: "enterprise",
@@ -84,21 +92,30 @@ function getPlans() {
         t("pricing.f.ent.7"),
       ],
       models: ["Все модели", "Дообучение"],
-      buttonText: t("pricing.contactSales"),
+      isCurrent: currentPlan === "enterprise",
+      isDowngrade: false,
+      isEnterprise: true,
     },
   ];
 }
 
 export default function PricingModal({ onClose }: PricingModalProps) {
   const [visible, setVisible] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { user } = useAuth();
+  const currentPlan = user?.plan ?? "free";
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
 
+  const close = useCallback(() => {
+    setVisible(false);
+    setTimeout(onClose, 250);
+  }, [onClose]);
+
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => { if (e.key === "Escape") { setVisible(false); setTimeout(onClose, 250); } },
-    [onClose]
+    (e: KeyboardEvent) => { if (e.key === "Escape") close(); },
+    [close]
   );
 
   useEffect(() => {
@@ -107,17 +124,20 @@ export default function PricingModal({ onClose }: PricingModalProps) {
   }, [handleKeyDown]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      setVisible(false); setTimeout(onClose, 250);
-    }
+    if (modalRef.current && !modalRef.current.contains(e.target as Node)) close();
   };
 
   const handleSelect = (planId: string) => {
-    setSelectedPlan(planId);
-    setTimeout(() => { setVisible(false); setTimeout(onClose, 250); }, 800);
+    if (planId === "enterprise") {
+      window.location.href = "mailto:enterprise@vmira.ai";
+      return;
+    }
+    // Redirect to topup page — payment activates the plan
+    close();
+    router.push("/billing/topup");
   };
 
-  const plans = getPlans();
+  const plans = getPlans(currentPlan);
 
   return (
     <div
@@ -139,7 +159,7 @@ export default function PricingModal({ onClose }: PricingModalProps) {
             <p className="text-[16px] text-white/70 mt-1">{t("pricing.subtitle")}</p>
           </div>
           <button
-            onClick={() => { setVisible(false); setTimeout(onClose, 250); }}
+            onClick={close}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
           >
             <X size={18} />
@@ -148,82 +168,99 @@ export default function PricingModal({ onClose }: PricingModalProps) {
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
-          {/* Plans grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-8 pt-6">
-            {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`relative flex flex-col rounded-xl border p-5 transition-all duration-200 ${
-                  plan.popular
-                    ? "border-white/[0.15] bg-white/[0.04]"
-                    : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1]"
-                }`}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-0.5 text-[11px] font-semibold text-[#161616]">
-                    {t("pricing.popular")}
-                  </div>
-                )}
-
-                {plan.current && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white/[0.1] border border-white/[0.15] px-3 py-0.5 text-[11px] font-medium text-white/60">
-                    {t("pricing.currentPlan")}
-                  </div>
-                )}
-
-                <div className="mb-4">
-                  <span className="text-[16px] font-medium text-white">{plan.name}</span>
-                  <div className="flex items-baseline gap-1 mt-2">
-                    {plan.price === 0 ? (
-                      <span className="text-2xl font-semibold text-white">{t("plan.free")}</span>
-                    ) : plan.price === -1 ? (
-                      <span className="text-2xl font-semibold text-white">{t("pricing.custom")}</span>
-                    ) : (
-                      <>
-                        <span className="text-2xl font-semibold text-white">{plan.price} {plan.currency}</span>
-                        <span className="text-[16px] text-white/50">{plan.period}</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-[14px] text-white/60 mt-1">{plan.description}</p>
-                </div>
-
-                <ul className="flex-1 space-y-2.5 mb-5">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2.5">
-                      <Check size={14} className="shrink-0 mt-0.5 text-white" />
-                      <span className="text-[14px] text-white">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  onClick={() => !plan.current && handleSelect(plan.id)}
-                  disabled={!!plan.current || selectedPlan === plan.id}
-                  className={`w-full rounded-xl py-2.5 text-[16px] font-medium transition-all ${
-                    selectedPlan === plan.id
-                      ? "bg-white/20 text-white cursor-default"
-                      : plan.current
-                      ? "bg-white/[0.04] text-white/30 cursor-default border border-white/[0.06]"
-                      : plan.popular
-                      ? "bg-white text-[#161616] hover:bg-white/90 active:scale-[0.98]"
-                      : "bg-white/[0.06] text-white/80 hover:bg-white/[0.1] border border-white/[0.06]"
+            {plans.map((plan) => {
+              const isUpgrade = !plan.isCurrent && !plan.isDowngrade && plan.id !== "free";
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col rounded-xl border p-5 transition-all duration-200 ${
+                    plan.popular
+                      ? "border-white/[0.15] bg-white/[0.04]"
+                      : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1]"
                   }`}
                 >
-                  {selectedPlan === plan.id ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Check size={14} />
-                      {t("pricing.selected")}
-                    </span>
-                  ) : (
-                    plan.buttonText
+                  {plan.popular && !plan.isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-0.5 text-[11px] font-semibold text-[#161616]">
+                      {t("pricing.popular")}
+                    </div>
                   )}
-                </button>
-              </div>
-            ))}
+
+                  {plan.isCurrent && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white/[0.1] border border-white/[0.15] px-3 py-0.5 text-[11px] font-medium text-white/60">
+                      {t("pricing.currentPlan")}
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <span className="text-[16px] font-medium text-white">{plan.name}</span>
+                    <div className="flex items-baseline gap-1 mt-2">
+                      {plan.price === 0 ? (
+                        <span className="text-2xl font-semibold text-white">{t("plan.free")}</span>
+                      ) : plan.price === -1 ? (
+                        <span className="text-2xl font-semibold text-white">{t("pricing.custom")}</span>
+                      ) : (
+                        <>
+                          <span className="text-2xl font-semibold text-white">{plan.price} {plan.currency}</span>
+                          <span className="text-[16px] text-white/50">{plan.period}</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-[14px] text-white/60 mt-1">{plan.description}</p>
+                  </div>
+
+                  <ul className="flex-1 space-y-2.5 mb-5">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2.5">
+                        <Check size={14} className="shrink-0 mt-0.5 text-white" />
+                        <span className="text-[14px] text-white">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    onClick={() => isUpgrade || plan.isEnterprise ? handleSelect(plan.id) : undefined}
+                    disabled={plan.isCurrent || plan.isDowngrade || plan.id === "free"}
+                    className={`w-full rounded-xl py-2.5 text-[16px] font-medium transition-all flex items-center justify-center gap-2 ${
+                      plan.isCurrent
+                        ? "bg-white/[0.04] text-white/30 cursor-default border border-white/[0.06]"
+                        : isUpgrade
+                        ? plan.popular
+                          ? "bg-white text-[#161616] hover:bg-white/90 active:scale-[0.98]"
+                          : "bg-white/[0.06] text-white/80 hover:bg-white/[0.1] border border-white/[0.06]"
+                        : plan.isEnterprise
+                        ? "bg-white/[0.06] text-white/80 hover:bg-white/[0.1] border border-white/[0.06]"
+                        : "bg-white/[0.04] text-white/20 cursor-default border border-white/[0.06]"
+                    }`}
+                  >
+                    {plan.isCurrent ? (
+                      t("pricing.currentPlan")
+                    ) : isUpgrade ? (
+                      <>
+                        Пополнить баланс
+                        <ArrowRight size={14} />
+                      </>
+                    ) : plan.isEnterprise ? (
+                      t("pricing.contactSales")
+                    ) : (
+                      plan.name
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="px-8 pb-6" />
+          {/* Explanation */}
+          <div className="px-8 pb-6">
+            <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] px-5 py-4">
+              <p className="text-[13px] text-white/40 leading-relaxed">
+                Мира использует модель оплаты за использование. Пополните баланс криптовалютой —
+                первое пополнение автоматически активирует план Pro с увеличенными лимитами и доступом
+                к модели Mira Pro. Средства списываются за токены по тарифу.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -232,8 +269,8 @@ export default function PricingModal({ onClose }: PricingModalProps) {
             {t("pricing.footer")}
             {" "}
             <Link
-              href="https://platform.vmira.ai/pricing"
-              onClick={() => { setVisible(false); setTimeout(onClose, 250); }}
+              href="/pricing"
+              onClick={close}
               className="underline underline-offset-2 hover:text-white/60 transition-colors"
             >
               Подробнее о ценах

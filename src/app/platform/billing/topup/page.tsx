@@ -68,9 +68,12 @@ export default function TopupPage() {
     setError(null);
 
     try {
-      const result = await createTopup(effectiveAmount, window.location.origin + "/billing");
+      const res = await createTopup(effectiveAmount, window.location.origin + "/billing");
+      if (!res.ok) {
+        throw new Error("Не удалось создать платёж");
+      }
       // Redirect to CryptoCloud payment page
-      window.location.href = result.payment_url;
+      window.location.href = res.data.payment_url;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка при создании платежа");
       setLoading(false);

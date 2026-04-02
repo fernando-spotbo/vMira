@@ -727,6 +727,8 @@ async fn send_message(
     let user_plan = user.plan.clone();
     let user_in_overage = is_overage;
     let _user_language = user.language.clone();
+    let user_name_scrub = Some(user.name.clone());
+    let user_email_scrub = user.email.clone();
     let state_clone = state.clone();
     let stream_key_clone = stream_key.clone();
     let request_id = format!("req-{}", Uuid::new_v4());
@@ -962,6 +964,8 @@ async fn send_message(
             Some(user.id),
             Some(state_clone.db.clone()),
             user_tz,
+            user_name_scrub.clone(),
+            user_email_scrub.clone(),
         );
 
         tokio::pin!(ai_stream);
@@ -1341,6 +1345,8 @@ async fn anonymous_stream(
             None,  // no user_id for guests
             None,  // no db for guests
             None,  // no timezone for guests
+            None,  // no user name for guests
+            None,  // no user email for guests
         );
 
         tokio::pin!(ai_stream);

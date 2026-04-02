@@ -239,6 +239,8 @@ async fn chat_completions(
         let user_id = user.id;
         let user_plan = user.plan.clone();
         let user_in_overage = is_overage;
+        let user_name_scrub = Some(user.name.clone());
+        let user_email_scrub = user.email.clone();
         let cancel_token = CancellationToken::new();
         let cancel_clone = cancel_token.clone();
         let request_id_clone = request_id.clone();
@@ -351,6 +353,7 @@ async fn chat_completions(
                 false,
                 &state_clone.config,
                 None, None, None,
+                user_name_scrub.clone(), user_email_scrub.clone(),
             );
 
             tokio::pin!(ai_stream);
@@ -571,6 +574,7 @@ async fn chat_completions(
             false,
             &state.config,
             None, None, None,
+            Some(user.name.clone()), user.email.clone(),
         );
 
         tokio::pin!(ai_stream);

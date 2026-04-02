@@ -30,7 +30,7 @@ pub async fn synthesize(
             "input": text,
             "response_format": "mp3"
         }))
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60))
         .send()
         .await
         .map_err(|e| format!("TTS service unavailable: {e}"))?;

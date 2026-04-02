@@ -37,7 +37,7 @@ pub async fn transcribe(
     let res = client
         .post(&url)
         .multipart(form)
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(90))
         .send()
         .await
         .map_err(|e| format!("Whisper service unavailable: {e}"))?;

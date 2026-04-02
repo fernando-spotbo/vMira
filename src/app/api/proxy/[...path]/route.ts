@@ -130,8 +130,12 @@ async function proxyRequest(
   const queryString = searchParams ? `?${searchParams}` : "";
   const backendUrl = `${BACKEND_URL()}${backendPath}${queryString}`;
 
+  // Dynamic timeout: voice/chat streams need more time than simple API calls
+  const timeoutMs = joinedPath.startsWith("voice/") ? 120_000
+    : joinedPath.includes("/messages") ? 180_000
+    : 30_000;
   const fetchController = new AbortController();
-  const fetchTimeout = setTimeout(() => fetchController.abort(), 30_000);
+  const fetchTimeout = setTimeout(() => fetchController.abort(), timeoutMs);
 
   try {
     const res = await fetch(backendUrl, {

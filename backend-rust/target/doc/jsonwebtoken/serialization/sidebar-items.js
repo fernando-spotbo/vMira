@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["b64_decode","b64_encode","b64_encode_part"],"struct":["DecodedJwtPartClaims"]};

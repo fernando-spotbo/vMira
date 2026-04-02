@@ -47,6 +47,9 @@ pub struct User {
     pub total_spent_kopecks: i64,
     pub total_topped_up_kopecks: i64,
 
+    // Overage billing opt-in (continue past daily limits at per-token cost)
+    pub allow_overage_billing: bool,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

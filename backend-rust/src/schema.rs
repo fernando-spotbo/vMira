@@ -109,6 +109,9 @@ pub struct UpdateUserRequest {
 
     #[validate(custom(function = "validate_language"))]
     pub language: Option<String>,
+
+    /// Opt-in to overage billing (continue past daily limits at per-token cost)
+    pub allow_overage_billing: Option<bool>,
 }
 
 fn validate_language(lang: &str) -> Result<(), validator::ValidationError> {
@@ -131,6 +134,9 @@ pub struct UserResponse {
     pub avatar_url: Option<String>,
     pub plan: String,
     pub language: String,
+    pub balance_kopecks: i64,
+    pub daily_messages_used: i32,
+    pub allow_overage_billing: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -475,6 +481,8 @@ pub struct TransactionResponse {
 #[derive(Debug, Deserialize)]
 pub struct TopupRequest {
     pub amount_rubles: f64,
+    /// Where to redirect after payment (used by frontend for navigation)
+    #[serde(default)]
     pub return_url: String,
 }
 
@@ -483,6 +491,7 @@ pub struct TopupResponse {
     pub payment_url: String,
     pub payment_id: String,
     pub amount_kopecks: i64,
+    pub provider: String,
 }
 
 #[derive(Debug, Serialize)]

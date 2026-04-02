@@ -4,49 +4,36 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  CreditCard,
-  Smartphone,
-  Wallet,
   Shield,
-  FileText,
   Zap,
   Rocket,
   Gem,
-  Check,
   Loader2,
+  Bitcoin,
 } from "lucide-react";
+import { createTopup } from "@/lib/api-billing";
 
-// ---- Pricing per 1K tokens (in kopecks) ----
+// ---- Pricing per 1K tokens (in kopecks, matching model_pricing table) ----
 
 const models = [
-  { key: "mira", label: "Mira Fast", icon: Zap, color: "#737373", input_1k: 5, output_1k: 15 },
-  { key: "mira-pro", label: "Mira Pro", icon: Rocket, color: "#b5b5b5", input_1k: 10, output_1k: 30 },
-  { key: "mira-max", label: "Mira Max", icon: Gem, color: "#e5e5e5", input_1k: 25, output_1k: 75 },
+  { key: "mira", label: "Mira Fast", icon: Zap, color: "#737373", input_1k: 10, output_1k: 30 },
+  { key: "mira-pro", label: "Mira Pro", icon: Rocket, color: "#b5b5b5", input_1k: 30, output_1k: 90 },
+  { key: "mira-max", label: "Mira Max", icon: Gem, color: "#e5e5e5", input_1k: 150, output_1k: 600 },
 ];
 
 const presets = [100, 500, 1000, 5000];
 
-type PaymentMethod = "card" | "sbp" | "yoomoney";
-
-const paymentMethods: { id: PaymentMethod; label: string; desc: string; icon: typeof CreditCard }[] = [
-  { id: "card", label: "Банковская карта", desc: "Visa, Mastercard, МИР", icon: CreditCard },
-  { id: "sbp", label: "СБП", desc: "Система быстрых платежей", icon: Smartphone },
-  { id: "yoomoney", label: "YooMoney", desc: "Кошелёк ЮMoney", icon: Wallet },
-];
-
 function estimateMessages(amountRubles: number, model: typeof models[number]): string {
-  // Average message: ~300 input tokens, ~500 output tokens
   const avgInputTokens = 300;
   const avgOutputTokens = 500;
   const costPerMsg = (avgInputTokens / 1000) * model.input_1k + (avgOutputTokens / 1000) * model.output_1k;
-  const costPerMsgRubles = costPerMsg / 100; // kopecks to rubles
+  const costPerMsgRubles = costPerMsg / 100;
   const msgs = Math.floor(amountRubles / costPerMsgRubles);
   if (msgs >= 1000) return `~${(msgs / 1000).toFixed(0)}K`;
   return `~${msgs}`;
 }
 
 function formatEstimateTokens(amountRubles: number, model: typeof models[number]): string {
-  // How many output tokens you can get for this amount
   const kopecks = amountRubles * 100;
   const tokens = Math.floor(kopecks / model.output_1k * 1000);
   if (tokens >= 1_000_000) return `~${(tokens / 1_000_000).toFixed(1)}M`;
@@ -58,8 +45,8 @@ export default function TopupPage() {
   const [selectedAmount, setSelectedAmount] = useState<number>(500);
   const [customAmount, setCustomAmount] = useState("");
   const [isCustom, setIsCustom] = useState(false);
-  const [method, setMethod] = useState<PaymentMethod>("card");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const effectiveAmount = isCustom ? (Number(customAmount) || 0) : selectedAmount;
 
@@ -67,19 +54,27 @@ export default function TopupPage() {
     setSelectedAmount(amount);
     setIsCustom(false);
     setCustomAmount("");
+    setError(null);
   }, []);
 
   const handleCustomFocus = useCallback(() => {
     setIsCustom(true);
+    setError(null);
   }, []);
 
   const handlePay = useCallback(async () => {
     if (effectiveAmount < 10) return;
     setLoading(true);
-    // In production: const result = await createTopup(effectiveAmount, window.location.origin + "/billing/success");
-    // For now, simulate redirect:
-    await new Promise((r) => setTimeout(r, 1500));
-    window.location.href = "/billing/success";
+    setError(null);
+
+    try {
+      const result = await createTopup(effectiveAmount, window.location.origin + "/billing");
+      // Redirect to CryptoCloud payment page
+      window.location.href = result.payment_url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка при создании платежа");
+      setLoading(false);
+    }
   }, [effectiveAmount]);
 
   return (
@@ -95,7 +90,7 @@ export default function TopupPage() {
 
       {/* Title */}
       <h1 className="text-[26px] font-medium text-white mb-2">Пополнение баланса</h1>
-      <p className="text-[15px] text-white/40 mb-8">Выберите сумму и способ оплаты.</p>
+      <p className="text-[15px] text-white/40 mb-8">Оплата криптовалютой: BTC, ETH, USDT, TON и другие.</p>
 
       {/* Amount selection */}
       <div className="rounded-xl border border-white/[0.06] p-6 mb-6">
@@ -142,45 +137,22 @@ export default function TopupPage() {
         )}
       </div>
 
-      {/* Payment method */}
+      {/* Crypto info */}
       <div className="rounded-xl border border-white/[0.06] p-6 mb-6">
-        <h3 className="text-[14px] font-medium text-white/70 mb-4">Способ оплаты</h3>
-        <div className="space-y-2">
-          {paymentMethods.map((pm) => {
-            const active = method === pm.id;
-            const Icon = pm.icon;
-            return (
-              <button
-                key={pm.id}
-                onClick={() => setMethod(pm.id)}
-                className={`w-full flex items-center gap-4 rounded-lg border px-4 py-3.5 transition-all text-left ${
-                  active
-                    ? "border-white/[0.15] bg-white/[0.06]"
-                    : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1] hover:bg-white/[0.04]"
-                }`}
-              >
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                    active ? "bg-white/[0.1]" : "bg-white/[0.04]"
-                  }`}
-                >
-                  <Icon size={18} className={active ? "text-white/80" : "text-white/40"} />
-                </div>
-                <div className="flex-1">
-                  <p className={`text-[14px] font-medium ${active ? "text-white" : "text-white/70"}`}>{pm.label}</p>
-                  <p className="text-[12px] text-white/30">{pm.desc}</p>
-                </div>
-                <div
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                    active ? "border-white bg-white" : "border-white/20"
-                  }`}
-                >
-                  {active && <Check size={12} className="text-[#161616]" />}
-                </div>
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
+            <Bitcoin size={18} className="text-white/60" />
+          </div>
+          <div>
+            <p className="text-[14px] font-medium text-white/80">Оплата криптовалютой</p>
+            <p className="text-[12px] text-white/30">BTC, ETH, USDT, USDC, TON, SOL, LTC, BNB и другие</p>
+          </div>
         </div>
+        <p className="text-[13px] text-white/25 leading-relaxed">
+          После нажатия &laquo;Оплатить&raquo; вы будете перенаправлены на страницу CryptoCloud,
+          где сможете выбрать криптовалюту и оплатить. Баланс зачисляется автоматически.
+          Первое пополнение автоматически активирует план Pro.
+        </p>
       </div>
 
       {/* Estimated usage */}
@@ -221,6 +193,13 @@ export default function TopupPage() {
         </div>
       )}
 
+      {/* Error */}
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 mb-4">
+          <p className="text-[13px] text-red-400">{error}</p>
+        </div>
+      )}
+
       {/* Pay button */}
       <button
         onClick={handlePay}
@@ -234,7 +213,7 @@ export default function TopupPage() {
         {loading ? (
           <>
             <Loader2 size={18} className="animate-spin" />
-            Обработка...
+            Создание платежа...
           </>
         ) : (
           <>
@@ -243,15 +222,11 @@ export default function TopupPage() {
         )}
       </button>
 
-      {/* Security badges */}
+      {/* Security badge */}
       <div className="flex items-center justify-center gap-6 mt-6 mb-4">
         <div className="flex items-center gap-1.5 text-[11px] text-white/25">
           <Shield size={12} />
-          Безопасная оплата через YooKassa
-        </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-white/25">
-          <FileText size={12} />
-          Чек по 54-ФЗ
+          Безопасная оплата через CryptoCloud
         </div>
       </div>
 

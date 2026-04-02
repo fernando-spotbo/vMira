@@ -59,9 +59,10 @@ pub struct Config {
     // ── HMAC gateway verification ────────────────────────────
     pub hmac_secret: String,
 
-    // ── YooKassa payment ──────────────────────────────────────
-    pub yookassa_shop_id: String,
-    pub yookassa_secret_key: String,
+    // ── CryptoCloud payment ─────────────────────────────────
+    pub cryptocloud_api_key: String,
+    pub cryptocloud_shop_id: String,
+    pub cryptocloud_secret_key: String,
 
     // ── File uploads ─────────────────────────────────────────
     pub upload_dir: String,
@@ -148,8 +149,8 @@ impl Config {
             api_prefix: env_or("API_PREFIX", "/api/v1"),
 
             database_url,
-            db_pool_size: env_or("DB_POOL_SIZE", "30").parse().unwrap_or(30),
-            db_max_overflow: env_or("DB_MAX_OVERFLOW", "5").parse().unwrap_or(5),
+            db_pool_size: env_or("DB_POOL_SIZE", "50").parse().unwrap_or(50),
+            db_max_overflow: env_or("DB_MAX_OVERFLOW", "10").parse().unwrap_or(10),
 
             redis_url: env_or("REDIS_URL", "redis://127.0.0.1:6379"),
 
@@ -203,8 +204,9 @@ impl Config {
 
             hmac_secret,
 
-            yookassa_shop_id: env_or("YOOKASSA_SHOP_ID", ""),
-            yookassa_secret_key: env_or("YOOKASSA_SECRET_KEY", ""),
+            cryptocloud_api_key: env_or("CRYPTOCLOUD_API_KEY", ""),
+            cryptocloud_shop_id: env_or("CRYPTOCLOUD_SHOP_ID", ""),
+            cryptocloud_secret_key: env_or("CRYPTOCLOUD_SECRET_KEY", ""),
 
             upload_dir: env_or("UPLOAD_DIR", "/opt/mira/uploads"),
             max_upload_size: env_or("MAX_UPLOAD_SIZE", "10485760")

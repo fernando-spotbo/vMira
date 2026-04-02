@@ -132,6 +132,19 @@ fn plan_limit(plan: &str) -> i64 {
     }
 }
 
+/// Check if a user's plan meets the minimum required for a model.
+/// Plan hierarchy: free < pro < max < enterprise.
+fn plan_meets_minimum(user_plan: &str, min_plan: &str) -> bool {
+    let rank = |p: &str| match p {
+        "free" => 0,
+        "pro" => 1,
+        "max" => 2,
+        "enterprise" => 3,
+        _ => 0,
+    };
+    rank(user_plan) >= rank(min_plan)
+}
+
 /// Approximate token count by splitting on whitespace (rough heuristic).
 fn approx_tokens(text: &str) -> i32 {
     // ~0.75 words per token is the common approximation; we use word count
@@ -442,8 +455,22 @@ async fn send_message(
         }
     }
 
-    // Subscription plans (pro/max/enterprise) don't need balance — they pay monthly.
-    // Balance is only used for API usage (completions endpoint), not chat.
+    // Enforce model access by plan (min_plan from model_pricing table)
+    if let Ok(pricing) = billing::get_pricing(&state.db, &body.model).await {
+        if !plan_meets_minimum(&user.plan, &pricing.min_plan) {
+            return Err(AppError::Forbidden(format!(
+                "Model {} requires {} plan or higher. Current plan: {}",
+                body.model, pricing.min_plan, user.plan
+            )));
+        }
+    }
+
+    // Paid users must have positive balance for pay-per-token
+    if user.plan != "free" && user.balance_kopecks <= 0 {
+        return Err(AppError::PaymentRequired(
+            "Insufficient balance. Please top up your account.".to_string(),
+        ));
+    }
 
     // Rate limit user (per-minute)
     rate_limit::rate_limit_user(&state.redis, &user.id.to_string(), &state.config)
@@ -505,14 +532,15 @@ async fn send_message(
         return Err(AppError::RateLimited { retry_after: 5 });
     }
 
-    // Daily message limit (atomic check + increment with row lock in transaction)
+    // Daily message limit (atomic check + increment with row lock)
+    // If limit exceeded but user has balance → allow as paid overage
     let limit = plan_limit(&user.plan);
+    let mut is_overage = false;
     if limit != -1 {
         let now = Utc::now();
 
         let mut tx = state.db.begin().await?;
 
-        // Lock the row
         let locked_user = sqlx::query_as::<_, crate::models::User>(
             "SELECT * FROM users WHERE id = $1 FOR UPDATE"
         )
@@ -534,8 +562,13 @@ async fn send_message(
         }
 
         if daily_used >= limit as i32 {
-            tx.commit().await?;
-            return Err(AppError::RateLimited { retry_after: 3600 });
+            // Limit exceeded — allow only if user opted in AND has balance
+            if locked_user.allow_overage_billing && locked_user.balance_kopecks > 0 {
+                is_overage = true;
+            } else {
+                tx.commit().await?;
+                return Err(AppError::RateLimited { retry_after: 3600 });
+            }
         }
 
         // Increment
@@ -692,6 +725,7 @@ async fn send_message(
     let conversation_id = conv.id;
     let user_id = user.id;
     let user_plan = user.plan.clone();
+    let user_in_overage = is_overage;
     let _user_language = user.language.clone();
     let state_clone = state.clone();
     let stream_key_clone = stream_key.clone();
@@ -1068,10 +1102,10 @@ async fn send_message(
             tracing::error!(error = %e, "failed to record usage");
         }
 
-        // ── Step 5: Billing charge (paid plans only) ──────────────
+        // ── Step 5: Billing charge (paid plans + overage) ──────────
         let mut charge_kopecks: i64 = 0;
-        if status == "completed" && user_plan != "free" {
-            // Paid users are charged per-token from their balance
+        if status == "completed" && (user_plan != "free" || user_in_overage) {
+            // Paid users and free users in overage are charged per-token
             match billing::get_pricing(&state_clone.db, &model_name).await {
                 Ok(pricing) => {
                     charge_kopecks = billing::calculate_charge(&pricing, input_tokens, output_tokens);

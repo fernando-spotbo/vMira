@@ -95,6 +95,10 @@ pub async fn charge_user(
     input_tokens: i32,
     output_tokens: i32,
 ) -> Result<Transaction, AppError> {
+    if amount_kopecks <= 0 {
+        return Err(AppError::Internal("Charge amount must be positive".to_string()));
+    }
+
     let mut tx = pool.begin().await?;
 
     // Lock the user row to prevent concurrent balance modifications
@@ -179,16 +183,32 @@ pub async fn topup_user(
     let new_balance = balance.0.checked_add(amount_kopecks)
         .ok_or_else(|| AppError::Internal("Balance overflow".to_string()))?;
 
-    // Update user balance and totals
+    // Update user balance, totals, and auto-upgrade plan if on free tier
+    // First top-up automatically upgrades free → pro (pay-per-token model)
+    let current_plan: (String,) = sqlx::query_as(
+        "SELECT plan FROM users WHERE id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::NotFound("User not found".to_string()))?;
+
+    let new_plan = if current_plan.0 == "free" { "pro" } else { &current_plan.0 };
+
     sqlx::query(
-        "UPDATE users SET balance_kopecks = $1, total_topped_up_kopecks = total_topped_up_kopecks + $2, updated_at = $3 WHERE id = $4",
+        "UPDATE users SET balance_kopecks = $1, total_topped_up_kopecks = total_topped_up_kopecks + $2, plan = $3, updated_at = $4 WHERE id = $5",
     )
     .bind(new_balance)
     .bind(amount_kopecks)
+    .bind(new_plan)
     .bind(Utc::now())
     .bind(user_id)
     .execute(&mut *tx)
     .await?;
+
+    if current_plan.0 == "free" {
+        tracing::info!(user_id = %user_id, "Auto-upgraded plan: free → pro (first top-up)");
+    }
 
     // Record the transaction
     let transaction_id = Uuid::new_v4();
@@ -297,25 +317,28 @@ pub async fn get_spending_summary(
 ) -> Result<SpendingSummary, AppError> {
     let now = Utc::now();
     let today = now.date_naive();
+    let tomorrow = today + chrono::Duration::days(1);
     let week_start = today - chrono::Duration::days(today.weekday().num_days_from_monday() as i64);
     let month_start = today.with_day(1).unwrap_or(today);
 
-    // Today's spending
+    // Today's spending (range query for index usage)
     let today_row: (i64,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(ABS(amount_kopecks)), 0)
+        "SELECT COALESCE(SUM(ABS(amount_kopecks))::BIGINT, 0)
          FROM transactions
-         WHERE user_id = $1 AND type = 'charge' AND DATE(created_at) = $2",
+         WHERE user_id = $1 AND type = 'charge'
+           AND created_at >= $2::date AND created_at < $3::date",
     )
     .bind(user_id)
     .bind(today)
+    .bind(tomorrow)
     .fetch_one(pool)
     .await?;
 
     // This week's spending
     let week_row: (i64,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(ABS(amount_kopecks)), 0)
+        "SELECT COALESCE(SUM(ABS(amount_kopecks))::BIGINT, 0)
          FROM transactions
-         WHERE user_id = $1 AND type = 'charge' AND DATE(created_at) >= $2",
+         WHERE user_id = $1 AND type = 'charge' AND created_at >= $2::date",
     )
     .bind(user_id)
     .bind(week_start)
@@ -324,9 +347,9 @@ pub async fn get_spending_summary(
 
     // This month's spending
     let month_row: (i64,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(ABS(amount_kopecks)), 0)
+        "SELECT COALESCE(SUM(ABS(amount_kopecks))::BIGINT, 0)
          FROM transactions
-         WHERE user_id = $1 AND type = 'charge' AND DATE(created_at) >= $2",
+         WHERE user_id = $1 AND type = 'charge' AND created_at >= $2::date",
     )
     .bind(user_id)
     .bind(month_start)
@@ -337,12 +360,12 @@ pub async fn get_spending_summary(
     let model_rows = sqlx::query_as::<_, (String, i64, i64, i64, i64)>(
         "SELECT
             COALESCE(model, 'unknown'),
-            COALESCE(SUM(ABS(amount_kopecks)), 0),
-            COUNT(*),
-            COALESCE(SUM(input_tokens), 0),
-            COALESCE(SUM(output_tokens), 0)
+            COALESCE(SUM(ABS(amount_kopecks))::BIGINT, 0),
+            COUNT(*)::BIGINT,
+            COALESCE(SUM(input_tokens)::BIGINT, 0),
+            COALESCE(SUM(output_tokens)::BIGINT, 0)
          FROM transactions
-         WHERE user_id = $1 AND type = 'charge' AND DATE(created_at) >= $2
+         WHERE user_id = $1 AND type = 'charge' AND created_at >= $2::date
          GROUP BY model
          ORDER BY SUM(ABS(amount_kopecks)) DESC",
     )

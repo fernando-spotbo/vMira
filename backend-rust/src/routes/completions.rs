@@ -79,6 +79,19 @@ async fn chat_completions(
         }
     }
 
+    // Enforce model access by plan
+    if let Ok(pricing) = billing::get_pricing(&state.db, &body.model).await {
+        let plan_rank = |p: &str| match p {
+            "free" => 0, "pro" => 1, "max" => 2, "enterprise" => 3, _ => 0,
+        };
+        if plan_rank(&user.plan) < plan_rank(&pricing.min_plan) {
+            return Err(AppError::Forbidden(format!(
+                "Model {} requires {} plan or higher",
+                body.model, pricing.min_plan
+            )));
+        }
+    }
+
     // Pre-check: paid plan users must have a positive balance
     if user.plan != "free" && user.balance_kopecks <= 0 {
         return Err(AppError::PaymentRequired(
@@ -96,13 +109,14 @@ async fn chat_completions(
             rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
         })?;
 
-    // Daily message limit (same logic as chat routes — prevents free-tier abuse via API keys)
+    // Daily message limit — if exceeded but user has balance, allow as paid overage
     let daily_limit: i64 = match user.plan.as_str() {
         "free" => 20,
         "pro" => 500,
         "max" | "enterprise" => -1,
         _ => 20,
     };
+    let mut is_overage = false;
     if daily_limit != -1 {
         let now = chrono::Utc::now();
         let mut tx = state.db.begin().await?;
@@ -126,8 +140,12 @@ async fn chat_completions(
         }
 
         if daily_used >= daily_limit as i32 {
-            tx.commit().await?;
-            return Err(AppError::RateLimited { retry_after: 3600 });
+            if locked_user.allow_overage_billing && locked_user.balance_kopecks > 0 {
+                is_overage = true;
+            } else {
+                tx.commit().await?;
+                return Err(AppError::RateLimited { retry_after: 3600 });
+            }
         }
 
         sqlx::query("UPDATE users SET daily_messages_used = daily_messages_used + 1 WHERE id = $1")
@@ -220,6 +238,7 @@ async fn chat_completions(
         let state_clone = state.clone();
         let user_id = user.id;
         let user_plan = user.plan.clone();
+        let user_in_overage = is_overage;
         let cancel_token = CancellationToken::new();
         let cancel_clone = cancel_token.clone();
         let request_id_clone = request_id.clone();
@@ -435,8 +454,8 @@ async fn chat_completions(
                 tracing::error!(error = %e, "failed to record usage");
             }
 
-            // ── Billing charge (paid plans only) ──────────────────
-            if status == "completed" && user_plan != "free" {
+            // ── Billing charge (paid plans + overage) ──────────────
+            if status == "completed" && (user_plan != "free" || user_in_overage) {
                 match billing::get_pricing(&state_clone.db, &model_clone).await {
                     Ok(pricing) => {
                         let charge = billing::calculate_charge(&pricing, input_tokens, output_tokens_count);
@@ -616,8 +635,8 @@ async fn chat_completions(
             tracing::error!(error = %e, "failed to record usage");
         }
 
-        // ── Billing charge (paid plans only) ──────────────────
-        if user.plan != "free" {
+        // ── Billing charge (paid plans + overage) ──────────────
+        if user.plan != "free" || is_overage {
             match billing::get_pricing(&state.db, &model).await {
                 Ok(pricing) => {
                     let charge = billing::calculate_charge(&pricing, prompt_tokens as i32, completion_tokens as i32);

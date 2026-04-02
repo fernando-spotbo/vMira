@@ -498,17 +498,13 @@ pub fn stream_ai_response(
         }));
     }
 
-    let upstream_model = match model.as_str() {
-        "mira" => "deepseek-chat",
-        "mira-thinking" => "deepseek-reasoner",
-        "mira-pro" => "deepseek-chat",
-        "mira-max" => "deepseek-chat",
-        other => other,
-    };
-    let upstream_model = upstream_model.to_string();
+    // Self-hosted llama-server ignores the model name in the request —
+    // it always serves the loaded GGUF. Pass the user-facing name through
+    // so it appears correctly in usage records and billing.
+    let upstream_model = model.to_string();
 
-    // Tool calling is supported on deepseek-chat (not deepseek-reasoner)
-    let supports_tools = upstream_model == "deepseek-chat";
+    // Mira model supports tool calling via chatml template
+    let supports_tools = !model.contains("thinking");
 
     tokio::spawn(async move {
         if let Err(e) = validate_host(&url, &allowed_hosts) {

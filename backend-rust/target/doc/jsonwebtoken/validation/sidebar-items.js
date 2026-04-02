@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Audience","Issuer","TryParse"],"fn":["get_current_timestamp","is_subset","numeric_type","validate"],"struct":["BorrowedCowIfPossible","ClaimsForValidation","Validation"]};

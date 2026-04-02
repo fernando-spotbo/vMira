@@ -104,6 +104,7 @@ pub async fn record_usage(pool: &PgPool, record: &UsageRecord) -> Result<(), App
 /// Get aggregated usage for a user for today.
 pub async fn get_user_usage_today(pool: &PgPool, user_id: Uuid) -> Result<DailyUsage, AppError> {
     let today = Utc::now().date_naive();
+    let tomorrow = today + chrono::Duration::days(1);
 
     let row = sqlx::query_as::<_, (i64, i64, i64, i64, i64)>(
         "SELECT
@@ -113,10 +114,11 @@ pub async fn get_user_usage_today(pool: &PgPool, user_id: Uuid) -> Result<DailyU
             COUNT(*) FILTER (WHERE status = 'completed') as completed,
             COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled
          FROM usage_records
-         WHERE user_id = $1 AND DATE(created_at) = $2",
+         WHERE user_id = $1 AND created_at >= $2::date AND created_at < $3::date",
     )
     .bind(user_id)
     .bind(today)
+    .bind(tomorrow)
     .fetch_one(pool)
     .await?;
 
@@ -150,7 +152,7 @@ pub async fn get_user_usage_month(
             COALESCE(SUM(total_tokens), 0) as total_tokens,
             COALESCE(SUM(cost_microcents), 0) as total_cost_microcents
          FROM usage_records
-         WHERE user_id = $1 AND DATE(created_at) >= $2",
+         WHERE user_id = $1 AND created_at >= $2::date",
     )
     .bind(user_id)
     .bind(first_of_month)
@@ -160,13 +162,13 @@ pub async fn get_user_usage_month(
     // Daily breakdown
     let daily_rows = sqlx::query_as::<_, (chrono::NaiveDate, i64, i64, i64)>(
         "SELECT
-            DATE(created_at) as day,
+            created_at::date as day,
             COUNT(*) as requests,
             COALESCE(SUM(total_tokens), 0) as tokens,
             COALESCE(SUM(cost_microcents), 0) as cost_microcents
          FROM usage_records
-         WHERE user_id = $1 AND DATE(created_at) >= $2
-         GROUP BY DATE(created_at)
+         WHERE user_id = $1 AND created_at >= $2::date
+         GROUP BY created_at::date
          ORDER BY day ASC",
     )
     .bind(user_id)
@@ -230,6 +232,7 @@ pub struct GlobalUsageStats {
 /// Get global usage stats (today + this month).
 pub async fn get_global_usage_stats(pool: &PgPool) -> Result<GlobalUsageStats, AppError> {
     let today = Utc::now().date_naive();
+    let tomorrow = today + chrono::Duration::days(1);
     let first_of_month = today.with_day(1).unwrap_or(today);
 
     let today_stats = sqlx::query_as::<_, (i64, i64, i64)>(
@@ -237,9 +240,10 @@ pub async fn get_global_usage_stats(pool: &PgPool) -> Result<GlobalUsageStats, A
             COUNT(*),
             COALESCE(SUM(total_tokens), 0),
             COALESCE(SUM(cost_microcents), 0)
-         FROM usage_records WHERE DATE(created_at) = $1",
+         FROM usage_records WHERE created_at >= $1::date AND created_at < $2::date",
     )
     .bind(today)
+    .bind(tomorrow)
     .fetch_one(pool)
     .await?;
 
@@ -248,7 +252,7 @@ pub async fn get_global_usage_stats(pool: &PgPool) -> Result<GlobalUsageStats, A
             COUNT(*),
             COALESCE(SUM(total_tokens), 0),
             COALESCE(SUM(cost_microcents), 0)
-         FROM usage_records WHERE DATE(created_at) >= $1",
+         FROM usage_records WHERE created_at >= $1::date",
     )
     .bind(first_of_month)
     .fetch_one(pool)
@@ -291,7 +295,7 @@ pub async fn get_per_user_usage(
             COALESCE(SUM(total_tokens), 0) as total_tokens,
             COALESCE(SUM(cost_microcents), 0) as total_cost_microcents
          FROM usage_records
-         WHERE DATE(created_at) >= $1
+         WHERE created_at >= $1::date
          GROUP BY user_id
          ORDER BY total_cost_microcents DESC
          LIMIT $2 OFFSET $3",

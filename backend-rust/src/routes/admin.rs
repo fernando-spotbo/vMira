@@ -82,10 +82,12 @@ async fn get_stats(
         .fetch_one(&state.db)
         .await?;
 
+    let tomorrow = today + chrono::Duration::days(1);
     let messages_today: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM messages WHERE DATE(created_at) = $1"
+        "SELECT COUNT(*) FROM messages WHERE created_at >= $1::date AND created_at < $2::date"
     )
     .bind(today)
+    .bind(tomorrow)
     .fetch_one(&state.db)
     .await?;
 

@@ -1,4 +1,4 @@
-//! Billing routes — balance, transactions, pricing, top-up, and YooKassa webhook.
+//! Billing routes — balance, transactions, pricing, top-up, and CryptoCloud webhook.
 
 use axum::{
     extract::{Path, Query, State},
@@ -16,7 +16,7 @@ use crate::schema::{
     TransactionResponse,
 };
 use crate::services::billing;
-use crate::services::payment;
+use crate::services::payment_crypto;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Router
@@ -28,7 +28,7 @@ pub fn billing_routes() -> Router<AppState> {
         .route("/transactions", get(get_transactions))
         .route("/pricing", get(get_pricing))
         .route("/topup", post(create_topup))
-        .route("/webhook", post(webhook))
+        .route("/webhook/crypto", post(webhook_crypto))
         .route("/invoice/{id}", get(get_invoice))
 }
 
@@ -166,8 +166,8 @@ async fn create_topup(
     AuthUser(user): AuthUser,
     Json(body): Json<TopupRequest>,
 ) -> Result<Json<TopupResponse>, AppError> {
-    // Validate amount
-    if body.amount_rubles < 1.0 {
+    // Validate amount (check NaN/Infinity before numeric comparison)
+    if !body.amount_rubles.is_finite() || body.amount_rubles < 1.0 {
         return Err(AppError::BadRequest(
             "Minimum top-up amount is 1.00 RUB".to_string(),
         ));
@@ -176,14 +176,6 @@ async fn create_topup(
         return Err(AppError::BadRequest(
             "Maximum top-up amount is 100,000.00 RUB".to_string(),
         ));
-    }
-
-    // Validate return_url against allowed origins (prevent open redirect / phishing)
-    let return_url_valid = state.config.allowed_origins.iter().any(|origin| {
-        body.return_url.starts_with(origin)
-    }) || body.return_url.starts_with("https://vmira.ai") || body.return_url.starts_with("http://localhost:");
-    if !return_url_valid {
-        return Err(AppError::BadRequest("Invalid return URL".to_string()));
     }
 
     // Use string formatting to avoid f64 precision loss in monetary conversion
@@ -195,71 +187,35 @@ async fn create_topup(
         rubles * 100 + kopecks
     };
 
-    // User needs an email for fiscal receipts (54-FZ)
-    let user_email = user.email.as_deref().unwrap_or_default();
-    if user_email.is_empty() {
-        return Err(AppError::BadRequest(
-            "Email is required for payment receipts. Please add an email to your account."
-                .to_string(),
-        ));
-    }
-
-    let description = format!("Пополнение баланса Mira AI — {} RUB", body.amount_rubles);
-
-    let payment_result = payment::create_payment(
+    let result = payment_crypto::create_payment(
         &state.config,
         user.id,
         amount_kopecks,
-        &description,
-        &body.return_url,
-        user_email,
+        user.email.as_deref(),
     )
     .await?;
 
     Ok(Json(TopupResponse {
-        payment_url: payment_result.payment_url,
-        payment_id: payment_result.payment_id,
+        payment_url: result.payment_url,
+        payment_id: result.payment_id,
         amount_kopecks,
+        provider: result.provider,
     }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  POST /webhook (YooKassa — no auth, verified by IP)
+//  POST /webhook/crypto (CryptoCloud — verified by JWT token)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async fn webhook(
+async fn webhook_crypto(
     State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    body: String,
+    Json(postback): Json<payment_crypto::CryptoCloudPostback>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    // Extract client IP for verification
-    let client_ip = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.rsplit(',').next())
-        .map(|s| s.trim().to_string())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.trim().to_string())
-        })
-        .unwrap_or_else(|| "unknown".to_string());
+    let result = payment_crypto::handle_postback(&state.db, &state.config, &state.redis, &postback).await?;
 
-    // ALWAYS verify webhook source IP (never skip, even in debug — money is involved)
-    if !payment::verify_webhook_ip(&client_ip) {
-        tracing::warn!(
-            client_ip = %client_ip,
-            "YooKassa webhook rejected: untrusted IP"
-        );
-        return Err(AppError::Forbidden(
-            "Webhook source not authorized".to_string(),
-        ));
-    }
+    tracing::info!(result = ?result, "CryptoCloud webhook processed");
 
-    payment::handle_webhook(&state.db, &state.config, &body).await?;
-
-    Ok(Json(serde_json::json!({ "status": "ok" })))
+    Ok(Json(serde_json::json!({ "message": "Postback received" })))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

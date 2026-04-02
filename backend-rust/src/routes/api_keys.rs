@@ -85,8 +85,9 @@ async fn create_api_key(
     let mut tx = state.db.begin().await?;
 
     // Lock the user's api_keys rows to serialize concurrent creates
+    // (FOR UPDATE goes in a subquery because PostgreSQL disallows it with aggregates)
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM api_keys WHERE user_id = $1 AND is_active = true FOR UPDATE"
+        "SELECT COUNT(*) FROM (SELECT 1 FROM api_keys WHERE user_id = $1 AND is_active = true FOR UPDATE) locked"
     )
     .bind(user.id)
     .fetch_one(&mut *tx)

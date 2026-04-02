@@ -52,6 +52,7 @@ const EXEMPT_PATHS: &[&str] = &[
     "/api/v1/auth/device/token",
     "/api/v1/models",
     "/api/v1/telegram/webhook",
+    "/api/v1/billing/webhook/crypto",
     "/api/v1/calendar/feed",
 ];
 

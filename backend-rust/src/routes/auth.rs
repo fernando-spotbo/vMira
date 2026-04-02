@@ -66,6 +66,9 @@ fn user_response(user: &User) -> UserResponse {
         avatar_url: user.avatar_url.clone(),
         plan: user.plan.clone(),
         language: user.language.clone(),
+        balance_kopecks: user.balance_kopecks,
+        daily_messages_used: user.daily_messages_used,
+        allow_overage_billing: user.allow_overage_billing,
         created_at: user.created_at,
     }
 }
@@ -889,12 +892,14 @@ async fn update_me(
 
     let name = body.name.as_deref().unwrap_or(&user.name);
     let language = body.language.as_deref().unwrap_or(&user.language);
+    let allow_overage = body.allow_overage_billing.unwrap_or(user.allow_overage_billing);
 
     let updated = sqlx::query_as::<_, User>(
-        "UPDATE users SET name = $1, language = $2, updated_at = $3 WHERE id = $4 RETURNING *"
+        "UPDATE users SET name = $1, language = $2, allow_overage_billing = $3, updated_at = $4 WHERE id = $5 RETURNING *"
     )
     .bind(name)
     .bind(language)
+    .bind(allow_overage)
     .bind(Utc::now())
     .bind(user.id)
     .fetch_one(&state.db)

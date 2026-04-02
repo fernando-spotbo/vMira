@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -8,41 +8,9 @@ import {
   RotateCcw,
   Plus,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
-
-// ---- Mock data ----
-
-const mockBalance = {
-  balance_kopecks: 234500,
-  balance_rubles: "2 345,00",
-};
-
-const mockTransactions = [
-  { id: "1", type: "topup" as const, amount_rubles: "+5 000,00", description: "Пополнение через SBP", created_at: "2026-03-21T10:00:00Z" },
-  { id: "2", type: "charge" as const, amount_rubles: "-0,36", description: "Mira Thinking — 2 400 токенов", created_at: "2026-03-21T09:30:00Z" },
-  { id: "3", type: "charge" as const, amount_rubles: "-0,12", description: "Mira Fast — 1 100 токенов", created_at: "2026-03-21T09:15:00Z" },
-  { id: "4", type: "charge" as const, amount_rubles: "-1,46", description: "Mira Pro — 6 200 токенов", created_at: "2026-03-21T08:45:00Z" },
-  { id: "5", type: "refund" as const, amount_rubles: "+0,50", description: "Возврат за ошибку API", created_at: "2026-03-20T22:10:00Z" },
-  { id: "6", type: "charge" as const, amount_rubles: "-7,00", description: "Mira Max — 12 000 токенов", created_at: "2026-03-20T20:30:00Z" },
-  { id: "7", type: "topup" as const, amount_rubles: "+1 000,00", description: "Пополнение банковской картой", created_at: "2026-03-20T18:00:00Z" },
-  { id: "8", type: "charge" as const, amount_rubles: "-0,23", description: "Mira Thinking — 1 500 токенов", created_at: "2026-03-20T16:45:00Z" },
-  { id: "9", type: "charge" as const, amount_rubles: "-0,07", description: "Mira Fast — 600 токенов", created_at: "2026-03-20T15:20:00Z" },
-  { id: "10", type: "charge" as const, amount_rubles: "-5,10", description: "Mira Max — 8 400 токенов", created_at: "2026-03-19T23:50:00Z" },
-  { id: "11", type: "topup" as const, amount_rubles: "+2 000,00", description: "Пополнение через YooMoney", created_at: "2026-03-19T12:00:00Z" },
-  { id: "12", type: "charge" as const, amount_rubles: "-0,90", description: "Mira Pro — 3 800 токенов", created_at: "2026-03-19T10:30:00Z" },
-];
-
-const mockSpendingDays = [
-  { date: "15 мар", kopecks: 570 },
-  { date: "16 мар", kopecks: 1330 },
-  { date: "17 мар", kopecks: 2010 },
-  { date: "18 мар", kopecks: 910 },
-  { date: "19 мар", kopecks: 1930 },
-  { date: "20 мар", kopecks: 3170 },
-  { date: "21 мар", kopecks: 1053 },
-];
-
-const mockStats = { today: "10,53", week: "109,80", month: "152,67" };
+import { getBalance, getTransactions, type Balance, type Transaction } from "@/lib/api-billing";
 
 // ---- Helpers ----
 
@@ -53,11 +21,61 @@ function fmtDate(iso: string): string {
   return `${day} ${months[d.getMonth()]}, ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
+function fmtRubles(kopecks: number): string {
+  const r = Math.abs(kopecks) / 100;
+  return r.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 // ---- Component ----
 
 export default function BillingPage() {
+  const [balance, setBalance] = useState<Balance | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [visibleCount, setVisibleCount] = useState(8);
-  const maxSpend = Math.max(...mockSpendingDays.map((d) => d.kopecks), 1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [bal, txs] = await Promise.all([
+          getBalance(),
+          getTransactions(50, 0),
+        ]);
+        setBalance(bal);
+        setTransactions(txs);
+      } catch (e) {
+        setError("Не удалось загрузить данные биллинга");
+        console.error("Billing load error:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={24} className="text-white/30 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !balance) {
+    return (
+      <div className="max-w-[860px] mx-auto text-center py-20">
+        <p className="text-white/40 text-[15px]">{error || "Данные недоступны"}</p>
+      </div>
+    );
+  }
+
+  const spending = balance.spending;
+  const stats = [
+    { label: "Сегодня", kopecks: spending?.today_kopecks ?? 0 },
+    { label: "За неделю", kopecks: spending?.week_kopecks ?? 0 },
+    { label: "За месяц", kopecks: spending?.month_kopecks ?? 0 },
+  ];
 
   return (
     <div className="max-w-[860px] mx-auto">
@@ -67,7 +85,7 @@ export default function BillingPage() {
         <div>
           <p className="text-[14px] text-white/40 mb-2">Баланс</p>
           <p className="text-[36px] font-medium text-white leading-none tabular-nums tracking-tight">
-            {mockBalance.balance_rubles}
+            {fmtRubles(balance.balance_kopecks)}
             <span className="text-[22px] text-white/30 ml-1.5">₽</span>
           </p>
         </div>
@@ -82,84 +100,84 @@ export default function BillingPage() {
 
       {/* ── Spend stats ── */}
       <div className="flex gap-8 mb-10 pb-10 border-b border-white/[0.06]">
-        {[
-          { label: "Сегодня", value: mockStats.today },
-          { label: "За неделю", value: mockStats.week },
-          { label: "За месяц", value: mockStats.month },
-        ].map((s) => (
+        {stats.map((s) => (
           <div key={s.label}>
             <p className="text-[14px] text-white/30 mb-1">{s.label}</p>
-            <p className="text-[18px] font-medium text-white tabular-nums">{s.value} <span className="text-[14px] text-white/25">₽</span></p>
+            <p className="text-[18px] font-medium text-white tabular-nums">
+              {fmtRubles(s.kopecks)} <span className="text-[14px] text-white/25">₽</span>
+            </p>
           </div>
         ))}
       </div>
 
-      {/* ── Weekly chart ── */}
-      <div className="mb-10">
-        <p className="text-[15px] font-medium text-white mb-6">Расходы за неделю</p>
-        <div className="flex items-end gap-2 h-[140px]">
-          {mockSpendingDays.map((day) => {
-            const pct = (day.kopecks / maxSpend) * 100;
-            const rubles = (day.kopecks / 100).toFixed(0);
-            return (
-              <div key={day.date} className="flex-1 flex flex-col items-center gap-2 group">
-                <span className="text-[14px] text-white/0 group-hover:text-white/50 transition-colors tabular-nums">
-                  {rubles} ₽
-                </span>
-                <div className="w-full relative" style={{ height: `${Math.max(pct, 4)}%` }}>
-                  <div className="absolute inset-0 rounded-md bg-white/[0.10] group-hover:bg-white/[0.18] transition-colors" />
-                </div>
-                <span className="text-[14px] text-white/30">{day.date}</span>
+      {/* ── Model breakdown ── */}
+      {spending?.by_model && spending.by_model.length > 0 && (
+        <div className="mb-10">
+          <p className="text-[15px] font-medium text-white mb-4">Расходы по моделям</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {spending.by_model.map((m: { model: string; total_kopecks: number; total_requests: number }) => (
+              <div key={m.model} className="rounded-xl border border-white/[0.06] px-4 py-3">
+                <p className="text-[13px] text-white/30 mb-1">{m.model}</p>
+                <p className="text-[16px] font-medium text-white tabular-nums">
+                  {fmtRubles(m.total_kopecks)} ₽
+                </p>
+                <p className="text-[12px] text-white/20 mt-0.5">{m.total_requests} запросов</p>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Transactions ── */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <p className="text-[15px] font-medium text-white">Транзакции</p>
-          <span className="text-[14px] text-white/25">{mockTransactions.length}</span>
+          <span className="text-[14px] text-white/25">{transactions.length}</span>
         </div>
 
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-          {mockTransactions.slice(0, visibleCount).map((tx, i) => {
-            const isTopup = tx.type === "topup";
-            const isCharge = tx.type === "charge";
-            return (
-              <div
-                key={tx.id}
-                className={`flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] transition-colors ${
-                  i < Math.min(visibleCount, mockTransactions.length) - 1 ? "border-b border-white/[0.04]" : ""
-                }`}
+        {transactions.length === 0 ? (
+          <div className="rounded-xl border border-white/[0.06] px-5 py-8 text-center">
+            <p className="text-[14px] text-white/30">Транзакций пока нет</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+            {transactions.slice(0, visibleCount).map((tx, i) => {
+              const isTopup = tx.type === "topup";
+              const isCharge = tx.type === "charge";
+              return (
+                <div
+                  key={tx.id}
+                  className={`flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] transition-colors ${
+                    i < Math.min(visibleCount, transactions.length) - 1 ? "border-b border-white/[0.04]" : ""
+                  }`}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
+                    {isTopup && <ArrowDownLeft size={15} className="text-white/50" />}
+                    {tx.type === "refund" && <RotateCcw size={15} className="text-white/50" />}
+                    {isCharge && <ArrowUpRight size={15} className="text-white/35" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] text-white/60 truncate">{tx.description}</p>
+                  </div>
+                  <span className="text-[14px] text-white/20 shrink-0 hidden sm:block">{fmtDate(tx.created_at)}</span>
+                  <span className={`text-[15px] font-medium tabular-nums shrink-0 w-[100px] text-right ${isCharge ? "text-white/35" : "text-white/70"}`}>
+                    {tx.amount_kopecks > 0 ? "+" : ""}{fmtRubles(tx.amount_kopecks)} ₽
+                  </span>
+                </div>
+              );
+            })}
+
+            {visibleCount < transactions.length && (
+              <button
+                onClick={() => setVisibleCount((c) => c + 10)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 text-[14px] text-white/30 hover:text-white/50 hover:bg-white/[0.02] transition-colors border-t border-white/[0.04]"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
-                  {isTopup && <ArrowDownLeft size={15} className="text-white/50" />}
-                  {tx.type === "refund" && <RotateCcw size={15} className="text-white/50" />}
-                  {isCharge && <ArrowUpRight size={15} className="text-white/35" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] text-white/60 truncate">{tx.description}</p>
-                </div>
-                <span className="text-[14px] text-white/20 shrink-0 hidden sm:block">{fmtDate(tx.created_at)}</span>
-                <span className={`text-[15px] font-medium tabular-nums shrink-0 w-[100px] text-right ${isCharge ? "text-white/35" : "text-white/70"}`}>
-                  {tx.amount_rubles} ₽
-                </span>
-              </div>
-            );
-          })}
-
-          {visibleCount < mockTransactions.length && (
-            <button
-              onClick={() => setVisibleCount((c) => c + 10)}
-              className="w-full flex items-center justify-center gap-2 py-3.5 text-[14px] text-white/30 hover:text-white/50 hover:bg-white/[0.02] transition-colors border-t border-white/[0.04]"
-            >
-              Показать ещё
-              <ChevronDown size={14} />
-            </button>
-          )}
-        </div>
+                Показать ещё
+                <ChevronDown size={14} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Pricing link ── */}

@@ -75,9 +75,6 @@ image = "0.25"
 # URL encoding for search queries
 urlencoding = "2"
 
-# IP network matching (CIDR verification for payment webhooks)
-ipnet = "2"
-
 # Memory safety
 zeroize = "1"
 

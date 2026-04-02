@@ -70,7 +70,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth >= 768 : true
   );
-  const [selectedModel, setSelectedModel] = useState("Mira");
+  const [selectedModel, setSelectedModel] = useState("mira");
   const [showReminders, setShowReminders] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
@@ -552,7 +552,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           const searches: SearchQuery[] = [];
           let currentSearchQuery = "";
 
-          const ALLOWED_MODELS = ["mira", "mira-thinking"];
+          const ALLOWED_MODELS = ["mira", "mira-thinking", "mira-pro", "mira-max"];
           const modelName = selectedModel.toLowerCase().replace(/\s+/g, "-");
           const safeModel = ALLOWED_MODELS.includes(modelName) ? modelName : "mira";
 

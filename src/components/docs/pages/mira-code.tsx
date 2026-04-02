@@ -997,16 +997,16 @@ function MiraCodePricingPage({ locale }: { locale: Locale }) {
 
       <Table
         headers={[
-          "", "Free",  "Pro — 499 ₽/" + (isRu ? "мес" : "mo"), "Max — 990 ₽/" + (isRu ? "мес" : "mo"),
+          "", "Free",  "Pro — 499 ₽/" + (isRu ? "мес" : "mo"), "Max — 990 ₽/" + (isRu ? "мес" : "mo"), "Enterprise",
         ]}
         rows={[
-          [isRu ? "Запросов в день" : "Requests/day", "30", "500", "2 000"],
-          [isRu ? "Модели" : "Models", "Mira Fast", isRu ? "Все (Fast, Pro, Max)" : "All (Fast, Pro, Max)", isRu ? "Все + приоритет" : "All + priority"],
-          [isRu ? "Режим мышления" : "Thinking mode", "—", "✓", "✓"],
-          [isRu ? "Контекст" : "Context", "32K", "64K", "128K"],
-          [isRu ? "Генерация тестов" : "Test generation", "—", "✓", "✓"],
-          [isRu ? "Анализ кодовой базы" : "Codebase analysis", "—", "—", "✓"],
-          [isRu ? "Приоритетная очередь" : "Priority queue", "—", "—", "✓"],
+          [isRu ? "Запросов в день" : "Requests/day", "30", "500", "2 000", isRu ? "Индивидуально" : "Custom"],
+          [isRu ? "Модели" : "Models", "Mira Fast", isRu ? "Все (Fast, Pro, Max)" : "All (Fast, Pro, Max)", isRu ? "Все + приоритет" : "All + priority", isRu ? "Все + дообучение" : "All + fine-tuning"],
+          [isRu ? "Режим мышления" : "Thinking mode", "—", "✓", "✓", "✓"],
+          [isRu ? "Контекст" : "Context", "32K", "64K", "128K", isRu ? "Без лимита" : "Unlimited"],
+          [isRu ? "Генерация тестов" : "Test generation", "—", "✓", "✓", "✓"],
+          [isRu ? "Анализ кодовой базы" : "Codebase analysis", "—", "—", "✓", "✓"],
+          [isRu ? "Приоритетная очередь" : "Priority queue", "—", "—", "✓", "✓"],
         ]}
       />
 

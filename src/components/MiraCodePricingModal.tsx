@@ -85,6 +85,33 @@ const PLANS = [
       ],
     },
   },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    price: -1,
+    period: { ru: "", en: "" },
+    description: { ru: "Для команд и компаний", en: "For teams and companies" },
+    features: {
+      ru: [
+        "Индивидуальные лимиты",
+        "Все модели + дообучение",
+        "Частное развёртывание (152-ФЗ)",
+        "SLA 99.9%",
+        "SSO / SAML",
+        "Выделенная поддержка",
+        "Аудит и контроль доступа",
+      ],
+      en: [
+        "Custom limits",
+        "All models + fine-tuning",
+        "Private deployment (152-FZ)",
+        "SLA 99.9%",
+        "SSO / SAML",
+        "Dedicated support",
+        "Audit logging & access control",
+      ],
+    },
+  },
 ];
 
 function getLocale(): "ru" | "en" {
@@ -136,7 +163,7 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
     >
       <div
         ref={modalRef}
-        className={`w-full max-w-[880px] max-h-[90vh] rounded-2xl bg-[#1a1a1a] border border-white/[0.06] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-250 flex flex-col ${
+        className={`w-full max-w-[1100px] max-h-[90vh] rounded-2xl bg-[#1a1a1a] border border-white/[0.06] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-250 flex flex-col ${
           visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
       >
@@ -163,7 +190,7 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
 
         {/* Plans */}
         <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-8 pt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-8 pt-6">
             {PLANS.map((plan) => (
               <div
                 key={plan.id}
@@ -190,6 +217,8 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
                   <div className="flex items-baseline gap-1 mt-2">
                     {plan.price === 0 ? (
                       <span className="text-2xl font-medium text-white">{isRu ? "Бесплатно" : "Free"}</span>
+                    ) : plan.price === -1 ? (
+                      <span className="text-2xl font-medium text-white">{isRu ? "Индивидуально" : "Custom"}</span>
                     ) : (
                       <>
                         <span className="text-2xl font-medium text-white">{plan.price} ₽</span>
@@ -229,6 +258,8 @@ export default function MiraCodePricingModal({ onClose }: MiraCodePricingModalPr
                     </span>
                   ) : plan.current ? (
                     isRu ? "Текущий" : "Current plan"
+                  ) : plan.price === -1 ? (
+                    isRu ? "Связаться" : "Contact sales"
                   ) : (
                     `${isRu ? "Перейти на" : "Upgrade to"} ${plan.name}`
                   )}

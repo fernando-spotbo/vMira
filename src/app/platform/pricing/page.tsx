@@ -110,6 +110,26 @@ const plans = [
     popular: false,
     current: false,
   },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    price: "-1",
+    period: "",
+    description: "Для команд и компаний",
+    features: [
+      "Индивидуальные лимиты",
+      "Все модели + дообучение",
+      "Частное развёртывание (152-ФЗ)",
+      "Гарантии SLA 99.9%",
+      "SSO / SAML интеграция",
+      "Выделенная поддержка",
+      "Аудит и контроль доступа",
+    ],
+    buttonText: "Связаться",
+    buttonHref: "mailto:enterprise@vmira.ai",
+    popular: false,
+    current: false,
+  },
 ];
 
 const faqItems = [
@@ -238,7 +258,7 @@ export default function PricingPage() {
         <h2 className="text-[20px] font-medium text-white text-center mb-2">Тарифные планы</h2>
         <p className="text-[14px] text-white/40 text-center mb-8">Обновите в любое время. Отмените когда угодно.</p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {plans.map((plan) => (
             <div
               key={plan.id}
@@ -259,6 +279,8 @@ export default function PricingPage() {
                 <div className="flex items-baseline gap-1 mt-2">
                   {plan.price === "0" ? (
                     <span className="text-[28px] font-medium text-white">Бесплатно</span>
+                  ) : plan.price === "-1" ? (
+                    <span className="text-[28px] font-medium text-white">Индивидуально</span>
                   ) : (
                     <>
                       <span className="text-[28px] font-medium text-white">{plan.price}</span>

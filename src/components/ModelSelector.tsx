@@ -17,7 +17,7 @@ const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, max: 2, enterprise:
 
 const MODELS: ModelDef[] = [
   { id: "mira", label: "Mira Fast", description: "Быстрые ответы", icon: Zap, minPlan: "free" },
-  { id: "mira-thinking", label: "Mira Thinking", description: "Режим размышлений", icon: Sparkles, minPlan: "free" },
+  { id: "mira-thinking", label: "Mira Thinking", description: "Режим размышлений", icon: Sparkles, minPlan: "pro" },
   { id: "mira-pro", label: "Mira Pro", description: "Сложные задачи", icon: Rocket, minPlan: "pro" },
   { id: "mira-max", label: "Mira Max", description: "Максимальное качество", icon: Gem, minPlan: "max" },
 ];

@@ -30,7 +30,7 @@ function getPlans(currentPlan: string) {
         t("pricing.f.free.3"),
         t("pricing.f.free.4"),
       ],
-      models: ["Mira Fast", "Mira Thinking"],
+      models: ["Mira Fast"],
       isCurrent: currentPlan === "free",
       isDowngrade: rank > 0,
     },

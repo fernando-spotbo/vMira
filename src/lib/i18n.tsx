@@ -344,11 +344,11 @@ const translations: Record<string, Record<Locale, string>> = {
 
   // Функции тарифов
   "pricing.f.free.1": { ru: "1 000 сообщений в день", en: "1,000 messages per day" },
-  "pricing.f.free.2": { ru: "Mira Fast и Thinking", en: "Mira Fast and Thinking" },
+  "pricing.f.free.2": { ru: "Модель Mira Fast", en: "Mira Fast model" },
   "pricing.f.free.3": { ru: "Текстовый чат и поиск", en: "Text chat and web search" },
   "pricing.f.free.4": { ru: "Загрузка файлов", en: "File uploads" },
   "pricing.f.pro.1": { ru: "5 000 сообщений в день", en: "5,000 messages per day" },
-  "pricing.f.pro.2": { ru: "Модель Mira Pro", en: "Mira Pro model" },
+  "pricing.f.pro.2": { ru: "Mira Pro + режим размышлений", en: "Mira Pro + thinking mode" },
   "pricing.f.pro.3": { ru: "Расширенный контекст", en: "Extended context" },
   "pricing.f.pro.4": { ru: "Голосовой ввод и вывод", en: "Voice input and output" },
   "pricing.f.pro.5": { ru: "Приоритетная скорость", en: "Priority speed" },

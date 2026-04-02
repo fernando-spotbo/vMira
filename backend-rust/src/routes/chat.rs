@@ -1041,11 +1041,14 @@ async fn send_message(
                             yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
                         }
                         Some(ai_proxy::AiEvent::Thinking(chunk)) => {
-                            let event_data = serde_json::json!({
-                                "type": "thinking",
-                                "content": chunk,
-                            });
-                            yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                            // Show thinking for thinking/pro/max models, hide for mira (fast)
+                            if model_name != "mira" {
+                                let event_data = serde_json::json!({
+                                    "type": "thinking",
+                                    "content": chunk,
+                                });
+                                yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&event_data).unwrap_or_default()));
+                            }
                         }
                         Some(ai_proxy::AiEvent::SearchStarted { query }) => {
                             let event_data = serde_json::json!({
@@ -1445,9 +1448,8 @@ async fn anonymous_stream(
                 Some(ai_proxy::AiEvent::ActionProposed { .. }) => {
                     // Guests can't propose actions — ignore
                 }
-                Some(ai_proxy::AiEvent::Thinking(chunk)) => {
-                    let data = serde_json::json!({"type": "thinking", "content": chunk});
-                    yield Ok::<_, Infallible>(Event::default().data(serde_json::to_string(&data).unwrap_or_default()));
+                Some(ai_proxy::AiEvent::Thinking(_)) => {
+                    // Guests use mira (fast) — no thinking display
                 }
                 None => break,
             }

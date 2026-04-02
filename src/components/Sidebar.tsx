@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, ChevronDown, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock, Folder, FolderOpen, CornerDownRight, X } from "lucide-react";
+import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, ChevronDown, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock, Folder, FolderOpen, CornerDownRight, X, Plus } from "lucide-react";
 import SearchModal from "./SearchModal";
 import SettingsModal from "./SettingsModal";
 import PricingModal from "./PricingModal";
@@ -555,6 +555,138 @@ function SidebarContent({
 import type { Project } from "@/lib/types";
 import NewProjectModal from "./NewProjectModal";
 
+/**
+ * ProjectPickerModal — full-screen modal for moving a conversation to a project.
+ * Searchable list with current project highlighted, "Remove" option, and "New project".
+ */
+function ProjectPickerModal({
+  projects,
+  currentProjectId,
+  onSelect,
+  onNewProject,
+  onClose,
+}: {
+  projects: Project[];
+  currentProjectId: string | null;
+  onSelect: (projectId: string | null) => void;
+  onNewProject: () => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [visible, setVisible] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true));
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  const close = () => {
+    setVisible(false);
+    setTimeout(onClose, 200);
+  };
+
+  const handleBackdrop = (e: React.MouseEvent) => {
+    if (modalRef.current && !modalRef.current.contains(e.target as Node)) close();
+  };
+
+  const filtered = projects.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return createPortal(
+    <div
+      onClick={handleBackdrop}
+      className={`fixed inset-0 z-[200] flex items-center justify-center px-4 transition-all duration-200 ${
+        visible ? "bg-black/60 backdrop-blur-sm" : "bg-black/0"
+      }`}
+    >
+      <div
+        ref={modalRef}
+        className={`w-full max-w-[380px] rounded-2xl bg-[#1a1a1a] border border-white/[0.06] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-200 ${
+          visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+        }`}
+      >
+        {/* Header */}
+        <div className="px-5 pt-5 pb-3">
+          <h3 className="text-[15px] font-medium text-white mb-3">Move to project</h3>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search projects..."
+              className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-2.5 text-[14px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.12] transition-colors"
+            />
+          </div>
+        </div>
+
+        {/* Project list */}
+        <div className="max-h-[320px] overflow-y-auto px-2 pb-2">
+          {/* Remove from project */}
+          {currentProjectId && (
+            <button
+              onClick={() => onSelect(null)}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] text-white/50 hover:bg-white/[0.04] transition-colors mb-1"
+            >
+              <X size={15} className="shrink-0 text-white/30" />
+              <span>Remove from project</span>
+            </button>
+          )}
+
+          {filtered.length === 0 && search && (
+            <div className="px-3 py-6 text-center text-[13px] text-white/25">
+              No projects found
+            </div>
+          )}
+
+          {filtered.map((p) => {
+            const isCurrent = p.id === currentProjectId;
+            return (
+              <button
+                key={p.id}
+                onClick={() => { if (!isCurrent) onSelect(p.id); }}
+                disabled={isCurrent}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] transition-colors ${
+                  isCurrent
+                    ? "text-white/30 cursor-default bg-white/[0.02]"
+                    : "text-white hover:bg-white/[0.04]"
+                }`}
+              >
+                <span className="text-[16px] shrink-0">{p.emoji || "📁"}</span>
+                <span className="flex-1 text-left truncate">{p.name}</span>
+                {isCurrent && (
+                  <span className="text-[11px] text-white/20 uppercase tracking-wide">Current</span>
+                )}
+              </button>
+            );
+          })}
+
+          {/* New project */}
+          <div className="mt-1 pt-1 border-t border-white/[0.04]">
+            <button
+              onClick={onNewProject}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] text-white/50 hover:text-white hover:bg-white/[0.04] transition-colors"
+            >
+              <Plus size={15} className="shrink-0" />
+              <span>New project</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ChatItem({
   conv,
   isActive,
@@ -567,22 +699,19 @@ function ChatItem({
   projects: Project[];
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [projectSubmenuOpen, setProjectSubmenuOpen] = useState(false);
-  const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conv.title);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const moveButtonRef = useRef<HTMLDivElement>(null);
   const { renameConversation, deleteConversation, starConversation, moveConversationToProject } = useChat();
 
   useEffect(() => {
-    if (!menuOpen) { setProjectSubmenuOpen(false); return; }
+    if (!menuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
-        setProjectSubmenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -660,72 +789,13 @@ function ChatItem({
 
           {/* Move to project */}
           <div className="my-1 border-t border-white/[0.06]" />
-          <div
-            ref={moveButtonRef}
-            className="relative"
-            onMouseEnter={() => {
-              setProjectSubmenuOpen(true);
-              if (moveButtonRef.current) {
-                const rect = moveButtonRef.current.getBoundingClientRect();
-                setSubmenuPos({ top: rect.top, left: rect.right + 4 });
-              }
-            }}
-            onMouseLeave={() => setProjectSubmenuOpen(false)}
+          <button
+            onClick={() => { setMenuOpen(false); setShowProjectPicker(true); }}
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
           >
-            <button
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
-            >
-              <CornerDownRight size={15} />
-              <span className="flex-1 text-left">{t("menu.moveToProject")}</span>
-              <ChevronRight size={14} className="text-white/40" />
-            </button>
-          </div>
-
-          {/* Project submenu — rendered as fixed portal to escape sidebar overflow */}
-          {projectSubmenuOpen && submenuPos && createPortal(
-            <div
-              className="fixed z-[100] w-48 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
-              style={{ top: submenuPos.top, left: submenuPos.left }}
-              onMouseEnter={() => setProjectSubmenuOpen(true)}
-              onMouseLeave={() => setProjectSubmenuOpen(false)}
-            >
-              {projects.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => { moveConversationToProject(conv.id, p.id); setMenuOpen(false); setProjectSubmenuOpen(false); }}
-                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors ${
-                    conv.projectId === p.id ? "text-white/40" : "text-white hover:bg-white/[0.06]"
-                  }`}
-                  disabled={conv.projectId === p.id}
-                >
-                  <Folder size={13} className="shrink-0" />
-                  <span className="truncate">{p.name}</span>
-                </button>
-              ))}
-              {conv.projectId && (
-                <>
-                  <div className="my-1 border-t border-white/[0.06]" />
-                  <button
-                    onClick={() => { moveConversationToProject(conv.id, null); setMenuOpen(false); setProjectSubmenuOpen(false); }}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-white/70 hover:bg-white/[0.06] transition-colors"
-                  >
-                    <X size={13} className="shrink-0" />
-                    <span>{t("menu.removeFromProject")}</span>
-                  </button>
-                </>
-              )}
-              {/* New project option — always visible */}
-              <div className="my-1 border-t border-white/[0.06]" />
-              <button
-                onClick={() => { setProjectSubmenuOpen(false); setMenuOpen(false); setShowNewProjectModal(true); }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-white/60 hover:text-white hover:bg-white/[0.06] transition-colors"
-              >
-                <FolderOpen size={13} className="shrink-0" />
-                <span>{t("project.new")}</span>
-              </button>
-            </div>,
-            document.body
-          )}
+            <CornerDownRight size={15} />
+            <span className="flex-1 text-left">{t("menu.moveToProject")}</span>
+          </button>
 
           <div className="my-1 border-t border-white/[0.06]" />
           <button
@@ -736,6 +806,23 @@ function ChatItem({
             <span>{t("menu.delete")}</span>
           </button>
         </div>
+      )}
+
+      {/* Project picker modal */}
+      {showProjectPicker && (
+        <ProjectPickerModal
+          projects={projects}
+          currentProjectId={conv.projectId ?? null}
+          onSelect={(projectId) => {
+            moveConversationToProject(conv.id, projectId);
+            setShowProjectPicker(false);
+          }}
+          onNewProject={() => {
+            setShowProjectPicker(false);
+            setShowNewProjectModal(true);
+          }}
+          onClose={() => setShowProjectPicker(false)}
+        />
       )}
 
       {/* New Project Modal — auto-assigns this conversation to the new project */}

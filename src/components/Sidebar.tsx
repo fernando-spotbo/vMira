@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
@@ -566,16 +567,21 @@ function ChatItem({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [projectSubmenuOpen, setProjectSubmenuOpen] = useState(false);
+  const [submenuPos, setSubmenuPos] = useState<{ top: number; left: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(conv.title);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const moveButtonRef = useRef<HTMLDivElement>(null);
   const { renameConversation, deleteConversation, starConversation, moveConversationToProject } = useChat();
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen) { setProjectSubmenuOpen(false); return; }
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+        setProjectSubmenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -655,8 +661,15 @@ function ChatItem({
             <>
               <div className="my-1 border-t border-white/[0.06]" />
               <div
+                ref={moveButtonRef}
                 className="relative"
-                onMouseEnter={() => setProjectSubmenuOpen(true)}
+                onMouseEnter={() => {
+                  setProjectSubmenuOpen(true);
+                  if (moveButtonRef.current) {
+                    const rect = moveButtonRef.current.getBoundingClientRect();
+                    setSubmenuPos({ top: rect.top, left: rect.right + 4 });
+                  }
+                }}
                 onMouseLeave={() => setProjectSubmenuOpen(false)}
               >
                 <button
@@ -666,39 +679,45 @@ function ChatItem({
                   <span className="flex-1 text-left">{t("menu.moveToProject")}</span>
                   <ChevronRight size={14} className="text-white/40" />
                 </button>
-
-                {projectSubmenuOpen && (
-                  <div className="absolute left-full top-0 ml-1 w-44 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
-                    {projects.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => { moveConversationToProject(conv.id, p.id); setMenuOpen(false); }}
-                        className={`flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors ${
-                          conv.projectId === p.id ? "text-white/40" : "text-white hover:bg-white/[0.06]"
-                        }`}
-                        disabled={conv.projectId === p.id}
-                      >
-                        <Folder size={13} className="shrink-0" />
-                        {p.emoji && <span className="text-xs">{p.emoji}</span>}
-                        <span className="truncate">{p.name}</span>
-                      </button>
-                    ))}
-                    {conv.projectId && (
-                      <>
-                        <div className="my-1 border-t border-white/[0.06]" />
-                        <button
-                          onClick={() => { moveConversationToProject(conv.id, null); setMenuOpen(false); }}
-                          className="flex w-full items-center gap-2 px-4 py-2 text-sm text-white/70 hover:bg-white/[0.06] transition-colors"
-                        >
-                          <X size={13} className="shrink-0" />
-                          <span>{t("menu.removeFromProject")}</span>
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             </>
+          )}
+
+          {/* Project submenu — rendered as fixed portal to escape sidebar overflow */}
+          {projectSubmenuOpen && submenuPos && projects.length > 0 && createPortal(
+            <div
+              className="fixed z-[100] w-44 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+              style={{ top: submenuPos.top, left: submenuPos.left }}
+              onMouseEnter={() => setProjectSubmenuOpen(true)}
+              onMouseLeave={() => setProjectSubmenuOpen(false)}
+            >
+              {projects.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => { moveConversationToProject(conv.id, p.id); setMenuOpen(false); setProjectSubmenuOpen(false); }}
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                    conv.projectId === p.id ? "text-white/40" : "text-white hover:bg-white/[0.06]"
+                  }`}
+                  disabled={conv.projectId === p.id}
+                >
+                  <Folder size={13} className="shrink-0" />
+                  <span className="truncate">{p.name}</span>
+                </button>
+              ))}
+              {conv.projectId && (
+                <>
+                  <div className="my-1 border-t border-white/[0.06]" />
+                  <button
+                    onClick={() => { moveConversationToProject(conv.id, null); setMenuOpen(false); setProjectSubmenuOpen(false); }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-white/70 hover:bg-white/[0.06] transition-colors"
+                  >
+                    <X size={13} className="shrink-0" />
+                    <span>{t("menu.removeFromProject")}</span>
+                  </button>
+                </>
+              )}
+            </div>,
+            document.body
           )}
 
           <div className="my-1 border-t border-white/[0.06]" />

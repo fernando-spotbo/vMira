@@ -480,6 +480,9 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
 
 function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const chartAreaRef = useRef<HTMLDivElement>(null);
+  const [hoverX, setHoverX] = useState<number | null>(null);
+  const [priceKey, setPriceKey] = useState(0); // bumped on price change to trigger animation
   const p = payload;
   const symbol = String(p.symbol || "");
 
@@ -502,34 +505,88 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
   const { data, flash } = useLiveStock(symbol, initialData, containerRef);
   const d = data || initialData;
   const isUp = d.change >= 0;
-  const lineColor = isUp ? "rgba(74,222,128,0.6)" : "rgba(248,113,113,0.6)";
-  const fillColor = isUp ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)";
+  const accentColor = isUp ? "#4ade80" : "#f87171";
+  const lineColor = isUp ? "rgba(74,222,128,0.7)" : "rgba(248,113,113,0.7)";
+  const fillColor = isUp ? "rgba(74,222,128,0.06)" : "rgba(248,113,113,0.06)";
   const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Build SVG chart
-  const W = 400, H = 80, PAD = 4;
-  let chartPath = "", chartFill = "";
-  if (d.chart.length > 1) {
+  // Bump animation key when price changes
+  useEffect(() => {
+    if (flash) setPriceKey((k) => k + 1);
+  }, [flash]);
+
+  // Build SVG chart data
+  const W = 400, H = 90, PAD = 6;
+  const chartPts = useMemo(() => {
+    if (d.chart.length < 2) return [];
     const prices = d.chart.map(c => c.price);
     const minP = Math.min(...prices), maxP = Math.max(...prices);
     const range = maxP - minP || 1;
-    const pts = d.chart.map((c, i) => ({
+    return d.chart.map((c, i) => ({
       x: PAD + (i / (d.chart.length - 1)) * (W - PAD * 2),
       y: PAD + (1 - (c.price - minP) / range) * (H - PAD * 2),
+      price: c.price,
     }));
-    chartPath = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 1; i < pts.length; i++) {
-      const cpx = (pts[i - 1].x + pts[i].x) / 2;
-      chartPath += ` C ${cpx} ${pts[i - 1].y}, ${cpx} ${pts[i].y}, ${pts[i].x} ${pts[i].y}`;
-    }
-    chartFill = `${chartPath} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
-  }
+  }, [d.chart]);
 
-  const flashClass = flash === "up" ? "text-green-400" : flash === "down" ? "text-red-400" : "";
+  const chartPath = useMemo(() => {
+    if (chartPts.length < 2) return "";
+    let path = `M ${chartPts[0].x} ${chartPts[0].y}`;
+    for (let i = 1; i < chartPts.length; i++) {
+      const cpx = (chartPts[i - 1].x + chartPts[i].x) / 2;
+      path += ` C ${cpx} ${chartPts[i - 1].y}, ${cpx} ${chartPts[i].y}, ${chartPts[i].x} ${chartPts[i].y}`;
+    }
+    return path;
+  }, [chartPts]);
+
+  const chartFill = useMemo(() => {
+    if (!chartPath || chartPts.length < 2) return "";
+    const last = chartPts[chartPts.length - 1];
+    return `${chartPath} L ${last.x} ${H} L ${chartPts[0].x} ${H} Z`;
+  }, [chartPath, chartPts]);
+
+  const lastPt = chartPts.length > 0 ? chartPts[chartPts.length - 1] : null;
+
+  // Prev close reference line Y
+  const prevCloseY = useMemo(() => {
+    if (d.previous_close <= 0 || d.chart.length < 2) return null;
+    const prices = d.chart.map(c => c.price);
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
+    const range = maxP - minP || 1;
+    return PAD + (1 - (d.previous_close - minP) / range) * (H - PAD * 2);
+  }, [d.chart, d.previous_close]);
+
+  // Hover: find nearest chart point
+  const hoverPt = useMemo(() => {
+    if (hoverX === null || chartPts.length === 0) return null;
+    let closest = chartPts[0];
+    let minDist = Math.abs(chartPts[0].x - hoverX);
+    for (const pt of chartPts) {
+      const dist = Math.abs(pt.x - hoverX);
+      if (dist < minDist) { closest = pt; minDist = dist; }
+    }
+    return closest;
+  }, [hoverX, chartPts]);
+
+  const handleChartMouse = (e: React.MouseEvent) => {
+    const rect = chartAreaRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const relX = (e.clientX - rect.left) / rect.width * W;
+    setHoverX(relX);
+  };
+
+  // CSS keyframes (injected once)
+  const keyframes = `
+    @keyframes stock-dot-pulse { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.6); opacity: 0.3; } }
+    @keyframes stock-price-flash { 0% { transform: scale(1.06); } 100% { transform: scale(1); } }
+    @keyframes stock-draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
+  `;
 
   return (
     <div ref={containerRef} className="px-5 pb-5 pt-1">
-      {/* Symbol + Name + Live indicator */}
+      <style dangerouslySetInnerHTML={{ __html: keyframes }} />
+
+      {/* Symbol + Name + Live */}
       <div className="flex items-baseline justify-between">
         <div>
           {d.name !== d.symbol && <p className="text-[13px] text-white/30">{d.name}</p>}
@@ -537,44 +594,131 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-white/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400/60 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor, opacity: 0.7 }} />
             Live
           </span>
           <span className="text-[11px] text-white/15">{d.updated}</span>
         </div>
       </div>
 
-      {/* Price + Change — flash on update */}
+      {/* Price — scale flash on change */}
       <div className="flex items-baseline gap-3 mt-2">
-        <span className={`text-[36px] font-extralight leading-none tracking-tighter transition-colors duration-300 ${flashClass || "text-white"}`}>
+        <span
+          key={priceKey}
+          className="text-[36px] font-extralight leading-none tracking-tighter"
+          style={{
+            color: flash === "up" ? "#4ade80" : flash === "down" ? "#f87171" : "#fff",
+            transition: "color 0.6s ease",
+            animation: flash ? "stock-price-flash 0.4s cubic-bezier(0.16, 1, 0.3, 1)" : "none",
+          }}
+        >
           {fmt(d.price)}
         </span>
         <span className="text-[13px] text-white/30">{d.currency}</span>
       </div>
+
+      {/* Change badge */}
       <div className="flex items-center gap-2 mt-1">
         {isUp
-          ? <TrendingUp size={14} strokeWidth={1.8} className="text-green-400/70" />
-          : <TrendingDown size={14} strokeWidth={1.8} className="text-red-400/70" />
+          ? <TrendingUp size={14} strokeWidth={1.8} style={{ color: `${accentColor}b0` }} />
+          : <TrendingDown size={14} strokeWidth={1.8} style={{ color: `${accentColor}b0` }} />
         }
-        <span className={`text-[14px] font-medium ${isUp ? "text-green-400/70" : "text-red-400/70"}`}>
+        <span
+          className="text-[14px] font-medium transition-all duration-300"
+          style={{ color: `${accentColor}b0` }}
+        >
           {isUp ? "+" : ""}{d.change.toFixed(2)} ({isUp ? "+" : ""}{d.change_percent.toFixed(2)}%)
         </span>
       </div>
 
-      {/* Chart */}
-      {d.chart.length > 1 && (
-        <div className="mt-3 -mx-1">
+      {/* Interactive Chart */}
+      {chartPts.length > 1 && (
+        <div
+          ref={chartAreaRef}
+          className="mt-4 -mx-1 relative cursor-crosshair"
+          onMouseMove={handleChartMouse}
+          onMouseLeave={() => setHoverX(null)}
+        >
           <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block">
-            {d.previous_close > 0 && (() => {
-              const prices = d.chart.map(c => c.price);
-              const minP = Math.min(...prices), maxP = Math.max(...prices);
-              const range = maxP - minP || 1;
-              const y = PAD + (1 - (d.previous_close - minP) / range) * (H - PAD * 2);
-              return <line x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />;
-            })()}
-            {chartFill && <path d={chartFill} fill={fillColor} />}
-            {chartPath && <path d={chartPath} fill="none" stroke={lineColor} strokeWidth="1.5" />}
+            <defs>
+              <linearGradient id={`stock-grad-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accentColor} stopOpacity="0.12" />
+                <stop offset="100%" stopColor={accentColor} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {/* Prev close reference line */}
+            {prevCloseY !== null && (
+              <line x1={0} y1={prevCloseY} x2={W} y2={prevCloseY} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />
+            )}
+
+            {/* Fill under curve */}
+            {chartFill && <path d={chartFill} fill={`url(#stock-grad-${symbol})`} />}
+
+            {/* Main line — draws in on first render */}
+            {chartPath && (
+              <path
+                d={chartPath}
+                fill="none"
+                stroke={lineColor}
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                style={{
+                  strokeDasharray: 2000,
+                  strokeDashoffset: 0,
+                  animation: "stock-draw 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
+              />
+            )}
+
+            {/* Hover crosshair */}
+            {hoverPt && (
+              <>
+                <line x1={hoverPt.x} y1={0} x2={hoverPt.x} y2={H} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                <circle cx={hoverPt.x} cy={hoverPt.y} r="3.5" fill={accentColor} stroke="#161616" strokeWidth="1.5" />
+              </>
+            )}
+
+            {/* Live dot at chart endpoint — pulses */}
+            {lastPt && !hoverPt && (
+              <>
+                {/* Glow ring */}
+                <circle
+                  cx={lastPt.x} cy={lastPt.y} r="8"
+                  fill="none"
+                  stroke={accentColor}
+                  strokeWidth="1"
+                  opacity="0.3"
+                  style={{ animation: "stock-dot-pulse 2.5s ease-in-out infinite" }}
+                />
+                {/* Solid dot */}
+                <circle
+                  cx={lastPt.x} cy={lastPt.y} r="3"
+                  fill={accentColor}
+                  stroke="#161616"
+                  strokeWidth="1.5"
+                />
+              </>
+            )}
           </svg>
+
+          {/* Hover tooltip */}
+          {hoverPt && (
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                left: `${(hoverPt.x / W) * 100}%`,
+                top: -4,
+                transform: "translateX(-50%) translateY(-100%)",
+              }}
+            >
+              <div className="px-2.5 py-1 rounded-md text-[11px] font-mono tabular-nums text-white/80"
+                style={{ backgroundColor: "rgba(20,20,20,0.92)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                {fmt(hoverPt.price)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

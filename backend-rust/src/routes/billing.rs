@@ -229,6 +229,13 @@ async fn create_subscription(
         _ => return Err(AppError::BadRequest("Plan must be 'pro' or 'max'".to_string())),
     }
 
+    // Anti-abuse: check refund cooldown (30 days after refund before re-subscribing)
+    if !refund::can_subscribe(&state.db, user.id, &body.product).await? {
+        return Err(AppError::BadRequest(
+            "Subscription unavailable: 30-day cooldown after refund. Contact support for assistance.".to_string()
+        ));
+    }
+
     // Get price
     let amount_kopecks = subscription::subscription_price(&body.product, &body.plan)?;
     let amount_rubles = amount_kopecks as f64 / 100.0;

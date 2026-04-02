@@ -16,6 +16,14 @@ export function proxy(request: NextRequest) {
   const isPlatformSubdomain = hostname.startsWith("platform.");
   const isLocalhost = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
   const isDocsSubdomain = hostname === "docs.vmira.ai";
+  const isStatusSubdomain = hostname === "status.vmira.ai";
+
+  // status.vmira.ai → /status page
+  if (isStatusSubdomain) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/status";
+    return NextResponse.rewrite(url);
+  }
 
   // docs.vmira.ai/* → platform.vmira.ai/docs/*
   if (isDocsSubdomain) {

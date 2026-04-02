@@ -10,6 +10,7 @@ import hljs from "highlight.js";
 import { t } from "@/lib/i18n";
 import WeatherCard from "./WeatherCard";
 import { executeAction, cancelAction, getActionStatus } from "@/lib/api-client";
+import { useLiveStock, useLiveWeather, type LiveStockData, type LiveWeatherData } from "@/hooks/useLiveData";
 
 // ── Types & constants ────────────────────────────────────────────────────
 
@@ -374,8 +375,8 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           </div>
         )}
 
-        {/* ═══ WEATHER ═══ */}
-        {actionType === "show_weather" && <WeatherCard
+        {/* ═══ WEATHER (live) ═══ */}
+        {actionType === "show_weather" && <LiveWeatherCard
           city={weatherCity} summary={weatherSummary} forecast={weatherForecast}
           hourly={weatherHourly} wind={weatherWind} windGusts={weatherWindGusts}
           feelsLike={weatherFeelsLike} humidity={weatherHumidity}
@@ -383,128 +384,10 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           sunrise={weatherSunrise} sunset={weatherSunset}
         />}
 
-        {/* ═══ STOCK ═══ */}
-        {actionType === "show_stock" && (() => {
-          const p = payload;
-          const price = Number(p.price) || 0;
-          const change = Number(p.change) || 0;
-          const changePct = Number(p.change_percent) || 0;
-          const open = Number(p.open) || 0;
-          const prevClose = Number(p.previous_close) || 0;
-          const high = Number(p.high) || 0;
-          const low = Number(p.low) || 0;
-          const isUp = change >= 0;
-          const currency = String(p.currency || "USD");
-          const symbol = String(p.symbol || "");
-          const name = String(p.name || symbol);
-          const updated = String(p.updated || "");
-          const chartData = (p.chart as Array<{ time: number; price: number; is_regular: boolean }>) || [];
-          const lineColor = isUp ? "rgba(74,222,128,0.6)" : "rgba(248,113,113,0.6)";
-          const fillColor = isUp ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)";
-
-          // Build SVG chart
-          const W = 400;
-          const H = 80;
-          const PAD = 4;
-          let chartPath = "";
-          let chartFill = "";
-          if (chartData.length > 1) {
-            const prices = chartData.map(d => d.price);
-            const minP = Math.min(...prices);
-            const maxP = Math.max(...prices);
-            const range = maxP - minP || 1;
-            const points = chartData.map((d, i) => ({
-              x: PAD + (i / (chartData.length - 1)) * (W - PAD * 2),
-              y: PAD + (1 - (d.price - minP) / range) * (H - PAD * 2),
-              regular: d.is_regular,
-            }));
-
-            chartPath = `M ${points[0].x} ${points[0].y}`;
-            for (let i = 1; i < points.length; i++) {
-              const prev = points[i - 1];
-              const curr = points[i];
-              const cpx = (prev.x + curr.x) / 2;
-              chartPath += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
-            }
-            chartFill = `${chartPath} L ${points[points.length - 1].x} ${H} L ${points[0].x} ${H} Z`;
-
-            // Find boundary between pre-market and regular
-            const firstRegIdx = points.findIndex(p => p.regular);
-            const lastRegIdx = points.length - 1 - [...points].reverse().findIndex(p => p.regular);
-
-            // Draw extended hours as dashed sections
-            if (firstRegIdx > 0) {
-              // pre-market region indicator
-              const preX = points[firstRegIdx].x;
-              chartPath += ""; // line is continuous, but we'll overlay dashed for extended
-            }
-          }
-
-          const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-          return (
-            <div className="px-5 pb-5 pt-1">
-              {/* Symbol + Name */}
-              <div className="flex items-baseline justify-between">
-                <div>
-                  {name !== symbol && <p className="text-[13px] text-white/30">{name}</p>}
-                  <span className="text-[13px] text-white/20 font-mono">{symbol}</span>
-                </div>
-                <span className="text-[11px] text-white/15">{updated}</span>
-              </div>
-
-              {/* Price + Change */}
-              <div className="flex items-baseline gap-3 mt-2">
-                <span className="text-[36px] font-extralight text-white leading-none tracking-tighter">
-                  {fmt(price)}
-                </span>
-                <span className="text-[13px] text-white/30">{currency}</span>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                {isUp ? <TrendingUp size={14} strokeWidth={1.8} className="text-green-400/70" /> : <TrendingDown size={14} strokeWidth={1.8} className="text-red-400/70" />}
-                <span className={`text-[14px] font-medium ${isUp ? "text-green-400/70" : "text-red-400/70"}`}>
-                  {isUp ? "+" : ""}{change.toFixed(2)} ({isUp ? "+" : ""}{changePct.toFixed(2)}%)
-                </span>
-              </div>
-
-              {/* Chart */}
-              {chartData.length > 1 && (
-                <div className="mt-3 -mx-1">
-                  <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block">
-                    {/* Prev close reference line */}
-                    {prevClose > 0 && (() => {
-                      const prices = chartData.map(d => d.price);
-                      const minP = Math.min(...prices);
-                      const maxP = Math.max(...prices);
-                      const range = maxP - minP || 1;
-                      const y = PAD + (1 - (prevClose - minP) / range) * (H - PAD * 2);
-                      return <line x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />;
-                    })()}
-                    {/* Fill under curve */}
-                    {chartFill && <path d={chartFill} fill={fillColor} />}
-                    {/* Main line */}
-                    {chartPath && <path d={chartPath} fill="none" stroke={lineColor} strokeWidth="1.5" />}
-                  </svg>
-                </div>
-              )}
-
-              {/* Details row */}
-              <div className="flex gap-4 mt-3 pt-3 border-t border-white/[0.06]">
-                {[
-                  { label: "Open", value: open },
-                  { label: "Prev Close", value: prevClose },
-                  { label: "High", value: high },
-                  { label: "Low", value: low },
-                ].map((item, i) => (
-                  <div key={i} className="flex-1">
-                    <p className="text-[11px] text-white/20">{item.label}</p>
-                    <p className="text-[14px] text-white/60 font-mono">{fmt(item.value)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
+        {/* ═══ STOCK (live) ═══ */}
+        {actionType === "show_stock" && (
+          <LiveStockCard payload={payload} />
+        )}
 
         {/* ═══ CALCULATE ═══ */}
         {actionType === "calculate" && (
@@ -587,6 +470,187 @@ export default function ActionCard({ id, actionType, payload }: ActionCardProps)
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── LiveStockCard — polls while visible
+// ═══════════════════════════════════════════════════════════════════════
+
+function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const p = payload;
+  const symbol = String(p.symbol || "");
+
+  const initialData: LiveStockData = {
+    symbol,
+    name: String(p.name || symbol),
+    price: Number(p.price) || 0,
+    open: Number(p.open) || 0,
+    previous_close: Number(p.previous_close) || 0,
+    change: Number(p.change) || 0,
+    change_percent: Number(p.change_percent) || 0,
+    high: Number(p.high) || 0,
+    low: Number(p.low) || 0,
+    currency: String(p.currency || "USD"),
+    source: String(p.source || ""),
+    updated: String(p.updated || ""),
+    chart: (p.chart as LiveStockData["chart"]) || [],
+  };
+
+  const { data, flash } = useLiveStock(symbol, initialData, containerRef);
+  const d = data || initialData;
+  const isUp = d.change >= 0;
+  const lineColor = isUp ? "rgba(74,222,128,0.6)" : "rgba(248,113,113,0.6)";
+  const fillColor = isUp ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)";
+  const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Build SVG chart
+  const W = 400, H = 80, PAD = 4;
+  let chartPath = "", chartFill = "";
+  if (d.chart.length > 1) {
+    const prices = d.chart.map(c => c.price);
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
+    const range = maxP - minP || 1;
+    const pts = d.chart.map((c, i) => ({
+      x: PAD + (i / (d.chart.length - 1)) * (W - PAD * 2),
+      y: PAD + (1 - (c.price - minP) / range) * (H - PAD * 2),
+    }));
+    chartPath = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length; i++) {
+      const cpx = (pts[i - 1].x + pts[i].x) / 2;
+      chartPath += ` C ${cpx} ${pts[i - 1].y}, ${cpx} ${pts[i].y}, ${pts[i].x} ${pts[i].y}`;
+    }
+    chartFill = `${chartPath} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
+  }
+
+  const flashClass = flash === "up" ? "text-green-400" : flash === "down" ? "text-red-400" : "";
+
+  return (
+    <div ref={containerRef} className="px-5 pb-5 pt-1">
+      {/* Symbol + Name + Live indicator */}
+      <div className="flex items-baseline justify-between">
+        <div>
+          {d.name !== d.symbol && <p className="text-[13px] text-white/30">{d.name}</p>}
+          <span className="text-[13px] text-white/20 font-mono">{d.symbol}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-white/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400/60 animate-pulse" />
+            Live
+          </span>
+          <span className="text-[11px] text-white/15">{d.updated}</span>
+        </div>
+      </div>
+
+      {/* Price + Change — flash on update */}
+      <div className="flex items-baseline gap-3 mt-2">
+        <span className={`text-[36px] font-extralight leading-none tracking-tighter transition-colors duration-300 ${flashClass || "text-white"}`}>
+          {fmt(d.price)}
+        </span>
+        <span className="text-[13px] text-white/30">{d.currency}</span>
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        {isUp
+          ? <TrendingUp size={14} strokeWidth={1.8} className="text-green-400/70" />
+          : <TrendingDown size={14} strokeWidth={1.8} className="text-red-400/70" />
+        }
+        <span className={`text-[14px] font-medium ${isUp ? "text-green-400/70" : "text-red-400/70"}`}>
+          {isUp ? "+" : ""}{d.change.toFixed(2)} ({isUp ? "+" : ""}{d.change_percent.toFixed(2)}%)
+        </span>
+      </div>
+
+      {/* Chart */}
+      {d.chart.length > 1 && (
+        <div className="mt-3 -mx-1">
+          <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block">
+            {d.previous_close > 0 && (() => {
+              const prices = d.chart.map(c => c.price);
+              const minP = Math.min(...prices), maxP = Math.max(...prices);
+              const range = maxP - minP || 1;
+              const y = PAD + (1 - (d.previous_close - minP) / range) * (H - PAD * 2);
+              return <line x1={0} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />;
+            })()}
+            {chartFill && <path d={chartFill} fill={fillColor} />}
+            {chartPath && <path d={chartPath} fill="none" stroke={lineColor} strokeWidth="1.5" />}
+          </svg>
+        </div>
+      )}
+
+      {/* Details row */}
+      <div className="flex gap-4 mt-3 pt-3 border-t border-white/[0.06]">
+        {[
+          { label: "Open", value: d.open },
+          { label: "Prev Close", value: d.previous_close },
+          { label: "High", value: d.high },
+          { label: "Low", value: d.low },
+        ].map((item, i) => (
+          <div key={i} className="flex-1">
+            <p className="text-[11px] text-white/20">{item.label}</p>
+            <p className="text-[14px] text-white/60 font-mono">{fmt(item.value)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── LiveWeatherCard — refreshes while visible
+// ═══════════════════════════════════════════════════════════════════════
+
+function LiveWeatherCard(props: {
+  city: string; summary: string;
+  forecast: Array<{ day: string; temp: string; icon: string; temp_max?: number; temp_min?: number; precip_prob?: number }>;
+  hourly: Array<{ time: string; temp: number; icon: string; precip?: number | null }>;
+  wind: string; windGusts: string; feelsLike: string; humidity: string;
+  uvIndex: number | null; precipProb: string; sunrise: string; sunset: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const initialData: LiveWeatherData = {
+    city: props.city,
+    summary: props.summary,
+    temperature: 0, feels_like: 0, description: "", icon: "",
+    wind: props.wind, wind_gusts: props.windGusts,
+    humidity: props.humidity, uv_index: props.uvIndex,
+    precip_prob: props.precipProb,
+    sunrise: props.sunrise, sunset: props.sunset,
+    hourly: props.hourly.map(h => ({ time: h.time, temp: h.temp, icon: h.icon, precip: h.precip ?? null })),
+    forecast: props.forecast,
+  };
+
+  const { data, lastUpdated } = useLiveWeather(props.city, initialData, containerRef);
+
+  // If we got live data, use it; otherwise fall back to initial props
+  const live = data && lastUpdated;
+  const weatherProps = live ? {
+    city: data.city || props.city,
+    summary: data.summary || props.summary,
+    forecast: data.forecast?.length ? data.forecast : props.forecast,
+    hourly: data.hourly?.length ? data.hourly : props.hourly,
+    wind: data.wind || props.wind,
+    windGusts: data.wind_gusts || props.windGusts,
+    feelsLike: data.feels_like ? `${data.feels_like}°C` : props.feelsLike,
+    humidity: data.humidity || props.humidity,
+    uvIndex: data.uv_index ?? props.uvIndex,
+    precipProb: data.precip_prob || props.precipProb,
+    sunrise: data.sunrise || props.sunrise,
+    sunset: data.sunset || props.sunset,
+  } : props;
+
+  return (
+    <div ref={containerRef}>
+      <WeatherCard {...weatherProps} />
+      {lastUpdated && (
+        <div className="flex items-center gap-1.5 px-5 pb-3 -mt-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-400/60 animate-pulse" />
+          <span className="text-[10px] uppercase tracking-[0.08em] text-white/20">
+            Live — updated {lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

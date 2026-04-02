@@ -33,7 +33,7 @@ async function proxyRequest(
   }
 
   // Allowlist of valid API prefixes
-  const ALLOWED_PREFIXES = ["auth/", "chat/", "api-keys/", "sessions/", "admin/", "billing/", "attachments/", "voice/", "notifications", "reminders", "notification-settings", "telegram", "actions", "calendar"];
+  const ALLOWED_PREFIXES = ["auth/", "chat/", "api-keys/", "sessions/", "admin/", "billing/", "attachments/", "voice/", "notifications", "reminders", "notification-settings", "telegram", "actions", "calendar", "live/"];
   if (!ALLOWED_PREFIXES.some(prefix => joinedPath.startsWith(prefix))) {
     return new Response(JSON.stringify({ detail: "Not found" }), {
       status: 404,

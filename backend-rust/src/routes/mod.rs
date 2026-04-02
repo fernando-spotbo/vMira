@@ -12,6 +12,7 @@ pub mod completions;
 pub mod device_auth;
 pub mod feedback;
 pub mod health;
+pub mod live_data;
 pub mod models;
 pub mod notifications;
 pub mod projects;
@@ -59,6 +60,7 @@ pub fn create_router(state: AppState) -> Router {
                 .layer(DefaultBodyLimit::max(upload_limit)),
         )
         .nest("/api/v1", models::models_routes())
+        .nest("/api/v1/live", live_data::live_data_routes())
         .nest("/v1", completions::completions_routes())
         // Default 2MB body limit for all non-upload routes
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))

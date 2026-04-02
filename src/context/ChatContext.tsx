@@ -14,6 +14,7 @@ import { Conversation, Message, Attachment, MessageStep, MessageError, SearchQue
 import { t } from "@/lib/i18n";
 import * as chatApi from "@/lib/api-chat";
 import { getAccessToken, uploadFile } from "@/lib/api-client";
+import { useAuth } from "@/context/AuthContext";
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -63,8 +64,10 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const sendingRef = useRef(false);
   const pendingProjectIdRef = useRef<string | null>(null);
+  const dataLoadedRef = useRef(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() =>
@@ -85,37 +88,78 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [conversations, activeConversationId]
   );
 
-  // Load conversations and projects from API on mount
+  // Load conversations and projects from API — retries on failure,
+  // re-triggers when auth state changes (fixes race condition where
+  // ChatProvider mounts before the access token is available).
   useEffect(() => {
-    if (!getAccessToken()) return;
-    (async () => {
-      const [convs, projs] = await Promise.all([
-        chatApi.fetchConversations(),
-        chatApi.fetchProjects(),
-      ]);
-      setConversations(
-        convs.map((c) => ({
-          id: c.id,
-          title: c.title,
-          messages: [],
-          createdAt: c.created_at.split("T")[0],
-          starred: c.starred,
-          projectId: c.project_id ?? null,
-        }))
-      );
-      setProjects(
-        projs.map((p) => ({
-          id: p.id,
-          name: p.name,
-          emoji: p.emoji,
-          instructions: p.instructions,
-          sortOrder: p.sort_order,
-          createdAt: p.created_at,
-          updatedAt: p.updated_at,
-        }))
-      );
-    })();
-  }, []);
+    const token = getAccessToken();
+    if (!token) {
+      // No token yet — if user object exists, token may arrive shortly
+      // (auth refresh in progress). Don't mark as loaded.
+      dataLoadedRef.current = false;
+      return;
+    }
+    if (dataLoadedRef.current) return; // already loaded this session
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const loadData = async (attempt = 0) => {
+      if (cancelled) return;
+      try {
+        const [convs, projs] = await Promise.all([
+          chatApi.fetchConversations(),
+          chatApi.fetchProjects(),
+        ]);
+
+        if (cancelled) return;
+
+        // Verify we actually got data (not silent 401 → empty array)
+        if (convs.length === 0 && attempt === 0 && getAccessToken()) {
+          // Could be genuinely empty OR a silent failure — do one retry
+          retryTimer = setTimeout(() => loadData(1), 1500);
+          return;
+        }
+
+        dataLoadedRef.current = true;
+
+        setConversations(
+          convs.map((c) => ({
+            id: c.id,
+            title: c.title,
+            messages: [],
+            createdAt: c.created_at.split("T")[0],
+            starred: c.starred,
+            projectId: c.project_id ?? null,
+          }))
+        );
+        setProjects(
+          projs.map((p) => ({
+            id: p.id,
+            name: p.name,
+            emoji: p.emoji,
+            instructions: p.instructions,
+            sortOrder: p.sort_order,
+            createdAt: p.created_at,
+            updatedAt: p.updated_at,
+          }))
+        );
+      } catch (err) {
+        console.error("[ChatContext] Failed to load data, attempt", attempt, err);
+        if (!cancelled && attempt < 3) {
+          // Exponential backoff: 1s, 2s, 4s
+          retryTimer = setTimeout(() => loadData(attempt + 1), 1000 * Math.pow(2, attempt));
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [user]); // Re-run when auth state changes (user logged in/out)
 
   // Helper: map API messages to frontend Message type
   function mapApiMessages(apiMessages: chatApi.ApiMessage[]): Message[] {

@@ -739,30 +739,37 @@ pub fn stream_ai_response(
     // PII restoration closure — wraps tx.send to auto-restore PII in tokens
     // (pii_mapping is populated during message scrubbing below)
 
-    let tz = user_timezone.unwrap_or_else(|| "Europe/Moscow".to_string());
-    // MIRA_TOOL_HINTS used in extra_context below for chat mode
+    let tz_name = user_timezone.unwrap_or_else(|| "Europe/Moscow".to_string());
 
-    // Inject current datetime in the USER'S timezone for correct reminder time resolution
+    // Resolve the user's IANA timezone via chrono-tz (full database, handles
+    // DST, works for any timezone worldwide — not just hardcoded Russian ones).
     let now_utc = chrono::Utc::now();
-    let offset_hours: i64 = match tz.as_str() {
-        "Europe/Kaliningrad" => 2,
-        "Europe/Moscow" => 3,
-        "Europe/Samara" => 4,
-        "Asia/Yekaterinburg" => 5,
-        "Asia/Omsk" => 6,
-        "Asia/Novosibirsk" | "Asia/Krasnoyarsk" => 7,
-        "Asia/Irkutsk" => 8,
-        "Asia/Yakutsk" => 9,
-        "Asia/Vladivostok" => 10,
-        "Asia/Magadan" => 11,
-        "Asia/Kamchatka" => 12,
-        _ => 3,
+    let datetime_context = match tz_name.parse::<chrono_tz::Tz>() {
+        Ok(tz) => {
+            use chrono::TimeZone;
+            let now_local = tz.from_utc_datetime(&now_utc.naive_utc());
+            let offset = now_local.offset().fix();
+            let offset_h = offset.local_minus_utc() / 3600;
+            let offset_m = (offset.local_minus_utc() % 3600).abs() / 60;
+            let offset_str = if offset_m == 0 {
+                format!("{:+03}:00", offset_h)
+            } else {
+                format!("{:+03}:{:02}", offset_h, offset_m)
+            };
+            format!(
+                "\n\nCurrent date and time: {}{} ({})",
+                now_local.format("%Y-%m-%dT%H:%M:%S"), offset_str, tz_name
+            )
+        }
+        Err(_) => {
+            // Unknown timezone string — fall back to UTC
+            tracing::warn!(tz = %tz_name, "Unknown timezone, falling back to UTC");
+            format!(
+                "\n\nCurrent date and time: {}+00:00 (UTC)",
+                now_utc.format("%Y-%m-%dT%H:%M:%S")
+            )
+        }
     };
-    let now_local = now_utc + chrono::Duration::hours(offset_hours);
-    let datetime_context = format!(
-        "\n\nCurrent date and time: {}+{:02}:00. Timezone: {}.",
-        now_local.format("%Y-%m-%dT%H:%M:%S"), offset_hours, tz
-    );
 
     // ── PII scrubbing: strip personal data before it reaches the GPU server ──
     // System prompt is safe (no user data). Only scrub user/assistant messages.

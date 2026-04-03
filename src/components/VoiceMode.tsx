@@ -12,22 +12,6 @@ interface VoiceModeProps {
 }
 
 type Phase = "init" | "listening" | "thinking" | "speaking" | "error";
-// Supported languages for voice mode — user cycles through these
-const VOICE_LANGS = [
-  { code: "ru-RU", label: "RU", name: "Русский" },
-  { code: "en-US", label: "EN", name: "English" },
-  { code: "es-ES", label: "ES", name: "Español" },
-  { code: "fr-FR", label: "FR", name: "Français" },
-  { code: "de-DE", label: "DE", name: "Deutsch" },
-  { code: "pt-BR", label: "PT", name: "Português" },
-  { code: "zh-CN", label: "中", name: "中文" },
-  { code: "ja-JP", label: "日", name: "日本語" },
-  { code: "ko-KR", label: "한", name: "한국어" },
-  { code: "ar-SA", label: "ع", name: "العربية" },
-  { code: "hi-IN", label: "हि", name: "हिन्दी" },
-  { code: "it-IT", label: "IT", name: "Italiano" },
-  { code: "tr-TR", label: "TR", name: "Türkçe" },
-];
 
 // Detect language from AI response text for correct TTS voice
 function detectResponseLang(text: string): string {
@@ -145,14 +129,6 @@ function draw(
   ctx.restore();
 }
 
-// Whisper language name → BCP-47 locale code
-const WHISPER_LANG_MAP: Record<string, string> = {
-  russian: "ru-RU", english: "en-US", spanish: "es-ES",
-  french: "fr-FR", german: "de-DE", portuguese: "pt-BR",
-  chinese: "zh-CN", japanese: "ja-JP", korean: "ko-KR",
-  arabic: "ar-SA", hindi: "hi-IN", italian: "it-IT", turkish: "tr-TR",
-};
-
 export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [phase, setPhase] = useState<Phase>("init");
   const [elapsed, setElapsed] = useState(0);
@@ -160,7 +136,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [transcript, setTranscript] = useState("");
   const [responsePreview, setResponsePreview] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [langIndex, setLangIndex] = useState(0);
 
   const { activeConversationId, selectedModel, addMessage, ensureConversation } = useChat();
 
@@ -169,7 +144,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const phaseRef = useRef<Phase>("init");
   const convIdRef = useRef(activeConversationId);
   const mutedRef = useRef(false);
-  const langIndexRef = useRef(0);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Refs for latest values (avoids stale closures)
@@ -246,7 +220,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     }
   };
 
-  // ── Combined effect: canvas + mic + MediaRecorder + Whisper STT + AI ──
+  // ── Combined effect: canvas + mic + STT + AI ──
   useEffect(() => {
     let alive = true;
     let raf = 0;
@@ -256,18 +230,25 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     let dataArr: Uint8Array<ArrayBuffer> | null = null;
     const sm = new Float32Array(48).fill(0);
 
-    // MediaRecorder state (local to effect)
+    // STT state
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let recognition: any = null;
+    let useNativeSTT = false;
+    let sttTranscript = ""; // accumulated final transcript from SpeechRecognition
+    let sttInterim = "";    // current interim result
+    let silenceCheckId: ReturnType<typeof setInterval> | null = null;
+
+    // Fallback: MediaRecorder + Whisper (when SpeechRecognition unavailable)
     let mediaRecorder: MediaRecorder | null = null;
     let audioChunks: Blob[] = [];
-    let silenceCheckId: ReturnType<typeof setInterval> | null = null;
+    let recordingStartTime = 0;
 
     // Silence detection thresholds
     let voiceDetected = false;
     let lastVoiceTime = 0;
-    let recordingStartTime = 0;
 
     const SILENCE_THRESHOLD = 0.03;  // avg frequency level to count as speech
-    const SILENCE_TIMEOUT = 1000;    // 1s silence after speech → send to Whisper
+    const SILENCE_TIMEOUT = 1000;    // 1s silence after speech → send to AI
     const MIN_RECORDING = 400;       // minimum recording duration (ms)
     const INTERRUPT_THRESHOLD = 0.12; // louder threshold for interrupt during TTS
 
@@ -309,7 +290,21 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       updateBlend(ph);
     };
 
-    // ── MediaRecorder helpers ──
+    // ── Native SpeechRecognition helpers ──
+
+    const startNativeSTT = () => {
+      if (!alive || mutedRef.current || !recognition) return;
+      sttTranscript = "";
+      sttInterim = "";
+      try { recognition.start(); } catch { /* already started */ }
+    };
+
+    const stopNativeSTT = () => {
+      if (!recognition) return;
+      try { recognition.stop(); } catch { /* already stopped */ }
+    };
+
+    // ── MediaRecorder helpers (fallback) ──
 
     const startRecording = () => {
       if (!stream || !alive || mutedRef.current) return;
@@ -330,7 +325,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       }
     };
 
-    const stopAndTranscribe = () => {
+    const stopAndTranscribeFallback = () => {
       if (!mediaRecorder || mediaRecorder.state === "inactive") return;
       voiceDetected = false;
 
@@ -357,18 +352,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           const text = result.text?.trim();
           if (!text) { resumeListening(); return; }
 
-          // Auto-switch language based on Whisper detection
-          if (result.language) {
-            const newCode = WHISPER_LANG_MAP[result.language];
-            if (newCode) {
-              const idx = VOICE_LANGS.findIndex(l => l.code === newCode);
-              if (idx >= 0 && idx !== langIndexRef.current) {
-                langIndexRef.current = idx;
-                setLangIndex(idx);
-              }
-            }
-          }
-
           setTranscript(text);
           sendToAI(text);
         } catch (e: unknown) {
@@ -381,6 +364,30 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       };
 
       try { recorder.stop(); } catch {}
+    };
+
+    // ── Unified silence-end handler ──
+
+    const handleSilenceEnd = () => {
+      if (useNativeSTT) {
+        // Native STT path: take accumulated transcript + interim
+        const text = (sttTranscript + sttInterim).trim();
+        sttTranscript = "";
+        sttInterim = "";
+        stopNativeSTT();
+
+        if (!text) {
+          resumeListening();
+          return;
+        }
+
+        setTranscript(text);
+        smoothSetPhase("thinking");
+        sendToAI(text);
+      } else {
+        // Fallback: MediaRecorder + Whisper
+        stopAndTranscribeFallback();
+      }
     };
 
     // ── AI send ──
@@ -490,27 +497,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         if (!alive) return;
         if (!full.trim()) { resumeListening(); return; }
 
-        // Check for LANG:xx-XX response
-        const langMatch = full.trim().match(/^LANG:([a-z]{2}-[A-Z]{2})$/);
-        if (langMatch) {
-          const newCode = langMatch[1];
-          const idx = VOICE_LANGS.findIndex(l => l.code === newCode);
-          if (idx >= 0) {
-            langIndexRef.current = idx;
-            setLangIndex(idx);
-            const switchMsg = newCode.startsWith("en") ? "Switching language. Please repeat."
-              : newCode.startsWith("ru") ? "Переключаю язык. Повторите, пожалуйста."
-              : newCode.startsWith("es") ? "Cambiando idioma. Por favor repita."
-              : newCode.startsWith("fr") ? "Changement de langue. Veuillez répéter."
-              : newCode.startsWith("de") ? "Sprache wird gewechselt. Bitte wiederholen."
-              : "Switching language. Please repeat.";
-            smoothSetPhase("speaking");
-            await speakFn(switchMsg);
-            if (alive && phaseRef.current === "speaking") resumeListening();
-          } else { resumeListening(); }
-          return;
-        }
-
         // TTS any remaining text
         if (pendingSentence.trim()) {
           const lastClean = cleanForTTS(pendingSentence);
@@ -553,8 +539,15 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       smoothSetPhase("listening");
       voiceDetected = false;
       lastVoiceTime = 0;
+      sttTranscript = "";
+      sttInterim = "";
       setTimeout(() => {
-        if (alive && !mutedRef.current) startRecording();
+        if (!alive || mutedRef.current) return;
+        if (useNativeSTT) {
+          startNativeSTT();
+        } else {
+          startRecording();
+        }
       }, 200);
     };
 
@@ -564,7 +557,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
     }
 
-    // ── Mic + MediaRecorder + Silence detection setup ──
+    // ── Mic + STT + Silence detection setup ──
     (async () => {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -578,8 +571,59 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         analyser = an;
         dataArr = new Uint8Array(an.frequencyBinCount) as Uint8Array<ArrayBuffer>;
 
+        // ── Detect native SpeechRecognition support ──
+        const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRecognitionCtor) {
+          useNativeSTT = true;
+          recognition = new SpeechRecognitionCtor();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = ""; // auto-detect
+
+          recognition.onresult = (event: any) => {
+            let finalText = "";
+            let interimText = "";
+            for (let i = 0; i < event.results.length; i++) {
+              const result = event.results[i];
+              if (result.isFinal) {
+                finalText += result[0].transcript;
+              } else {
+                interimText += result[0].transcript;
+              }
+            }
+            sttTranscript = finalText;
+            sttInterim = interimText;
+
+            // Show live transcript while listening
+            if (phaseRef.current === "listening") {
+              setTranscript((finalText + interimText).trim());
+            }
+          };
+
+          recognition.onerror = (event: any) => {
+            console.warn("[SpeechRecognition] error:", event.error);
+            // "no-speech" and "aborted" are non-fatal — ignore
+            if (event.error !== "no-speech" && event.error !== "aborted") {
+              console.error("[SpeechRecognition] Fatal error:", event.error);
+            }
+          };
+
+          recognition.onend = () => {
+            // Auto-restart if still in listening phase and not muted
+            if (alive && phaseRef.current === "listening" && !mutedRef.current) {
+              try { recognition.start(); } catch { /* already started */ }
+            }
+          };
+        }
+
         smoothSetPhase("listening");
-        startRecording();
+
+        // Start STT (native or fallback)
+        if (useNativeSTT) {
+          startNativeSTT();
+        } else {
+          startRecording();
+        }
 
         // ── Silence & interrupt detection loop ──
         silenceCheckId = setInterval(() => {
@@ -587,20 +631,31 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
           const ph = phaseRef.current;
 
-          // Handle mute: stop recorder, discard chunks
+          // Handle mute
           if (mutedRef.current) {
-            if (mediaRecorder && mediaRecorder.state !== "inactive") {
-              audioChunks = [];
-              try { mediaRecorder.stop(); } catch {}
-              mediaRecorder = null;
+            if (useNativeSTT) {
+              stopNativeSTT();
+            } else {
+              if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                audioChunks = [];
+                try { mediaRecorder.stop(); } catch {}
+                mediaRecorder = null;
+              }
             }
             voiceDetected = false;
+            sttTranscript = "";
+            sttInterim = "";
             return;
           }
 
-          // If listening but no recorder (after unmute or resume), start one
-          if (ph === "listening" && !mediaRecorder) {
-            startRecording();
+          // If listening but STT/recorder not active (after unmute or resume), restart
+          if (ph === "listening") {
+            if (useNativeSTT) {
+              // Recognition auto-restarts via onend, but ensure it's running
+              // (no-op if already started — caught by try/catch in startNativeSTT)
+            } else if (!mediaRecorder) {
+              startRecording();
+            }
           }
 
           // Read audio level
@@ -630,8 +685,8 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
             }
             // Voice was detected, now silent for SILENCE_TIMEOUT → send
             if (voiceDetected && lastVoiceTime > 0 && now - lastVoiceTime > SILENCE_TIMEOUT) {
-              if (now - recordingStartTime > MIN_RECORDING) {
-                stopAndTranscribe();
+              if (useNativeSTT || (now - recordingStartTime > MIN_RECORDING)) {
+                handleSilenceEnd();
               }
             }
           }
@@ -644,6 +699,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       alive = false;
       cancelAnimationFrame(raf);
       if (silenceCheckId) clearInterval(silenceCheckId);
+      if (recognition) { try { recognition.stop(); } catch {} }
       if (mediaRecorder?.state !== "inactive") try { mediaRecorder?.stop(); } catch {}
       stream?.getTracks().forEach(t => t.stop());
       if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
@@ -652,13 +708,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Cycle language (just updates the hint sent to Whisper)
-  const cycleLang = () => {
-    const next = (langIndex + 1) % VOICE_LANGS.length;
-    setLangIndex(next);
-    langIndexRef.current = next;
-  };
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
@@ -670,7 +719,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
       <canvas ref={canvasRef} style={{ width: 300, height: 300 }} className="mb-6" />
 
-      {/* Status + language */}
+      {/* Status */}
       <div className="flex items-center gap-2.5 mb-3">
         <span className="text-[16px] text-white/30">
           {phase === "listening" && <>{t("voice.listening")}<span className="mira-thinking-dots" /></>}
@@ -678,15 +727,6 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           {phase === "speaking" && t("voice.speaking")}
           {phase === "error" && (error || t("voice.error"))}
         </span>
-        {phase !== "error" && phase !== "init" && (
-          <button
-            onClick={cycleLang}
-            className="text-[12px] font-mono text-white/25 border border-white/[0.08] rounded-md px-2 py-0.5 hover:text-white/40 hover:border-white/[0.15] hover:bg-white/[0.04] transition-all active:scale-95"
-            title={VOICE_LANGS[langIndex].name}
-          >
-            {VOICE_LANGS[langIndex].label}
-          </button>
-        )}
       </div>
 
       {/* Transcript — shown during listening (live preview) and thinking (what was said) */}

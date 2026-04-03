@@ -73,6 +73,11 @@ body {
 }
 
 /* Markdown */
+.markdown-body {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 .markdown-body pre {
   background-color: transparent;
   border-radius: 0;

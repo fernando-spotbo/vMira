@@ -452,6 +452,7 @@ const translations: Record<string, Record<Locale, string>> = {
   // ---- Voice ----
   "voice.listening": { ru: "Слушаю...", en: "Listening..." },
   "voice.thinking": { ru: "Думаю...", en: "Thinking..." },
+  "voice.transcribing": { ru: "Распознаю...", en: "Transcribing..." },
   "voice.speaking": { ru: "Отвечаю...", en: "Speaking..." },
   "voice.unsupported": { ru: "Голосовой ввод не поддерживается в этом браузере", en: "Voice input not supported in this browser" },
   "voice.micDenied": { ru: "Доступ к микрофону запрещён", en: "Microphone access denied" },

@@ -47,10 +47,15 @@ export function useStreamingText(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamEndedRef = useRef(false);
   const activeRef = useRef(false); // whether streaming session is active
+  const fullTextRef = useRef(fullText);
+  fullTextRef.current = fullText;
 
-  // ── Tokenise into words (preserving whitespace) ───────────────────
+  // ── Tokenise into words (preserving ALL whitespace) ──────────────
+  // \S+\s* captures word + trailing whitespace; \s+ captures pure-
+  // whitespace runs (newlines, spaces between SSE chunks) that the old
+  // regex silently dropped — the root cause of text running together.
   const tokenize = useCallback(
-    (text: string): string[] => text.match(/\S+\s*/g) || [],
+    (text: string): string[] => text.match(/\S+\s*|\s+/g) || [],
     [],
   );
 
@@ -70,7 +75,17 @@ export function useStreamingText(
 
     if (buf.length === 0) {
       timerRef.current = null;
-      if (streamEndedRef.current) setIsComplete(true);
+      if (streamEndedRef.current) {
+        // Snap to the actual fullText so any tokenisation micro-gaps are
+        // corrected and the final render is always complete.
+        const final = fullTextRef.current;
+        if (displayedRef.current !== final) {
+          displayedRef.current = final;
+          setDisplayedText(final);
+        }
+        setIsComplete(true);
+        activeRef.current = false;
+      }
       return;
     }
 

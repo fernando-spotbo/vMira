@@ -39,21 +39,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // Try to restore session on mount.
-  // If the access token survived in sessionStorage (e.g. deploy reload),
-  // validate it with /auth/me first — no refresh needed.
-  // Fall back to cookie-based refresh with retries.
+  // 1. Fast path: token in sessionStorage → validate with /auth/me
+  // 2. Slow path: cookie-based refresh with retries
+  // 3. Both paths retry /auth/me independently to handle transient failures
   useEffect(() => {
     let cancelled = false;
+
+    // Helper: try /auth/me up to 3 times with brief delays
+    const fetchMe = async (): Promise<boolean> => {
+      for (let i = 0; i < 3; i++) {
+        if (cancelled) return false;
+        if (i > 0) await new Promise((r) => setTimeout(r, 1000));
+        try {
+          const meResult = await getMe();
+          if (!cancelled && meResult.ok) {
+            setUser(meResult.data);
+            setLocale(meResult.data.language as Locale);
+            return true;
+          }
+          // 401 means token is invalid — don't retry
+          if (meResult.status === 401) return false;
+        } catch {
+          // Network error — retry
+        }
+      }
+      return false;
+    };
 
     (async () => {
       try {
         // Fast path: token survived reload (sessionStorage)
         const existingToken = getAccessToken();
         if (existingToken) {
-          const meResult = await getMe();
-          if (!cancelled && meResult.ok) {
-            setUser(meResult.data);
-            setLocale(meResult.data.language as Locale);
+          if (await fetchMe()) {
             setLoading(false);
             return;
           }
@@ -71,12 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             const refreshResult = await refreshTokenApi();
             if (!cancelled && refreshResult.ok) {
-              const meResult = await getMe();
-              if (!cancelled && meResult.ok) {
-                setUser(meResult.data);
-                setLocale(meResult.data.language as Locale);
-              }
-              break; // success — stop retrying
+              // Refresh succeeded — token is set. Now load user profile.
+              if (await fetchMe()) break;
+              // fetchMe failed but token is valid — still break to avoid
+              // re-refreshing (which would waste the valid token)
+              break;
             }
           } catch {
             // Network error — retry

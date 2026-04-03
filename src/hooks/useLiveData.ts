@@ -109,12 +109,17 @@ export function useLiveStock(
         );
         if (result.ok && currentRangeRef.current === range) {
           setData((prev) => {
-            if (prev && prev.price !== result.data.price && !isRangeSwitch) {
+            const incoming = result.data;
+            // If the API returned quote data but no chart, keep existing chart
+            if ((!incoming.chart || incoming.chart.length === 0) && prev?.chart?.length) {
+              incoming.chart = prev.chart;
+            }
+            if (prev && prev.price !== incoming.price && !isRangeSwitch) {
               setPrevPrice(prev.price);
-              setFlash(result.data.price > prev.price ? "up" : "down");
+              setFlash(incoming.price > prev.price ? "up" : "down");
               setTimeout(() => setFlash(null), 800);
             }
-            return result.data;
+            return incoming;
           });
           setLoading(false);
           return; // success
@@ -140,8 +145,15 @@ export function useLiveStock(
   // Keep ref in sync
   fetchStockRef.current = fetchStock;
 
-  // On range change: clear chart, fetch fresh data
+  // On range change: clear chart, fetch fresh data.
+  // Skip the initial mount (don't destroy chart data from the AI payload).
+  const mountedRef = useRef(false);
   useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      currentRangeRef.current = range;
+      return;
+    }
     currentRangeRef.current = range;
     setChartError(false);
     // Clear chart to show loading state
@@ -157,8 +169,8 @@ export function useLiveStock(
       return;
     }
 
-    // Always fetch fresh data when becoming visible or range changes
-    fetchStockRef.current?.(true);
+    // Fetch fresh data — only show loading spinner if chart is empty
+    fetchStockRef.current?.(!data?.chart?.length);
 
     timerRef.current = setInterval(() => {
       fetchStockRef.current?.(false);

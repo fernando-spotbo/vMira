@@ -582,6 +582,106 @@ pub struct ModelPricingResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  Bridge DTOs (CLI <-> Backend <-> Web)
+// ═══════════════════════════════════════════════════════════════
+
+/// CLI -> Backend: register environment
+#[derive(Debug, Deserialize)]
+pub struct RegisterEnvironmentRequest {
+    pub machine_name: String,
+    pub directory: String,
+    pub branch: Option<String>,
+    pub git_repo_url: Option<String>,
+    #[serde(default = "default_max_sessions")]
+    pub max_sessions: i32,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+    /// Idempotent re-registration
+    pub environment_id: Option<Uuid>,
+}
+
+fn default_max_sessions() -> i32 {
+    4
+}
+
+#[derive(Debug, Serialize)]
+pub struct RegisterEnvironmentResponse {
+    pub environment_id: Uuid,
+    pub environment_secret: String,
+}
+
+/// CLI <- Backend: work item from poll
+#[derive(Debug, Serialize)]
+pub struct WorkResponse {
+    pub id: Uuid,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub environment_id: Uuid,
+    pub state: String,
+    pub data: serde_json::Value,
+    pub secret: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// CLI <- Backend: heartbeat response
+#[derive(Debug, Serialize)]
+pub struct HeartbeatResponse {
+    pub lease_extended: bool,
+    pub state: String,
+    pub last_heartbeat: DateTime<Utc>,
+    pub ttl_seconds: i64,
+}
+
+/// Web -> Backend: send message to CLI
+#[derive(Debug, Deserialize, Validate)]
+pub struct BridgeMessageRequest {
+    #[validate(length(min = 1, max = 32000))]
+    pub content: String,
+}
+
+/// Web <- Backend: session list item
+#[derive(Debug, Serialize)]
+pub struct BridgeSessionResponse {
+    pub id: Uuid,
+    pub environment_id: Uuid,
+    pub machine_name: String,
+    pub directory: String,
+    pub branch: Option<String>,
+    pub git_repo_url: Option<String>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Web <- Backend: message in session history
+#[derive(Debug, Serialize)]
+pub struct BridgeMessageResponse {
+    pub id: Uuid,
+    pub role: String,
+    pub content: String,
+    pub thinking: Option<String>,
+    pub steps: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Web <- Backend: session with messages
+#[derive(Debug, Serialize)]
+pub struct BridgeSessionWithMessages {
+    pub id: Uuid,
+    pub environment_id: Uuid,
+    pub machine_name: String,
+    pub directory: String,
+    pub branch: Option<String>,
+    pub git_repo_url: Option<String>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub messages: Vec<BridgeMessageResponse>,
+    pub total_messages: i64,
+    pub has_more: bool,
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  Organization DTOs
 // ═══════════════════════════════════════════════════════════════
 

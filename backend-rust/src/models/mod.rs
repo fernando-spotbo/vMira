@@ -10,6 +10,7 @@ pub mod project;
 pub mod session;
 pub mod notification;
 pub mod usage;
+pub mod bridge;
 
 pub use action::Action;
 pub use user::User;
@@ -23,3 +24,4 @@ pub use organization::{Organization, OrganizationMember};
 pub use project::{Project, ProjectFile};
 pub use session::RefreshToken;
 pub use usage::UsageRecord;
+pub use bridge::{BridgeEnvironment, BridgeMessage, BridgeWorkItem};

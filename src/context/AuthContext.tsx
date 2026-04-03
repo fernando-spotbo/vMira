@@ -38,25 +38,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Try to restore session on mount
+  // Try to restore session on mount.
+  // If the access token survived in sessionStorage (e.g. deploy reload),
+  // validate it with /auth/me first — no refresh needed.
+  // Fall back to cookie-based refresh with retries.
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
-        // Try refreshing the token (cookie-based)
-        const refreshResult = await refreshTokenApi();
-        if (refreshResult.ok) {
+        // Fast path: token survived reload (sessionStorage)
+        const existingToken = getAccessToken();
+        if (existingToken) {
           const meResult = await getMe();
-          if (meResult.ok) {
+          if (!cancelled && meResult.ok) {
             setUser(meResult.data);
             setLocale(meResult.data.language as Locale);
+            setLoading(false);
+            return;
+          }
+          // Token was stale — clear it and fall through to refresh
+          setAccessToken(null);
+        }
+
+        // Slow path: refresh via cookie — retry up to 3 times
+        // (backend may be briefly unavailable during deployment)
+        const RETRY_DELAYS = [0, 2000, 4000];
+        for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
+          if (cancelled) return;
+          if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+
+          try {
+            const refreshResult = await refreshTokenApi();
+            if (!cancelled && refreshResult.ok) {
+              const meResult = await getMe();
+              if (!cancelled && meResult.ok) {
+                setUser(meResult.data);
+                setLocale(meResult.data.language as Locale);
+              }
+              break; // success — stop retrying
+            }
+          } catch {
+            // Network error — retry
           }
         }
       } catch {
         // No session
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => { cancelled = true; };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

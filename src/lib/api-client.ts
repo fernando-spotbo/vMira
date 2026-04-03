@@ -10,11 +10,25 @@ import type { ApiProjectFile } from "./api-chat";
 const PROXY_URL = "/api/proxy";
 
 // ---- Auth token management (client-side) ----
+// Access token lives in memory + sessionStorage (tab-scoped).
+// sessionStorage survives page reloads (including deploy-triggered ones)
+// but is scoped to the tab, so it doesn't leak across windows.
 
-let accessToken: string | null = null;
+const TOKEN_KEY = "mira_at";
+
+let accessToken: string | null = (() => {
+  try { return typeof sessionStorage !== "undefined" ? sessionStorage.getItem(TOKEN_KEY) : null; }
+  catch { return null; }
+})();
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      if (token) sessionStorage.setItem(TOKEN_KEY, token);
+      else sessionStorage.removeItem(TOKEN_KEY);
+    }
+  } catch { /* SSR or private browsing */ }
 }
 
 export function getAccessToken(): string | null {

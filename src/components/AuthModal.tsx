@@ -166,7 +166,7 @@ export default function AuthModal({ mode: initialMode, onClose, redirectTo }: Au
 
   const handleTelegramLogin = useCallback(() => {
     // Open Telegram Login Widget in a popup
-    const botId = "vMiraBot";
+    const botId = "8335474240";
     const origin = window.location.origin;
     const w = 550, h = 470;
     const left = (screen.width - w) / 2;

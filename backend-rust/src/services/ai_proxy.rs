@@ -746,11 +746,12 @@ pub fn stream_ai_response(
     let now_utc = chrono::Utc::now();
     let datetime_context = match tz_name.parse::<chrono_tz::Tz>() {
         Ok(tz) => {
-            use chrono::TimeZone;
+            use chrono::{TimeZone, Offset};
             let now_local = tz.from_utc_datetime(&now_utc.naive_utc());
             let offset = now_local.offset().fix();
-            let offset_h = offset.local_minus_utc() / 3600;
-            let offset_m = (offset.local_minus_utc() % 3600).abs() / 60;
+            let total_secs = offset.local_minus_utc();
+            let offset_h = total_secs / 3600;
+            let offset_m = (total_secs % 3600).abs() / 60;
             let offset_str = if offset_m == 0 {
                 format!("{:+03}:00", offset_h)
             } else {
@@ -1062,7 +1063,7 @@ pub fn stream_ai_response(
                                 .bind(uid)
                                 .bind(&title)
                                 .bind(dt)
-                                .bind(&tz)
+                                .bind(&tz_name)
                                 .bind(&args.recurrence)
                                 .bind(&channels)
                                 .fetch_one(pool)
@@ -1168,7 +1169,7 @@ pub fn stream_ai_response(
                                     .bind(&title)
                                     .bind(&prompt)
                                     .bind(dt)
-                                    .bind(&tz)
+                                    .bind(&tz_name)
                                     .bind(&args.recurrence)
                                     .bind(channels)
                                     .fetch_one(pool)

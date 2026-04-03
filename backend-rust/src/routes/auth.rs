@@ -736,7 +736,15 @@ async fn telegram_auth(
     .execute(&state.db)
     .await?;
 
-    log_auth_event("telegram_login", &user.id, ip.as_deref());
+    log_auth_event(
+        "telegram_login",
+        Some(&user.id),
+        None, // no email for telegram auth
+        ip.as_deref(),
+        ua.as_deref(),
+        true,
+        None,
+    );
 
     // Set refresh token cookie
     let cookie = format!(
@@ -750,7 +758,7 @@ async fn telegram_auth(
     Ok((
         StatusCode::OK,
         [(header::SET_COOKIE, cookie)],
-        Json(TokenResponse::new(access_token, expires_in)),
+        Json(TokenResponse::new(access_token?, expires_in)),
     ))
 }
 

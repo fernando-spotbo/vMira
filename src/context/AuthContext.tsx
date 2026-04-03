@@ -79,9 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAccessToken(null);
         }
 
-        // Slow path: refresh via cookie — retry up to 3 times
-        // (backend may be briefly unavailable during deployment)
-        const RETRY_DELAYS = [0, 2000, 4000];
+        // Slow path: refresh via cookie.
+        // Fail fast on auth rejection (401/403) — only retry on
+        // network errors or 5xx (backend briefly down during deploy).
+        const RETRY_DELAYS = [0, 1500, 3000];
         for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
           if (cancelled) return;
           if (attempt > 0) await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
@@ -90,11 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const refreshResult = await refreshTokenApi();
             if (!cancelled && refreshResult.ok) {
               // Refresh succeeded — token is set. Now load user profile.
-              if (await fetchMe()) break;
-              // fetchMe failed but token is valid — still break to avoid
-              // re-refreshing (which would waste the valid token)
+              await fetchMe();
               break;
             }
+            // Auth rejection (401/403) — cookie is invalid, don't retry
+            if (refreshResult.status === 401 || refreshResult.status === 403) break;
+            // Other error (5xx) — retry
           } catch {
             // Network error — retry
           }

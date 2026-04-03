@@ -112,6 +112,9 @@ pub struct UpdateUserRequest {
 
     /// Opt-in to overage billing (continue past daily limits at per-token cost)
     pub allow_overage_billing: Option<bool>,
+
+    /// Switch active organization (must be a member)
+    pub active_organization_id: Option<Uuid>,
 }
 
 fn validate_language(lang: &str) -> Result<(), validator::ValidationError> {
@@ -141,6 +144,7 @@ pub struct UserResponse {
     pub chat_plan_expires_at: Option<DateTime<Utc>>,
     pub code_plan: String,
     pub code_plan_expires_at: Option<DateTime<Utc>>,
+    pub organization_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -578,6 +582,75 @@ pub struct ModelPricingResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  Organization DTOs
+// ═══════════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateOrganizationRequest {
+    #[validate(length(min = 1, max = 128))]
+    pub name: String,
+
+    #[validate(length(min = 1, max = 128), regex(path = *SLUG_RE))]
+    pub slug: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateOrganizationRequest {
+    #[validate(length(min = 1, max = 128))]
+    pub name: Option<String>,
+
+    #[validate(length(min = 1, max = 128), regex(path = *SLUG_RE))]
+    pub slug: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct InviteMemberRequest {
+    pub user_id: Uuid,
+
+    #[validate(custom(function = "validate_org_role"))]
+    #[serde(default = "default_member_role")]
+    pub role: String,
+}
+
+fn default_member_role() -> String {
+    "member".to_string()
+}
+
+fn validate_org_role(role: &str) -> Result<(), validator::ValidationError> {
+    match role {
+        "admin" | "member" => Ok(()),
+        _ => {
+            let mut err = validator::ValidationError::new("role");
+            err.message = Some("Role must be 'admin' or 'member'".into());
+            Err(err)
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrganizationResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub owner_id: Uuid,
+    pub is_personal: bool,
+    pub plan: String,
+    pub member_count: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrganizationMemberResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub name: String,
+    pub email: Option<String>,
+    pub role: String,
+    pub created_at: DateTime<Utc>,
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  Shared validation regex (lazy-static via std::sync::LazyLock)
 // ═══════════════════════════════════════════════════════════════
 
@@ -585,3 +658,6 @@ use std::sync::LazyLock;
 
 static PHONE_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^\+7\d{10}$").expect("valid regex"));
+
+static SLUG_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$").expect("valid regex"));

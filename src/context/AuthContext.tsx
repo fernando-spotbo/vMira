@@ -19,6 +19,7 @@ interface User {
   chat_plan_expires_at: string | null;
   code_plan: string;
   code_plan_expires_at: string | null;
+  organization_id?: string | null;
 }
 
 interface AuthContextType {

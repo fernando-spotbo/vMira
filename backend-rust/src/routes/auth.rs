@@ -73,6 +73,7 @@ fn user_response(user: &User) -> UserResponse {
         chat_plan_expires_at: user.chat_plan_expires_at,
         code_plan: user.code_plan.clone(),
         code_plan_expires_at: user.code_plan_expires_at,
+        organization_id: user.active_organization_id,
         created_at: user.created_at,
     }
 }
@@ -269,6 +270,8 @@ async fn register(
     let now = Utc::now();
     let user_id = Uuid::new_v4();
 
+    let mut tx = state.db.begin().await?;
+
     let user = sqlx::query_as::<_, User>(
         "INSERT INTO users (id, name, email, phone, password_hash, consent_personal_data,
                            consent_personal_data_at, created_at, updated_at,
@@ -283,8 +286,43 @@ async fn register(
     .bind(body.phone.as_deref())
     .bind(&password_hash)
     .bind(now)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
+
+    // Create personal organization for the new user
+    let org_id = Uuid::new_v4();
+    let org_slug = format!("personal-{}", user_id);
+
+    sqlx::query(
+        "INSERT INTO organizations (id, name, slug, owner_id, is_personal, plan)
+         VALUES ($1, $2, $3, $4, true, 'free')"
+    )
+    .bind(org_id)
+    .bind(&body.name)
+    .bind(&org_slug)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO organization_members (organization_id, user_id, role)
+         VALUES ($1, $2, 'owner')"
+    )
+    .bind(org_id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Update user's active org and re-fetch
+    let user = sqlx::query_as::<_, User>(
+        "UPDATE users SET active_organization_id = $1 WHERE id = $2 RETURNING *"
+    )
+    .bind(org_id)
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
 
     log_auth_event(
         "register",
@@ -894,16 +932,35 @@ async fn update_me(
 ) -> Result<Json<UserResponse>, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
+    // If switching active organization, verify membership
+    if let Some(org_id) = body.active_organization_id {
+        let is_member: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2)",
+        )
+        .bind(org_id)
+        .bind(user.id)
+        .fetch_one(&state.db)
+        .await?;
+
+        if !is_member {
+            return Err(AppError::Forbidden(
+                "You are not a member of this organization".to_string(),
+            ));
+        }
+    }
+
     let name = body.name.as_deref().unwrap_or(&user.name);
     let language = body.language.as_deref().unwrap_or(&user.language);
     let allow_overage = body.allow_overage_billing.unwrap_or(user.allow_overage_billing);
+    let active_org_id = body.active_organization_id.or(user.active_organization_id);
 
     let updated = sqlx::query_as::<_, User>(
-        "UPDATE users SET name = $1, language = $2, allow_overage_billing = $3, updated_at = $4 WHERE id = $5 RETURNING *"
+        "UPDATE users SET name = $1, language = $2, allow_overage_billing = $3, active_organization_id = COALESCE($4, active_organization_id), updated_at = $5 WHERE id = $6 RETURNING *"
     )
     .bind(name)
     .bind(language)
     .bind(allow_overage)
+    .bind(active_org_id)
     .bind(Utc::now())
     .bind(user.id)
     .fetch_one(&state.db)
@@ -1020,6 +1077,20 @@ async fn delete_account(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
+    // Block deletion if user owns non-personal organizations
+    let owned_team_orgs: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM organizations WHERE owner_id = $1 AND is_personal = false"
+    )
+    .bind(user.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if owned_team_orgs > 0 {
+        return Err(AppError::Conflict(
+            "Transfer or delete your team organizations before deleting your account".to_string(),
+        ));
+    }
+
     // Collect attachment file paths BEFORE deleting from DB (for disk cleanup)
     let attachment_paths: Vec<String> = sqlx::query_scalar(
         "SELECT storage_path FROM attachments WHERE user_id = $1"

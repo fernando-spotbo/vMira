@@ -15,6 +15,7 @@ pub mod health;
 pub mod live_data;
 pub mod models;
 pub mod notifications;
+pub mod organizations;
 pub mod projects;
 pub mod sessions;
 pub mod telegram;
@@ -47,6 +48,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1/attachments", attachments::serve_routes())
         .nest("/api/v1/chat", feedback::feedback_routes())
         .nest("/api/v1/billing", billing::billing_routes())
+        .nest("/api/v1/organizations", organizations::organization_routes())
         .nest("/api/v1/api-keys", api_keys::api_key_routes())
         .nest("/api/v1/sessions", sessions::session_routes())
         .nest("/api/v1/admin", admin::admin_routes())

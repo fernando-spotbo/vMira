@@ -56,6 +56,8 @@ pub struct User {
     pub code_plan: String,
     pub code_plan_expires_at: Option<DateTime<Utc>>,
 
+    pub active_organization_id: Option<Uuid>,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

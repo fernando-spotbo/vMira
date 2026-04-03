@@ -54,6 +54,17 @@ pub struct PhoneVerifyRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct TelegramAuthRequest {
+    pub id: i64,
+    pub first_name: String,
+    pub last_name: Option<String>,
+    pub username: Option<String>,
+    pub photo_url: Option<String>,
+    pub auth_date: i64,
+    pub hash: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct VkAuthRequest {
     pub code: String,
     pub redirect_uri: String,

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, type TelegramAuthData } from "@/context/AuthContext";
 import { apiCall } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
 
@@ -58,7 +58,7 @@ function InputField({
 
 export default function AuthModal({ mode: initialMode, onClose, redirectTo }: AuthModalProps) {
   const router = useRouter();
-  const { login, register, loginWithPhone } = useAuth();
+  const { login, register, loginWithPhone, loginWithTelegram } = useAuth();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -163,6 +163,50 @@ export default function AuthModal({ mode: initialMode, onClose, redirectTo }: Au
       setError(result.error || "Invalid code");
     }
   };
+
+  const handleTelegramLogin = useCallback(() => {
+    // Open Telegram Login Widget in a popup
+    const botId = "vMiraBot";
+    const origin = window.location.origin;
+    const w = 550, h = 470;
+    const left = (screen.width - w) / 2;
+    const top = (screen.height - h) / 2;
+
+    // Listen for the auth result from the popup
+    const handler = async (e: MessageEvent) => {
+      if (e.origin !== "https://oauth.telegram.org") return;
+      window.removeEventListener("message", handler);
+
+      try {
+        // Telegram sends the auth data as a JSON string or structured object
+        const data: TelegramAuthData = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+        if (!data?.id || !data?.hash) return;
+
+        setSubmitting(true);
+        setError("");
+        const result = await loginWithTelegram(data);
+        setSubmitting(false);
+
+        if (result.ok) {
+          setVisible(false);
+          setTimeout(() => { onClose(); router.push(redirectTo || "/chat"); }, 250);
+        } else {
+          setError(result.error || "Telegram login failed");
+        }
+      } catch {
+        setSubmitting(false);
+        setError("Telegram login failed");
+      }
+    };
+    window.addEventListener("message", handler);
+
+    // Open the Telegram OAuth widget
+    window.open(
+      `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&embed=0&request_access=write&return_to=${encodeURIComponent(origin)}`,
+      "TelegramAuth",
+      `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`
+    );
+  }, [loginWithTelegram, onClose, redirectTo, router]);
 
   const switchMode = (newMode: AuthMode) => {
     setContentKey((k) => k + 1);
@@ -312,6 +356,23 @@ export default function AuthModal({ mode: initialMode, onClose, redirectTo }: Au
                   )}
                 </button>
               </form>
+
+              <div className="flex items-center gap-4 my-5">
+                <div className="flex-1 h-px bg-white/[0.06]" />
+                <span className="text-[14px] text-white/40">{t("auth.or")}</span>
+                <div className="flex-1 h-px bg-white/[0.06]" />
+              </div>
+
+              <button
+                onClick={handleTelegramLogin}
+                disabled={submitting}
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/[0.08] bg-[#2AABEE]/10 px-4 py-3 text-[16px] text-white hover:bg-[#2AABEE]/20 hover:border-[#2AABEE]/30 transition-all active:scale-[0.98]"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#2AABEE">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                </svg>
+                <span>{t("auth.continueWithTelegram")}</span>
+              </button>
 
               <p className="mt-6 text-center text-[16px] text-white/50">
                 {mode === "login" ? t("auth.noAccount") : t("auth.hasAccount")}{" "}

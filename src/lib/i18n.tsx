@@ -97,6 +97,7 @@ const translations: Record<string, Record<Locale, string>> = {
   "auth.google": { ru: "Google", en: "Google" },
   "auth.phone": { ru: "Телефон", en: "Phone" },
   "auth.or": { ru: "или", en: "or" },
+  "auth.continueWithTelegram": { ru: "Войти через Telegram", en: "Continue with Telegram" },
   "auth.name": { ru: "Имя", en: "Name" },
   "auth.namePlaceholder": { ru: "Ваше имя", en: "Your name" },
   "auth.email": { ru: "Почта", en: "Email" },

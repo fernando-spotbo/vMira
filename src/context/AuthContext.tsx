@@ -22,11 +22,22 @@ interface User {
   organization_id?: string | null;
 }
 
+export interface TelegramAuthData {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   loginWithPhone: (phone: string, code: string) => Promise<{ ok: boolean; error?: string }>;
+  loginWithTelegram: (data: TelegramAuthData) => Promise<{ ok: boolean; error?: string }>;
   register: (name: string, email: string, password: string, consent: boolean) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -155,6 +166,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const loginWithTelegram = useCallback(async (data: TelegramAuthData) => {
+    const result = await apiCall<{ access_token: string; expires_in: number }>("/auth/telegram", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: (result.data as any)?.detail || "Telegram login failed" };
+    }
+
+    setAccessToken(result.data.access_token);
+
+    const meResult = await getMe();
+    if (meResult.ok) {
+      setUser(meResult.data);
+      setLocale(meResult.data.language as Locale);
+    }
+
+    return { ok: true };
+  }, []);
+
   const register = useCallback(async (name: string, email: string, password: string, consent: boolean) => {
     const result = await apiCall("/auth/register", {
       method: "POST",
@@ -207,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithPhone, register, logout, refreshUser, updateUser, switchOrg }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithPhone, loginWithTelegram, register, logout, refreshUser, updateUser, switchOrg }}>
       {children}
     </AuthContext.Provider>
   );

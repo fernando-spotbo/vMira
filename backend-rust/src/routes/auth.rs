@@ -19,7 +19,7 @@ use crate::middleware::auth::AuthUser;
 use crate::models::User;
 use crate::schema::{
     ForgotPasswordRequest, LoginRequest, RegisterRequest, ResetPasswordRequest,
-    TokenResponse, UpdateUserRequest, UserResponse,
+    TelegramAuthRequest, TokenResponse, UpdateUserRequest, UserResponse,
 };
 use crate::services::audit::{log_auth_event, log_security_event};
 use crate::services::rate_limit;
@@ -43,6 +43,7 @@ pub fn auth_routes() -> Router<AppState> {
         .route("/vk", post(vk_auth))
         .route("/yandex", post(yandex_auth))
         .route("/google", post(google_auth))
+        .route("/telegram", post(telegram_auth))
         .route("/refresh", post(refresh))
         .route("/logout", post(logout))
         .route("/forgot-password", post(forgot_password))
@@ -559,6 +560,198 @@ async fn google_auth(State(state): State<AppState>) -> impl IntoResponse {
         StatusCode::NOT_IMPLEMENTED,
         Json(serde_json::json!({ "detail": "Google OAuth not yet implemented in Rust backend" })),
     )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  POST /telegram — Telegram Login Widget authentication
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn telegram_auth(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<TelegramAuthRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    // Reject if bot token is not configured
+    if state.config.telegram_bot_token.is_empty() {
+        return Err(AppError::BadRequest("Telegram login not configured".into()));
+    }
+
+    // Verify auth_date is recent (within 5 minutes)
+    let now = Utc::now().timestamp();
+    if (now - body.auth_date).abs() > 300 {
+        return Err(AppError::Unauthorized("Telegram auth expired".into()));
+    }
+
+    // Verify the hash using HMAC-SHA256
+    // Telegram Login hash verification:
+    //   1. Create a SHA256 hash of the bot token (this is the secret key)
+    //   2. Build data-check-string: sorted key=value pairs joined with \n
+    //   3. HMAC-SHA256(data-check-string, secret_key) must match the hash
+    use sha2::{Sha256, Digest};
+    use hmac::{Hmac, Mac};
+    type HmacSha256 = Hmac<Sha256>;
+
+    let secret_key = Sha256::digest(state.config.telegram_bot_token.as_bytes());
+
+    let mut data_parts: Vec<String> = Vec::new();
+    data_parts.push(format!("auth_date={}", body.auth_date));
+    data_parts.push(format!("first_name={}", body.first_name));
+    data_parts.push(format!("id={}", body.id));
+    if let Some(ref last_name) = body.last_name {
+        data_parts.push(format!("last_name={}", last_name));
+    }
+    if let Some(ref photo_url) = body.photo_url {
+        data_parts.push(format!("photo_url={}", photo_url));
+    }
+    if let Some(ref username) = body.username {
+        data_parts.push(format!("username={}", username));
+    }
+    data_parts.sort();
+    let data_check_string = data_parts.join("\n");
+
+    let mut mac = HmacSha256::new_from_slice(&secret_key)
+        .map_err(|_| AppError::Internal("HMAC key error".into()))?;
+    mac.update(data_check_string.as_bytes());
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    // Constant-time comparison
+    use subtle::ConstantTimeEq;
+    let hash_match: bool = body.hash.as_bytes().ct_eq(expected.as_bytes()).into();
+    if !hash_match {
+        log_security_event("telegram_auth_invalid_hash", None, None);
+        return Err(AppError::Unauthorized("Invalid Telegram auth hash".into()));
+    }
+
+    // Look up or create user by telegram_id
+    let existing: Option<User> = sqlx::query_as(
+        "SELECT * FROM users WHERE telegram_id = $1"
+    )
+    .bind(body.id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let user = if let Some(u) = existing {
+        // Existing user — update avatar if changed
+        if body.photo_url.is_some() && body.photo_url != u.avatar_url {
+            sqlx::query("UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2")
+                .bind(&body.photo_url)
+                .bind(u.id)
+                .execute(&state.db)
+                .await?;
+        }
+        u
+    } else {
+        // New user — create account
+        let user_id = Uuid::new_v4();
+        let display_name = if let Some(ref last) = body.last_name {
+            format!("{} {}", body.first_name, last)
+        } else {
+            body.first_name.clone()
+        };
+
+        sqlx::query(
+            "INSERT INTO users (id, name, telegram_id, avatar_url, language, plan, \
+             daily_messages_used, daily_reset_at, is_active, is_verified, \
+             consent_personal_data, consent_personal_data_at, \
+             chat_plan, code_plan, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, 'ru', 'free', 0, NOW(), true, true, \
+             true, NOW(), 'free', 'free', NOW(), NOW())"
+        )
+        .bind(user_id)
+        .bind(&display_name)
+        .bind(body.id)
+        .bind(&body.photo_url)
+        .execute(&state.db)
+        .await?;
+
+        // Create personal organization
+        let org_id = Uuid::new_v4();
+        let slug = format!("user-{}", &user_id.to_string()[..8]);
+        sqlx::query(
+            "INSERT INTO organizations (id, name, slug, owner_id, is_personal, plan, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, true, 'free', NOW(), NOW())"
+        )
+        .bind(org_id)
+        .bind(&display_name)
+        .bind(&slug)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO organization_members (id, organization_id, user_id, role, created_at) \
+             VALUES ($1, $2, $3, 'owner', NOW())"
+        )
+        .bind(Uuid::new_v4())
+        .bind(org_id)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+
+        sqlx::query("UPDATE users SET active_organization_id = $1 WHERE id = $2")
+            .bind(org_id)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(&state.db)
+            .await?
+    };
+
+    // Also link telegram_links if not already linked
+    sqlx::query(
+        "INSERT INTO telegram_links (user_id, chat_id, username, is_active, linked_at) \
+         VALUES ($1, $2, $3, true, NOW()) \
+         ON CONFLICT (user_id) DO UPDATE SET chat_id = $2, username = $3, is_active = true"
+    )
+    .bind(user.id)
+    .bind(body.id)
+    .bind(&body.username)
+    .execute(&state.db)
+    .await?;
+
+    // Issue tokens
+    let access_token = create_access_token(&user.id, &state.config);
+    let (raw_refresh, token_hash, expires_at) = create_refresh_token(&user.id, &state.config);
+
+    let ip = headers.get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
+    let ua = headers.get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    sqlx::query(
+        "INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at) \
+         VALUES ($1, $2, $3, $4, $5, $6)"
+    )
+    .bind(Uuid::new_v4())
+    .bind(user.id)
+    .bind(&token_hash)
+    .bind(&ip)
+    .bind(&ua)
+    .bind(expires_at)
+    .execute(&state.db)
+    .await?;
+
+    log_auth_event("telegram_login", &user.id, ip.as_deref());
+
+    // Set refresh token cookie
+    let cookie = format!(
+        "refresh_token={}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={}",
+        raw_refresh,
+        state.config.refresh_token_expire_days * 86400
+    );
+
+    let expires_in = state.config.access_token_expire_minutes * 60;
+
+    Ok((
+        StatusCode::OK,
+        [(header::SET_COOKIE, cookie)],
+        Json(TokenResponse::new(access_token, expires_in)),
+    ))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

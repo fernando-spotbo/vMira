@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Mail, Check, Loader2, AlertCircle, Copy, FileText, Languages,
   Timer, Send, Code2, ChevronDown, ExternalLink, CloudSun, Calculator,
-  CalendarPlus, Download, TrendingUp, TrendingDown,
+  CalendarPlus, Download, TrendingUp, TrendingDown, RotateCcw,
 } from "lucide-react";
 import hljs from "highlight.js";
 import { t } from "@/lib/i18n";
@@ -518,7 +518,7 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
     chart: (p.chart as LiveStockData["chart"]) || [],
   };
 
-  const { data, loading, flash } = useLiveStock(symbol, initialData, containerRef, range);
+  const { data, loading, flash, chartError, retry } = useLiveStock(symbol, initialData, containerRef, range);
   const d = data || initialData;
   const isUp = d.change >= 0;
   const accentColor = isUp ? "#4ade80" : "#f87171";
@@ -692,6 +692,17 @@ function LiveStockCard({ payload }: { payload: Record<string, unknown> }) {
         <div className="flex items-center justify-center h-[90px] mt-4 -mx-1">
           <div className="h-4 w-4 rounded-full border-2 border-white/10 border-t-white/40 animate-spin" />
         </div>
+      )}
+
+      {/* Error state — tap to retry */}
+      {chartError && !loading && chartPts.length < 2 && (
+        <button
+          onClick={retry}
+          className="flex items-center justify-center gap-2 h-[90px] mt-4 -mx-1 w-full rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+        >
+          <RotateCcw size={13} className="text-white/25" />
+          <span className="text-[12px] text-white/25">{t("stock.chartRetry")}</span>
+        </button>
       )}
 
       {/* Interactive Chart + Time Labels */}

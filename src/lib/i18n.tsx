@@ -275,6 +275,7 @@ const translations: Record<string, Record<Locale, string>> = {
   "stock.1w": { ru: "1Н", en: "1W" },
   "stock.1m": { ru: "1М", en: "1M" },
   "stock.1y": { ru: "1Г", en: "1Y" },
+  "stock.chartRetry": { ru: "Нажмите для повторной загрузки", en: "Tap to reload chart" },
   "stock.marketClosed": { ru: "Рынок закрыт", en: "Market closed" },
   "stock.preMarket": { ru: "Пре-маркет", en: "Pre-market" },
   "stock.afterHours": { ru: "Пост-маркет", en: "After hours" },

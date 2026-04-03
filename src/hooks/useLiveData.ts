@@ -69,6 +69,9 @@ const RANGE_INTERVALS: Record<string, number> = {
   "1y": 300_000,
 };
 
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1500, 3000, 6000]; // exponential-ish backoff
+
 /** Polls stock data while the ref element is visible. Supports range param. */
 export function useLiveStock(
   symbol: string,
@@ -80,62 +83,105 @@ export function useLiveStock(
   const [loading, setLoading] = useState(false);
   const [prevPrice, setPrevPrice] = useState<number | null>(null);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
+  const [chartError, setChartError] = useState(false);
   const visible = useIsVisible(containerRef);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRangeRef = useRef(range);
   const intervalMs = RANGE_INTERVALS[range] || 15_000;
+
+  // Use a ref for fetchStock so polling always calls the latest version
+  const fetchStockRef = useRef<(isRangeSwitch?: boolean) => Promise<void>>(undefined);
 
   const fetchStock = useCallback(async (isRangeSwitch = false) => {
     if (!symbol) return;
     if (isRangeSwitch) setLoading(true);
-    try {
-      const result = await apiCall<LiveStockData>(
-        `/live/stock/${encodeURIComponent(symbol)}?range=${encodeURIComponent(range)}`
-      );
-      if (result.ok && currentRangeRef.current === range) {
-        setData((prev) => {
-          if (prev && prev.price !== result.data.price && !isRangeSwitch) {
-            setPrevPrice(prev.price);
-            setFlash(result.data.price > prev.price ? "up" : "down");
-            setTimeout(() => setFlash(null), 800);
-          }
-          return result.data;
-        });
+    setChartError(false);
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      // Bail if range changed while we were retrying
+      if (currentRangeRef.current !== range) break;
+
+      try {
+        const result = await apiCall<LiveStockData>(
+          `/live/stock/${encodeURIComponent(symbol)}?range=${encodeURIComponent(range)}`
+        );
+        if (result.ok && currentRangeRef.current === range) {
+          setData((prev) => {
+            if (prev && prev.price !== result.data.price && !isRangeSwitch) {
+              setPrevPrice(prev.price);
+              setFlash(result.data.price > prev.price ? "up" : "down");
+              setTimeout(() => setFlash(null), 800);
+            }
+            return result.data;
+          });
+          setLoading(false);
+          return; // success
+        }
+        // result.ok was false — treat as failure
+        lastError = new Error(`API returned status ${result.status}`);
+      } catch (e) {
+        lastError = e;
       }
-    } catch {
-      // Silent fail — keep showing last data
-    } finally {
-      setLoading(false);
+
+      // Wait before retrying (skip wait on last attempt)
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt] || 3000));
+      }
     }
+
+    // All retries exhausted
+    console.error("Stock chart fetch failed after retries:", lastError);
+    if (isRangeSwitch) setChartError(true);
+    setLoading(false);
   }, [symbol, range]);
 
-  // On range change: clear chart immediately so user sees loading, then fetch
+  // Keep ref in sync
+  fetchStockRef.current = fetchStock;
+
+  // On range change: clear chart, fetch fresh data
   useEffect(() => {
     currentRangeRef.current = range;
-    // Keep the price/name but clear chart to indicate loading
+    setChartError(false);
+    // Clear chart to show loading state
     setData((prev) => prev ? { ...prev, chart: [] } : prev);
-    if (visible && symbol) fetchStock(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Clear any pending retry
+    if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
   }, [range]);
 
-  // Polling loop
+  // Fetch when visible + range changes, and set up polling
   useEffect(() => {
     if (!visible || !symbol) {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       return;
     }
 
-    // Only start immediately if we have no data yet (range switch handled above)
-    if (!data?.chart?.length) fetchStock(true);
+    // Always fetch fresh data when becoming visible or range changes
+    fetchStockRef.current?.(true);
 
-    timerRef.current = setInterval(() => fetchStock(false), intervalMs);
+    timerRef.current = setInterval(() => {
+      fetchStockRef.current?.(false);
+    }, intervalMs);
+
     return () => {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, symbol, intervalMs]);
+  }, [visible, symbol, range, intervalMs]);
 
-  return { data, loading, prevPrice, flash };
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
+
+  // Manual retry (exposed for tap-to-retry UI)
+  const retry = useCallback(() => {
+    fetchStockRef.current?.(true);
+  }, []);
+
+  return { data, loading, prevPrice, flash, chartError, retry };
 }
 
 // ── useLiveWeather ───────────────────────────────────────

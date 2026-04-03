@@ -11,7 +11,8 @@ interface VoiceRecordingProps {
 }
 
 // ── Feature detection ──
-function getNativeSR(): (new () => SpeechRecognition) | null {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getNativeSR(): (new () => any) | null {
   if (typeof window === "undefined") return null;
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
 }
@@ -58,7 +59,8 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
   const aliveRef = useRef(true);
 
   // Native SpeechRecognition refs
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
   const useNativeRef = useRef(!!getNativeSR());
 
   // Fallback MediaRecorder refs
@@ -88,7 +90,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
     recognition.lang = langCode;
     recognition.maxAlternatives = 1;
 
-    recognition.onresult = (e: SpeechRecognitionEvent) => {
+    recognition.onresult = (e: any) => {
       if (!aliveRef.current) return;
       let finalText = "";
       let interimText = "";
@@ -105,7 +107,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
       setInterim(interimText);
     };
 
-    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
+    recognition.onerror = (e: any) => {
       if (e.error === "no-speech" || e.error === "aborted") return;
       console.error("SpeechRecognition error:", e.error);
       useNativeRef.current = false;

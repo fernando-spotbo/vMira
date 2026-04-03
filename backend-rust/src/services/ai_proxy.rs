@@ -16,18 +16,16 @@ use crate::services::search;
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-/// System prompt with search and citation instructions.
-pub const MIRA_SYSTEM_PROMPT: &str = "\
-You are Mira, an AI assistant. Always reply in the user's language.\n\
-You have tools: web_search, create_reminder, create_scheduled_content, propose_action.\n\
-Use them when needed. Never say you can't — just call the tool.\n\
-Never output raw XML, function calls, or internal syntax in your replies.\n\
-Cite search sources as [1], [2], [3].";
+/// Tool-calling hints only — no personality or language instructions.
+/// The model responds naturally without a system prompt; these are
+/// injected only when project instructions or datetime context is needed.
+pub const MIRA_TOOL_HINTS: &str = "\
+Cite search sources as [1], [2], [3].\n\
+Never output raw XML, function calls, or internal syntax in your replies.";
 
-/// Voice mode system prompt — short, conversational, TTS-friendly, multilingual.
+/// Voice mode — keep responses short for TTS.
 pub const MIRA_VOICE_PROMPT: &str = "\
-Голосовой режим. Отвечай ОЧЕНЬ кратко, 1-2 предложения. Без markdown. \
-Отвечай на языке пользователя.";
+Voice mode. Reply in 1-2 sentences max. No markdown.";
 
 const MAX_RETRIES: u32 = 2;
 const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
@@ -742,7 +740,7 @@ pub fn stream_ai_response(
     // (pii_mapping is populated during message scrubbing below)
 
     let tz = user_timezone.unwrap_or_else(|| "Europe/Moscow".to_string());
-    let system_prompt = if voice_mode { MIRA_VOICE_PROMPT } else { MIRA_SYSTEM_PROMPT };
+    // MIRA_TOOL_HINTS used in extra_context below for chat mode
 
     // Inject current datetime in the USER'S timezone for correct reminder time resolution
     let now_utc = chrono::Utc::now();
@@ -762,7 +760,7 @@ pub fn stream_ai_response(
     };
     let now_local = now_utc + chrono::Duration::hours(offset_hours);
     let datetime_context = format!(
-        "\n\nAlways reply in the user's language.\nCurrent date and time: {}+{:02}:00. Timezone: {}.",
+        "\n\nCurrent date and time: {}+{:02}:00. Timezone: {}.",
         now_local.format("%Y-%m-%dT%H:%M:%S"), offset_hours, tz
     );
 
@@ -772,8 +770,9 @@ pub fn stream_ai_response(
     let user_email = user_email_for_scrub.as_deref();
     let mut pii_mapping = std::collections::HashMap::new();
 
-    // Voice mode uses a dedicated system prompt to keep responses short and conversational.
-    // Regular chat has no system prompt — the model responds naturally.
+    // Voice mode gets a short system prompt for TTS-friendly output.
+    // Regular chat: no system prompt — model responds naturally.
+    // Only inject context (datetime, project instructions, tool hints) when needed.
     let project_context = match &project_instructions {
         Some(instr) if !instr.is_empty() => format!("\n\n--- Project Instructions ---\n{}", instr),
         _ => String::new(),
@@ -785,13 +784,12 @@ pub fn stream_ai_response(
             "content": format!("{}{}{}", MIRA_VOICE_PROMPT, project_context, datetime_context),
         }));
     } else {
-        let extra_context = format!("{}{}", project_context, datetime_context).trim().to_string();
-        if !extra_context.is_empty() {
-            full_messages.push(json!({
-                "role": "system",
-                "content": extra_context,
-            }));
-        }
+        // Minimal context: datetime + project instructions + tool hints (no personality prompt)
+        let extra_context = format!("{}{}{}", MIRA_TOOL_HINTS, project_context, datetime_context).trim().to_string();
+        full_messages.push(json!({
+            "role": "system",
+            "content": extra_context,
+        }));
     }
     for m in &messages {
         let scrubbed = crate::services::pii_scrub::scrub(&m.content, user_name, user_email);

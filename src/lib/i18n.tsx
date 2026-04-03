@@ -33,6 +33,19 @@ const translations: Record<string, Record<Locale, string>> = {
   "menu.moveToProject": { ru: "В проект", en: "Move to project" },
   "menu.removeFromProject": { ru: "Убрать из проекта", en: "Remove from project" },
 
+  // ---- Код (Remote Control) ----
+  "sidebar.code": { ru: "Код", en: "Code" },
+  "code.title": { ru: "Код", en: "Code" },
+  "code.noSessions": { ru: "Нет подключённых сессий", en: "No connected sessions" },
+  "code.noSessionsDesc": { ru: "Запустите /remote в терминале Mira CLI, чтобы подключить проект", en: "Run /remote in Mira CLI terminal to connect a project" },
+  "code.connected": { ru: "Подключено", en: "Connected" },
+  "code.reconnecting": { ru: "Переподключение", en: "Reconnecting" },
+  "code.offline": { ru: "Не в сети", en: "Offline" },
+  "code.sendPlaceholder": { ru: "Отправить команду...", en: "Send a command..." },
+  "code.sessions": { ru: "Сессии", en: "Sessions" },
+  "code.disconnect": { ru: "Отключить", en: "Disconnect" },
+  "code.back": { ru: "Назад", en: "Back" },
+
   // ---- Контекстное меню чата ----
   "menu.star": { ru: "В избранное", en: "Star" },
   "menu.unstar": { ru: "Убрать", en: "Unstar" },

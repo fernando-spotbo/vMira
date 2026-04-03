@@ -120,3 +120,27 @@ export interface Conversation {
   hasMore?: boolean;
   loadingMore?: boolean;
 }
+
+export interface RemoteSession {
+  id: string;
+  environmentId: string;
+  machineName: string;
+  directory: string;
+  branch?: string | null;
+  gitRepoUrl?: string | null;
+  status: "connected" | "reconnecting" | "offline";
+  createdAt: string;
+  updatedAt: string;
+  messages: RemoteMessage[];
+  totalMessages?: number;
+  hasMore?: boolean;
+}
+
+export interface RemoteMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  thinking?: string;
+  steps?: MessageStep[];
+  createdAt: string;
+}

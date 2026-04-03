@@ -50,6 +50,8 @@ interface ChatContextType {
   setShowReminders: (show: boolean) => void;
   showProjects: boolean;
   setShowProjects: (show: boolean) => void;
+  showCode: boolean;
+  setShowCode: (show: boolean) => void;
   // Projects
   projects: Project[];
   createProject: (name: string, emoji?: string) => Promise<Project | null>;
@@ -76,6 +78,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [selectedModel, setSelectedModel] = useState("mira");
   const [showReminders, setShowReminders] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -1001,6 +1004,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setShowReminders,
         showProjects,
         setShowProjects,
+        showCode,
+        setShowCode,
         projects,
         createProject: createProjectCb,
         renameProject,

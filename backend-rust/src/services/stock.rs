@@ -1,7 +1,18 @@
 //! Stock price service — MOEX ISS (Russian stocks) + Yahoo Finance (US/global stocks).
 //! Both are free, no API keys required.
 
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+
+/// Shared HTTP client — reuses connections, follows redirects, holds cookies.
+static HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .cookie_store(true)
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("failed to build HTTP client")
+});
 
 #[derive(Debug, Serialize, Clone)]
 pub struct StockQuote {
@@ -71,7 +82,6 @@ fn is_moex_ticker(symbol: &str) -> bool {
 }
 
 async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
-    let client = reqwest::Client::new();
     let upper = symbol.to_uppercase();
 
     let url = if upper == "IMOEX" {
@@ -92,8 +102,7 @@ async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
         )
     };
 
-    let resp: MoexResponse = client.get(&url)
-        .timeout(std::time::Duration::from_secs(5))
+    let resp: MoexResponse = HTTP.get(&url)
         .send().await.map_err(|e| format!("MOEX: {e}"))?
         .json().await.map_err(|e| format!("MOEX parse: {e}"))?;
 
@@ -103,6 +112,9 @@ async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
     let md_row = md.data.first().ok_or("No market data for ticker")?;
 
     let name = sec.get_str(sec_row, "SHORTNAME");
+
+    // Fetch intraday candles for chart
+    let chart = fetch_moex_chart(&upper).await.unwrap_or_default();
 
     if upper == "IMOEX" {
         let price = md.get_f64(md_row, "CURRENTVALUE");
@@ -117,7 +129,7 @@ async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
             high: md.get_f64(md_row, "HIGH"), low: md.get_f64(md_row, "LOW"),
             source: "moex".into(), currency: "pts".into(),
             updated: md.get_str(md_row, "UPDATETIME"),
-            chart: vec![],
+            chart,
         })
     } else {
         let price = md.get_f64(md_row, "LAST");
@@ -130,15 +142,50 @@ async fn fetch_moex(symbol: &str) -> Result<StockQuote, String> {
             high: md.get_f64(md_row, "HIGH"), low: md.get_f64(md_row, "LOW"),
             source: "moex".into(), currency: "RUB".into(),
             updated: md.get_str(md_row, "UPDATETIME"),
-            chart: vec![],
+            chart,
         })
     }
+}
+
+/// Fetch MOEX intraday candle data for chart rendering.
+async fn fetch_moex_chart(symbol: &str) -> Result<Vec<ChartPoint>, String> {
+    let (engine, market) = if symbol == "IMOEX" {
+        ("stock", "index")
+    } else {
+        ("stock", "shares")
+    };
+    let board = if symbol == "IMOEX" { "SNDX" } else { "TQBR" };
+    let today = chrono::Utc::now().format("%Y-%m-%d");
+
+    let url = format!(
+        "https://iss.moex.com/iss/engines/{engine}/markets/{market}/boards/{board}/securities/{symbol}/candles.json?\
+         from={today}&interval=10&iss.meta=off&candles.columns=begin,close",
+    );
+
+    let data: serde_json::Value = HTTP.get(&url)
+        .send().await.map_err(|e| format!("MOEX chart: {e}"))?
+        .json().await.map_err(|e| format!("MOEX chart parse: {e}"))?;
+
+    let rows = data["candles"]["data"].as_array().ok_or("No candle data")?;
+    let mut points = Vec::with_capacity(rows.len());
+    for row in rows {
+        let time_str = row[0].as_str().unwrap_or("");
+        let price = row[1].as_f64().unwrap_or(0.0);
+        if price <= 0.0 { continue; }
+        // Parse "2025-04-03 10:10:00" → unix timestamp
+        let ts = chrono::NaiveDateTime::parse_from_str(time_str, "%Y-%m-%d %H:%M:%S")
+            .map(|dt| dt.and_utc().timestamp())
+            .unwrap_or(0);
+        if ts > 0 {
+            points.push(ChartPoint { time: ts, price, is_regular: true });
+        }
+    }
+    Ok(points)
 }
 
 // ── Yahoo Finance (US/global stocks, no key needed) ─────────────────────
 
 async fn fetch_yahoo(symbol: &str, range: Option<&str>) -> Result<StockQuote, String> {
-    let client = reqwest::Client::new();
     let upper = symbol.to_uppercase();
 
     let (api_range, api_interval) = match range.unwrap_or("1d") {
@@ -148,23 +195,35 @@ async fn fetch_yahoo(symbol: &str, range: Option<&str>) -> Result<StockQuote, St
         _ => ("1d", "5m"),  // default
     };
 
-    let url = format!(
-        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval={}&range={}&includePrePost=true",
-        upper, api_interval, api_range
-    );
+    // Try query2 first (more permissive with datacenter IPs), fall back to query1
+    let hosts = ["query2.finance.yahoo.com", "query1.finance.yahoo.com"];
+    let mut last_err = String::new();
+    let mut data: serde_json::Value = serde_json::Value::Null;
 
-    let resp = client.get(&url)
-        .header("User-Agent", "Mozilla/5.0")
-        .timeout(std::time::Duration::from_secs(8))
-        .send().await
-        .map_err(|e| format!("Yahoo: {e}"))?;
+    for host in &hosts {
+        let url = format!(
+            "https://{}/v8/finance/chart/{}?interval={}&range={}&includePrePost=true",
+            host, upper, api_interval, api_range
+        );
 
-    if !resp.status().is_success() {
-        return Err(format!("Yahoo returned {}", resp.status()));
+        match HTTP.get(&url).send().await {
+            Ok(resp) => {
+                if !resp.status().is_success() {
+                    last_err = format!("Yahoo {} returned {}", host, resp.status());
+                    continue;
+                }
+                match resp.json::<serde_json::Value>().await {
+                    Ok(d) => { data = d; break; }
+                    Err(e) => { last_err = format!("Yahoo parse: {e}"); continue; }
+                }
+            }
+            Err(e) => { last_err = format!("Yahoo {}: {e}", host); continue; }
+        }
     }
 
-    let data: serde_json::Value = resp.json().await
-        .map_err(|e| format!("Yahoo parse: {e}"))?;
+    if data.is_null() {
+        return Err(last_err);
+    }
 
     let result = &data["chart"]["result"][0];
     let meta = &result["meta"];

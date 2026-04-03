@@ -11,7 +11,6 @@ import { MiraHeading } from "@/components/MiraHeading";
 import RemindersPage from "@/components/RemindersPage";
 import ProjectsPage from "@/components/ProjectsPage";
 import CodePage from "@/components/CodePage";
-import OrgSettingsPage from "@/components/OrgSettingsPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 function ChatLayout() {
@@ -31,8 +30,6 @@ function ChatLayout() {
     setShowProjects,
     showCode,
     setShowCode,
-    showOrgSettings,
-    setShowOrgSettings,
   } = useChat();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -94,9 +91,7 @@ function ChatLayout() {
     <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#161616]">
       <Sidebar />
       <main className="relative flex flex-1 flex-col min-w-0 min-h-0 h-full overflow-hidden">
-        {showOrgSettings ? (
-          <OrgSettingsPage onBack={() => setShowOrgSettings(false)} />
-        ) : showCode ? (
+        {showCode ? (
           <CodePage onBack={() => setShowCode(false)} />
         ) : showReminders ? (
           <RemindersPage onBack={() => setShowReminders(false)} />

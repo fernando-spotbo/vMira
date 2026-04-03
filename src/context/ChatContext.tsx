@@ -52,8 +52,6 @@ interface ChatContextType {
   setShowProjects: (show: boolean) => void;
   showCode: boolean;
   setShowCode: (show: boolean) => void;
-  showOrgSettings: boolean;
-  setShowOrgSettings: (show: boolean) => void;
   reloadData: () => void;
   // Projects
   projects: Project[];
@@ -82,7 +80,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [showReminders, setShowReminders] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showCode, setShowCode] = useState(false);
-  const [showOrgSettings, setShowOrgSettings] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -1020,8 +1017,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setShowProjects,
         showCode,
         setShowCode,
-        showOrgSettings,
-        setShowOrgSettings,
         reloadData,
         projects,
         createProject: createProjectCb,

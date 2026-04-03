@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const PLATFORM_URL = "https://platform.vmira.ai";
 
 // Routes that exist under /platform in the file system
-const PLATFORM_ROUTES = ["/dashboard", "/plans", "/usage", "/billing", "/api-keys", "/pricing"];
+const PLATFORM_ROUTES = ["/dashboard", "/plans", "/usage", "/billing", "/api-keys", "/pricing", "/organizations"];
 
 function isPlatformRoute(pathname: string): boolean {
   return PLATFORM_ROUTES.some(route => pathname === route || pathname.startsWith(route + "/"));

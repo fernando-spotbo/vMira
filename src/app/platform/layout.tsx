@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Settings, HelpCircle, LogOut, LayoutDashboard, BarChart3, Key, Wallet, Zap, ChevronRight, BookOpen, FileText, Shield, Bug, Keyboard, CreditCard } from "lucide-react";
+import { Settings, HelpCircle, LogOut, LayoutDashboard, BarChart3, Key, Wallet, Zap, ChevronRight, BookOpen, FileText, Shield, Bug, Keyboard, CreditCard, Building2 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
 import MiraCodePricingModal from "@/components/MiraCodePricingModal";
 
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/usage", icon: BarChart3 },
   { href: "/billing", icon: Wallet },
   { href: "/api-keys", icon: Key },
+  { href: "/organizations", icon: Building2 },
 ];
 
 function getNavLabel(href: string): string {
@@ -25,6 +26,7 @@ function getNavLabel(href: string): string {
     "/usage": () => t("platform.usage"),
     "/billing": () => "Биллинг",
     "/api-keys": () => t("platform.apiKeys"),
+    "/organizations": () => t("org.settings"),
   };
   return labels[href]?.() || href;
 }

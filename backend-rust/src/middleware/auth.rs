@@ -54,9 +54,45 @@ where
             AppError::Unauthorized("Not authenticated".to_string())
         })?;
 
-        // 2. Decode JWT
-        let claims = decode_access_token(&token, &app_state.config)
-            .ok_or_else(|| AppError::Unauthorized("Invalid token".to_string()))?;
+        // 2. Decode JWT — or fall back to API key auth for sk-mira-* tokens
+        let claims = match decode_access_token(&token, &app_state.config) {
+            Some(c) => c,
+            None => {
+                if token.starts_with("sk-mira-") {
+                    let key_hash = hash_token(&token, &app_state.config.secret_key);
+                    let api_key_row = sqlx::query_as::<_, crate::models::ApiKey>(
+                        "SELECT * FROM api_keys WHERE key_hash = $1 AND is_active = true"
+                    )
+                    .bind(&key_hash)
+                    .fetch_optional(&app_state.db)
+                    .await
+                    .map_err(|_| AppError::Internal("Database error".to_string()))?
+                    .ok_or_else(|| AppError::Unauthorized("Invalid API key".to_string()))?;
+
+                    let _ = sqlx::query(
+                        "UPDATE api_keys SET total_requests = total_requests + 1, last_used_at = now() WHERE id = $1"
+                    )
+                    .bind(api_key_row.id)
+                    .execute(&app_state.db)
+                    .await;
+
+                    let user = sqlx::query_as::<_, User>(
+                        "SELECT * FROM users WHERE id = $1"
+                    )
+                    .bind(api_key_row.user_id)
+                    .fetch_optional(&app_state.db)
+                    .await
+                    .map_err(|_| AppError::Internal("Database error".to_string()))?
+                    .ok_or_else(|| AppError::Unauthorized("User not found".to_string()))?;
+
+                    if !user.is_active {
+                        return Err(AppError::Unauthorized("Account disabled".to_string()));
+                    }
+                    return Ok(AuthUser(user));
+                }
+                return Err(AppError::Unauthorized("Invalid token".to_string()));
+            }
+        };
 
         // 3. Parse user ID from subject claim
         let user_id: Uuid = claims

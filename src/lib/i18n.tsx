@@ -33,6 +33,21 @@ const translations: Record<string, Record<Locale, string>> = {
   "menu.moveToProject": { ru: "В проект", en: "Move to project" },
   "menu.removeFromProject": { ru: "Убрать из проекта", en: "Remove from project" },
 
+  // ---- Организации ----
+  "org.switchOrg": { ru: "Сменить организацию", en: "Switch organization" },
+  "org.personal": { ru: "Личная", en: "Personal" },
+  "org.settings": { ru: "Настройки организации", en: "Organization settings" },
+  "org.members": { ru: "Участники", en: "Members" },
+  "org.invite": { ru: "Пригласить", en: "Invite" },
+  "org.remove": { ru: "Удалить", en: "Remove" },
+  "org.role.owner": { ru: "Владелец", en: "Owner" },
+  "org.role.admin": { ru: "Администратор", en: "Admin" },
+  "org.role.member": { ru: "Участник", en: "Member" },
+  "org.createNew": { ru: "Создать организацию", en: "Create organization" },
+  "org.name": { ru: "Название", en: "Name" },
+  "org.slug": { ru: "URL-идентификатор", en: "URL identifier" },
+  "org.noMembers": { ru: "Нет участников", en: "No members" },
+
   // ---- Код (Remote Control) ----
   "sidebar.code": { ru: "Код", en: "Code" },
   "code.title": { ru: "Код", en: "Code" },

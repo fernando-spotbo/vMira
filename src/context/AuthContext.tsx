@@ -31,6 +31,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateUser: (data: { name?: string; language?: string }) => Promise<void>;
+  switchOrg: (organizationId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -195,8 +196,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const switchOrg = useCallback(async (organizationId: string) => {
+    const result = await apiCall<User>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify({ active_organization_id: organizationId }),
+    });
+    if (result.ok) {
+      setUser(result.data);
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithPhone, register, logout, refreshUser, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithPhone, register, logout, refreshUser, updateUser, switchOrg }}>
       {children}
     </AuthContext.Provider>
   );

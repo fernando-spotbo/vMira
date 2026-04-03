@@ -180,13 +180,14 @@ async fn list_conversations(
     let limit = params.limit.min(200);
     let offset = params.offset.max(0);
 
+    let org_id = user.active_organization_id.unwrap_or(user.id);
     let conversations = sqlx::query_as::<_, Conversation>(
         "SELECT * FROM conversations
-         WHERE user_id = $1 AND archived = false
+         WHERE organization_id = $1 AND archived = false
          ORDER BY updated_at DESC
          LIMIT $2 OFFSET $3"
     )
-    .bind(user.id)
+    .bind(org_id)
     .bind(limit)
     .bind(offset)
     .fetch_all(&state.db)
@@ -206,11 +207,12 @@ async fn create_conversation(
 ) -> Result<impl IntoResponse, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
-    // Limit total conversations per user to prevent storage abuse
+    // Limit total conversations per org to prevent storage abuse
+    let org_id = user.active_organization_id.unwrap_or(user.id);
     let conv_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM conversations WHERE user_id = $1"
+        "SELECT COUNT(*) FROM conversations WHERE organization_id = $1"
     )
-    .bind(user.id)
+    .bind(org_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -233,12 +235,13 @@ async fn create_conversation(
 
     let now = Utc::now();
     let conv = sqlx::query_as::<_, Conversation>(
-        "INSERT INTO conversations (id, user_id, title, model, starred, archived, project_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, false, false, $5, $6, $6)
+        "INSERT INTO conversations (id, user_id, organization_id, title, model, starred, archived, project_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, false, false, $6, $7, $7)
          RETURNING *"
     )
     .bind(Uuid::new_v4())
     .bind(user.id)
+    .bind(org_id)
     .bind(&body.title)
     .bind(&body.model)
     .bind(body.project_id)
@@ -271,11 +274,12 @@ async fn get_conversation(
     Path(conv_id): Path<Uuid>,
     Query(pg): Query<MessagePagination>,
 ) -> Result<Json<ConversationWithMessages>, AppError> {
+    let org_id = user.active_organization_id.unwrap_or(user.id);
     let conv = sqlx::query_as::<_, Conversation>(
-        "SELECT * FROM conversations WHERE id = $1 AND user_id = $2"
+        "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2"
     )
     .bind(conv_id)
-    .bind(user.id)
+    .bind(org_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
@@ -364,11 +368,12 @@ async fn update_conversation(
 ) -> Result<Json<ConversationResponse>, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
+    let org_id = user.active_organization_id.unwrap_or(user.id);
     let conv = sqlx::query_as::<_, Conversation>(
-        "SELECT * FROM conversations WHERE id = $1 AND user_id = $2"
+        "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2"
     )
     .bind(conv_id)
-    .bind(user.id)
+    .bind(org_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
@@ -412,11 +417,12 @@ async fn delete_conversation(
     // concurrent message inserts from creating orphaned rows.
     let mut tx = state.db.begin().await?;
 
+    let org_id = user.active_organization_id.unwrap_or(user.id);
     let _conv = sqlx::query_as::<_, Conversation>(
-        "SELECT * FROM conversations WHERE id = $1 AND user_id = $2 FOR UPDATE"
+        "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2 FOR UPDATE"
     )
     .bind(conv_id)
-    .bind(user.id)
+    .bind(org_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
@@ -603,12 +609,13 @@ async fn send_message(
         );
     }
 
-    // Verify conversation ownership
+    // Verify conversation ownership (org-scoped)
+    let org_id = user.active_organization_id.unwrap_or(user.id);
     let conv = sqlx::query_as::<_, Conversation>(
-        "SELECT * FROM conversations WHERE id = $1 AND user_id = $2"
+        "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2"
     )
     .bind(conv_id)
-    .bind(user.id)
+    .bind(org_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;

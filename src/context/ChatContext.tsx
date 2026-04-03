@@ -52,6 +52,9 @@ interface ChatContextType {
   setShowProjects: (show: boolean) => void;
   showCode: boolean;
   setShowCode: (show: boolean) => void;
+  showOrgSettings: boolean;
+  setShowOrgSettings: (show: boolean) => void;
+  reloadData: () => void;
   // Projects
   projects: Project[];
   createProject: (name: string, emoji?: string) => Promise<Project | null>;
@@ -79,6 +82,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [showReminders, setShowReminders] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [showOrgSettings, setShowOrgSettings] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -90,6 +94,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
     [conversations, activeConversationId]
   );
+
+  // Reload data (conversations + projects) — called after org switch
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+  const reloadData = useCallback(() => {
+    dataLoadedRef.current = false;
+    setConversations([]);
+    setProjects([]);
+    setActiveConversationId(null);
+    setReloadTrigger(n => n + 1);
+  }, []);
 
   // Load conversations and projects from API — retries on failure,
   // re-triggers when auth state changes (fixes race condition where
@@ -162,7 +176,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [user]); // Re-run when auth state changes (user logged in/out)
+  }, [user, reloadTrigger]); // Re-run when auth state changes or org switches
 
   // Helper: map API messages to frontend Message type
   function mapApiMessages(apiMessages: chatApi.ApiMessage[]): Message[] {
@@ -1006,6 +1020,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setShowProjects,
         showCode,
         setShowCode,
+        showOrgSettings,
+        setShowOrgSettings,
+        reloadData,
         projects,
         createProject: createProjectCb,
         renameProject,

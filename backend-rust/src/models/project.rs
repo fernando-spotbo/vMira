@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub struct Project {
     pub id: Uuid,
     pub user_id: Uuid,
+    pub organization_id: Option<Uuid>,
     pub name: String,
     pub emoji: Option<String>,
     pub instructions: Option<String>,

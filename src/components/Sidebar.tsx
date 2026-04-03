@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useChat } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
-import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, ChevronDown, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock, Folder, FolderOpen, CornerDownRight, X, Plus, Terminal } from "lucide-react";
+import { Ellipsis, Search, PenLine, Settings, HelpCircle, LogOut, ChevronRight, ChevronDown, Star, Pencil, Trash2, Zap, BookOpen, FileText, Shield, Bug, Keyboard, Clock, Folder, FolderOpen, CornerDownRight, X, Plus, Terminal, Building2 } from "lucide-react";
 import SearchModal from "./SearchModal";
 import SettingsModal from "./SettingsModal";
 import PricingModal from "./PricingModal";
@@ -207,9 +207,12 @@ export default function Sidebar() {
     setShowProjects,
     showCode,
     setShowCode,
+    showOrgSettings,
+    setShowOrgSettings,
+    reloadData,
     projects,
   } = useChat();
-  const { user, logout } = useAuth();
+  const { user, logout, switchOrg } = useAuth();
 
   const userName = user?.name || "User";
   const userEmail = user?.email || user?.phone || "";
@@ -314,6 +317,8 @@ export default function Sidebar() {
           setShowProjects={setShowProjects}
           showCode={showCode}
           setShowCode={setShowCode}
+          showOrgSettings={showOrgSettings}
+          setShowOrgSettings={setShowOrgSettings}
         />
       </aside>
 
@@ -345,6 +350,8 @@ export default function Sidebar() {
           setShowProjects={setShowProjects}
           showCode={showCode}
           setShowCode={setShowCode}
+          showOrgSettings={showOrgSettings}
+          setShowOrgSettings={setShowOrgSettings}
         />
       </aside>
     </>
@@ -374,6 +381,8 @@ interface SidebarContentProps {
   setShowProjects: (show: boolean) => void;
   showCode: boolean;
   setShowCode: (show: boolean) => void;
+  showOrgSettings: boolean;
+  setShowOrgSettings: (show: boolean) => void;
 }
 
 function SidebarContent({
@@ -398,6 +407,8 @@ function SidebarContent({
   setShowProjects,
   showCode,
   setShowCode,
+  showOrgSettings,
+  setShowOrgSettings,
 }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col" style={{ minWidth: expanded ? 260 : 50 }}>
@@ -424,7 +435,7 @@ function SidebarContent({
               </svg>
             </button>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); setShowProjects(false); setShowCode(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); setShowProjects(false); setShowCode(false); setShowOrgSettings(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -439,7 +450,7 @@ function SidebarContent({
         {expanded ? (
           <>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); setShowProjects(false); setShowCode(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); setShowProjects(false); setShowCode(false); setShowOrgSettings(false); }}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] text-white hover:bg-white/[0.06] transition-colors"
             >
               <PenLine size={16} strokeWidth={1.8} className="shrink-0" />
@@ -453,31 +464,38 @@ function SidebarContent({
               <span className="truncate">{t("sidebar.search")}</span>
             </button>
             <button
-              onClick={() => { setShowReminders(true); setShowProjects(false); setShowCode(false); setActiveConversationId(null); }}
+              onClick={() => { setShowReminders(true); setShowProjects(false); setShowCode(false); setShowOrgSettings(false); setActiveConversationId(null); }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
             >
               <Clock size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("reminders.title")}</span>
             </button>
             <button
-              onClick={() => { setShowProjects(true); setShowReminders(false); setShowCode(false); setActiveConversationId(null); }}
+              onClick={() => { setShowProjects(true); setShowReminders(false); setShowCode(false); setShowOrgSettings(false); setActiveConversationId(null); }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${showProjects ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
             >
               <FolderOpen size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("sidebar.projects")}</span>
             </button>
             <button
-              onClick={() => { setShowCode(true); setShowReminders(false); setShowProjects(false); setActiveConversationId(null); }}
+              onClick={() => { setShowCode(true); setShowReminders(false); setShowProjects(false); setShowOrgSettings(false); setActiveConversationId(null); }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${showCode ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
             >
               <Terminal size={16} strokeWidth={1.8} className="shrink-0" />
               <span className="truncate">{t("sidebar.code")}</span>
             </button>
+            <button
+              onClick={() => { setShowOrgSettings(true); setShowReminders(false); setShowProjects(false); setShowCode(false); setActiveConversationId(null); }}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] transition-colors ${showOrgSettings ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+            >
+              <Building2 size={16} strokeWidth={1.8} className="shrink-0" />
+              <span className="truncate">{t("org.settings")}</span>
+            </button>
           </>
         ) : (
           <>
             <button
-              onClick={() => { createNewChat(); setShowReminders(false); setShowProjects(false); setShowCode(false); }}
+              onClick={() => { createNewChat(); setShowReminders(false); setShowProjects(false); setShowCode(false); setShowOrgSettings(false); }}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
               title="New chat"
             >
@@ -491,25 +509,32 @@ function SidebarContent({
               <Search size={18} strokeWidth={1.8} />
             </button>
             <button
-              onClick={() => { setShowReminders(true); setShowProjects(false); setShowCode(false); setActiveConversationId(null); }}
+              onClick={() => { setShowReminders(true); setShowProjects(false); setShowCode(false); setShowOrgSettings(false); setActiveConversationId(null); }}
               className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showReminders ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
               title={t("reminders.title")}
             >
               <Clock size={18} strokeWidth={1.8} />
             </button>
             <button
-              onClick={() => { setShowProjects(true); setShowReminders(false); setShowCode(false); setActiveConversationId(null); }}
+              onClick={() => { setShowProjects(true); setShowReminders(false); setShowCode(false); setShowOrgSettings(false); setActiveConversationId(null); }}
               className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showProjects ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
               title={t("sidebar.projects")}
             >
               <FolderOpen size={18} strokeWidth={1.8} />
             </button>
             <button
-              onClick={() => { setShowCode(true); setShowReminders(false); setShowProjects(false); setActiveConversationId(null); }}
+              onClick={() => { setShowCode(true); setShowReminders(false); setShowProjects(false); setShowOrgSettings(false); setActiveConversationId(null); }}
               className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showCode ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
               title={t("sidebar.code")}
             >
               <Terminal size={18} strokeWidth={1.8} />
+            </button>
+            <button
+              onClick={() => { setShowOrgSettings(true); setShowReminders(false); setShowProjects(false); setShowCode(false); setActiveConversationId(null); }}
+              className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${showOrgSettings ? "bg-white/[0.08] text-white" : "text-white hover:bg-white/[0.06]"}`}
+              title={t("org.settings")}
+            >
+              <Building2 size={18} strokeWidth={1.8} />
             </button>
           </>
         )}

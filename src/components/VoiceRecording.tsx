@@ -52,6 +52,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
 
   const startRef = useRef(Date.now());
   const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const animFrameRef = useRef<number>(0);
@@ -70,6 +71,43 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
   const voiceDetectedRef = useRef(false);
   const lastVoiceTimeRef = useRef(0);
   const recordingStartTimeRef = useRef(0);
+
+  // ── Release ALL audio resources (mic, AudioContext, recognition, recorder) ──
+  const releaseAllResources = useCallback(() => {
+    aliveRef.current = false;
+    // Stop SpeechRecognition
+    if (recognitionRef.current) {
+      useNativeRef.current = false;
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
+    // Stop MediaRecorder
+    if (mediaRecorderRef.current?.state !== "inactive") {
+      try { mediaRecorderRef.current?.stop(); } catch {}
+    }
+    mediaRecorderRef.current = null;
+    // Stop all mic tracks
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    // Close AudioContext (releases audio pipeline)
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+      audioCtxRef.current.close().catch(() => {});
+    }
+    audioCtxRef.current = null;
+    analyserRef.current = null;
+    dataArrRef.current = null;
+    // Cancel animation frame
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = 0;
+    }
+  }, []);
+
+  // ── Safe close: release resources then call parent onClose ──
+  const handleClose = useCallback(() => {
+    releaseAllResources();
+    onClose();
+  }, [releaseAllResources, onClose]);
 
   // ── Start / restart native SpeechRecognition with a given lang ──
   const startNativeRecognition = useCallback((langCode: string) => {
@@ -216,8 +254,9 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
         if (!aliveRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
 
-        // AudioContext for waveform (used by both paths)
+        // AudioContext for waveform (used by both paths) — stored in ref for cleanup
         const audioCtx = new AudioContext();
+        audioCtxRef.current = audioCtx;
         const source = audioCtx.createMediaStreamSource(stream);
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 64;
@@ -240,21 +279,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
       }
     })();
 
-    return () => {
-      aliveRef.current = false;
-      if (recognitionRef.current) {
-        useNativeRef.current = false;
-        try { recognitionRef.current.stop(); } catch {}
-        recognitionRef.current = null;
-      }
-      if (mediaRecorderRef.current?.state !== "inactive") {
-        try { mediaRecorderRef.current?.stop(); } catch {}
-      }
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      analyserRef.current = null;
-      dataArrRef.current = null;
-    };
+    return releaseAllResources;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -331,21 +356,16 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
   const handleSend = async () => {
     // ── Native path: text is already available ──
     if (useNativeRef.current) {
-      if (recognitionRef.current) {
-        useNativeRef.current = false;
-        try { recognitionRef.current.stop(); } catch {}
-        recognitionRef.current = null;
-      }
       const finalText = (transcriptRef.current + " " + interim).trim();
-      if (finalText) {
-        onSend(finalText);
-      }
+      releaseAllResources();
+      if (finalText) onSend(finalText);
       onClose();
       return;
     }
 
     // ── Fallback path: MediaRecorder + Whisper ──
     if (transcriptRef.current.trim()) {
+      // Try to transcribe any remaining audio before closing
       const recorder = mediaRecorderRef.current;
       if (recorder && recorder.state !== "inactive" && voiceDetectedRef.current) {
         setIsProcessing(true);
@@ -371,36 +391,42 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
         }
       }
 
-      onSend(transcriptRef.current.trim());
+      const finalText = transcriptRef.current.trim();
+      releaseAllResources();
+      onSend(finalText);
       onClose();
       return;
     }
 
+    // No transcript yet — do a final transcription attempt
     const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state === "inactive") { onClose(); return; }
+    if (!recorder || recorder.state === "inactive") {
+      releaseAllResources();
+      onClose();
+      return;
+    }
 
     setIsProcessing(true);
 
     recorder.onstop = async () => {
-      if (chunksRef.current.length === 0) { onClose(); return; }
+      if (chunksRef.current.length === 0) { releaseAllResources(); onClose(); return; }
       const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
       chunksRef.current = [];
 
-      if (blob.size < 500) { onClose(); return; }
+      if (blob.size < 500) { releaseAllResources(); onClose(); return; }
 
       try {
         const result = await transcribeAudio(blob);
         const text = result.text?.trim();
-        if (text) {
-          onSend(text);
-        }
+        if (text) onSend(text);
       } catch (e) {
         console.error("Transcription failed:", e);
       }
+      releaseAllResources();
       onClose();
     };
 
-    try { recorder.stop(); } catch { onClose(); }
+    try { recorder.stop(); } catch { releaseAllResources(); onClose(); }
   };
 
   const displayText = transcript || interim || (isProcessing ? t("voice.transcribing") : "");
@@ -416,7 +442,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
             <div className="text-center py-6">
               <p className="text-[16px] text-white/50 mb-4">{error}</p>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="rounded-xl bg-white/[0.08] px-6 py-2.5 text-[16px] text-white/60 hover:bg-white/[0.12] transition-colors"
               >
                 {t("voice.close")}
@@ -468,7 +494,7 @@ export default function VoiceRecording({ onClose, onSend }: VoiceRecordingProps)
               {/* Controls */}
               <div className="flex items-center justify-between">
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-white/[0.08] text-white/50 hover:bg-white/[0.12] hover:text-white/70 transition-all"
                   title={t("voice.close")}
                 >

@@ -79,10 +79,17 @@ async fn chat_completions(
         }
     }
 
+    // Enforce subscription expiry — downgrades expired code_plan to "free" in DB
+    let code_plan = crate::services::subscription::check_and_enforce_expiry(
+        &state.db, user.id, "code",
+    ).await.unwrap_or_else(|_| user.code_plan.clone());
+
     // Determine effective plan: use code_plan for API key users (CLI),
     // fall back to general plan if code_plan is not set
-    let effective_plan = if user.code_plan != "free" {
-        &user.code_plan
+    let effective_plan_owned: String;
+    let effective_plan = if code_plan != "free" {
+        effective_plan_owned = code_plan;
+        &effective_plan_owned
     } else {
         &user.plan
     };
@@ -102,7 +109,7 @@ async fn chat_completions(
 
     // Pre-check: require balance only for pay-per-use (no active subscription).
     // Users with an active code_plan subscription don't need balance.
-    let has_active_subscription = user.code_plan != "free"
+    let has_active_subscription = effective_plan != "free"
         && user.code_plan_expires_at.map_or(false, |exp| exp > Utc::now());
     if !has_active_subscription && effective_plan != "free" && user.balance_kopecks <= 0 {
         return Err(AppError::PaymentRequired(
@@ -121,7 +128,7 @@ async fn chat_completions(
         })?;
 
     // Daily message limit — if exceeded but user has balance, allow as paid overage
-    let daily_limit: i64 = match user.plan.as_str() {
+    let daily_limit: i64 = match effective_plan.as_str() {
         "free" => 20,
         "pro" => 500,
         "max" | "enterprise" => -1,
@@ -249,7 +256,7 @@ async fn chat_completions(
         let model_clone = model.clone();
         let state_clone = state.clone();
         let user_id = user.id;
-        let user_plan = user.plan.clone();
+        let user_plan = effective_plan.to_string();
         let user_in_overage = is_overage;
         let user_name_scrub = Some(user.name.clone());
         let user_email_scrub = user.email.clone();
@@ -583,7 +590,7 @@ async fn chat_completions(
             model.clone(),
             temperature as f64,
             max_tokens,
-            &user.plan,
+            effective_plan,
             false,
             &state.config,
             None, None, None,

@@ -98,8 +98,8 @@ const STATUS_LABEL_KEY: Record<string, string> = {
 // ── CodePage (router between list and console)
 // ═══════════════════════════════════════════════════════════════════════
 
-export default function CodePage({ onBack }: { onBack: () => void }) {
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+export default function CodePage({ onBack, initialSessionId }: { onBack: () => void; initialSessionId?: string }) {
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(initialSessionId ?? null);
 
   if (activeSessionId) {
     return (

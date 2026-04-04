@@ -603,7 +603,7 @@ function RemoteConsole({
       characterData: true,
     });
     return () => observer.disconnect();
-  }, [isStreaming]);
+  }, [messages.length]);
 
   const onScroll = useCallback(() => {
     if (selfScroll.current) return;

@@ -11,8 +11,38 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_stream::wrappers::ReceiverStream;
 
+use once_cell::sync::OnceCell;
+
 use crate::config::Config;
 use crate::services::search;
+
+/// Cached local model ID — fetched once from /v1/models on the local server.
+static LOCAL_MODEL_ID: OnceCell<String> = OnceCell::new();
+
+/// Resolve the actual model ID from the local llama-server.
+/// Fetches /v1/models once and caches the result.
+async fn resolve_local_model_id(config: &Config) -> Option<String> {
+    if let Some(id) = LOCAL_MODEL_ID.get() {
+        return Some(id.clone());
+    }
+
+    let url = format!("{}/v1/models", config.ai_model_url);
+    let resp = reqwest::Client::new()
+        .get(&url)
+        .timeout(Duration::from_secs(3))
+        .send()
+        .await
+        .ok()?;
+
+    let data: serde_json::Value = resp.json().await.ok()?;
+    let model_id = data["data"][0]["id"].as_str()
+        .or_else(|| data["models"][0]["model"].as_str())?
+        .to_string();
+
+    let _ = LOCAL_MODEL_ID.set(model_id.clone());
+    tracing::info!(model_id = %model_id, "Resolved local model ID");
+    Some(model_id)
+}
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -863,10 +893,15 @@ pub fn stream_ai_response(
         }
     }
 
-    // Self-hosted llama-server ignores the model name in the request —
-    // it always serves the loaded GGUF. Pass the user-facing name through
-    // so it appears correctly in usage records and billing.
-    let upstream_model = model.to_string();
+    // Map user-facing model names to the actual model ID on the local server.
+    // The llama-server requires the exact GGUF filename. We auto-detect it
+    // from /v1/models on first use, falling back to the user-facing name
+    // (which works for remote APIs like DeepSeek/OpenAI).
+    let upstream_model = if model.starts_with("mira") {
+        resolve_local_model_id(config).await.unwrap_or_else(|| model.to_string())
+    } else {
+        model.to_string()
+    };
 
     // Mira model supports tool calling via chatml template
     let supports_tools = !model.contains("thinking");

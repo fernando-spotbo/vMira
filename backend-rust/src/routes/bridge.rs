@@ -2,10 +2,11 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{header, StatusCode},
     routing::{delete, get, post},
     Json, Router,
 };
+use axum::http::HeaderMap;
 use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -64,6 +65,53 @@ async fn ensure_env_owner(
     }
 
     Ok(env)
+}
+
+/// Authenticate via environment secret (Bearer token) OR API key/JWT.
+/// The CLI sends the environment_secret as Bearer token for poll/ack/heartbeat/stop.
+async fn authenticate_env_request(
+    state: &AppState,
+    headers: &HeaderMap,
+    env_id: Uuid,
+) -> Result<BridgeEnvironment, AppError> {
+    let token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or_else(|| AppError::Unauthorized("Not authenticated".to_string()))?;
+
+    // Look up environment by ID and verify the secret matches
+    let env = sqlx::query_as::<_, BridgeEnvironment>(
+        "SELECT * FROM bridge_environments WHERE id = $1",
+    )
+    .bind(env_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Environment not found".to_string()))?;
+
+    // Accept either the environment secret OR a valid API key/JWT belonging to the owner
+    if env.secret == token {
+        return Ok(env);
+    }
+
+    // Fallback: check if it's a valid API key for the env owner
+    if token.starts_with("sk-mira-") {
+        let key_hash = crate::services::token::hash_token(token, &state.config.secret_key);
+        let api_key = sqlx::query_as::<_, crate::models::ApiKey>(
+            "SELECT * FROM api_keys WHERE key_hash = $1 AND is_active = true"
+        )
+        .bind(&key_hash)
+        .fetch_optional(&state.db)
+        .await?;
+
+        if let Some(ak) = api_key {
+            if ak.user_id == env.user_id {
+                return Ok(env);
+            }
+        }
+    }
+
+    Err(AppError::Unauthorized("Invalid credentials".to_string()))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -163,10 +211,10 @@ async fn register_environment(
 
 async fn poll_for_work(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(env_id): Path<Uuid>,
 ) -> Result<Json<Option<WorkResponse>>, AppError> {
-    let env = ensure_env_owner(&state, env_id, user.id).await?;
+    let env = authenticate_env_request(&state, &headers, env_id).await?;
 
     let item = sqlx::query_as::<_, BridgeWorkItem>(
         "SELECT * FROM bridge_work_queue
@@ -209,10 +257,10 @@ async fn poll_for_work(
 
 async fn acknowledge_work(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path((env_id, work_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
-    ensure_env_owner(&state, env_id, user.id).await?;
+    authenticate_env_request(&state, &headers, env_id).await?;
 
     let rows = sqlx::query(
         "UPDATE bridge_work_queue
@@ -240,10 +288,10 @@ async fn acknowledge_work(
 
 async fn heartbeat(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path((env_id, _work_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<HeartbeatResponse>, AppError> {
-    ensure_env_owner(&state, env_id, user.id).await?;
+    authenticate_env_request(&state, &headers, env_id).await?;
 
     let now = Utc::now();
 
@@ -278,11 +326,11 @@ struct StopWorkBody {
 
 async fn stop_work(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path((env_id, work_id)): Path<(Uuid, Uuid)>,
     body: Option<Json<StopWorkBody>>,
 ) -> Result<StatusCode, AppError> {
-    ensure_env_owner(&state, env_id, user.id).await?;
+    authenticate_env_request(&state, &headers, env_id).await?;
 
     let body = body.map(|b| b.0);
     let result = body.as_ref().and_then(|b| b.result.clone());
@@ -338,10 +386,10 @@ async fn stop_work(
 
 async fn deregister_environment(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    ensure_env_owner(&state, id, user.id).await?;
+    authenticate_env_request(&state, &headers, id).await?;
 
     sqlx::query(
         "UPDATE bridge_environments

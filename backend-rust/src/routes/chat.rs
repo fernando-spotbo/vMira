@@ -1021,7 +1021,7 @@ async fn send_message(
                 parts.push(header);
             }
 
-            // 2. Project files — read content from disk (text files only, cap at 8KB total)
+            // 2. Project files — read content from disk, cap at 16KB total
             if let Ok(files) = sqlx::query_as::<_, crate::models::ProjectFile>(
                 "SELECT * FROM project_files WHERE project_id = $1 ORDER BY created_at ASC LIMIT 20"
             )
@@ -1029,26 +1029,43 @@ async fn send_message(
             .fetch_all(&state_clone.db)
             .await
             {
-                let mut file_parts: Vec<String> = Vec::new();
-                let mut total_bytes: usize = 0;
-                const MAX_FILE_BYTES: usize = 8192;
+                if !files.is_empty() {
+                    let mut file_parts: Vec<String> = Vec::new();
+                    let mut total_bytes: usize = 0;
+                    const MAX_FILE_BYTES: usize = 16384;
 
-                for f in &files {
-                    if total_bytes >= MAX_FILE_BYTES { break; }
-                    if let Ok(content) = tokio::fs::read_to_string(&f.storage_path).await {
-                        let remaining = MAX_FILE_BYTES - total_bytes;
-                        let truncated = if content.len() > remaining {
-                            format!("{}...(truncated)", &content[..remaining])
+                    for f in &files {
+                        if total_bytes >= MAX_FILE_BYTES {
+                            file_parts.push(format!("- {} ({}, not loaded — context limit reached)", f.original_filename, f.mime_type));
+                            continue;
+                        }
+
+                        // Try reading as text (works for .txt, .md, .csv, .json)
+                        if let Ok(content) = tokio::fs::read_to_string(&f.storage_path).await {
+                            let remaining = MAX_FILE_BYTES - total_bytes;
+                            let truncated = if content.len() > remaining {
+                                format!("{}...(truncated)", &content[..remaining])
+                            } else {
+                                content
+                            };
+                            total_bytes += truncated.len();
+                            file_parts.push(format!("[File: {}]\n{}", f.original_filename, truncated));
                         } else {
-                            content.clone()
-                        };
-                        total_bytes += truncated.len();
-                        file_parts.push(format!("[File: {}]\n{}", f.original_filename, truncated));
+                            // Binary file (PDF etc.) — note it exists but content can't be inlined
+                            file_parts.push(format!("[File: {} — {}, {} — binary file, content not available as text]",
+                                f.original_filename, f.mime_type,
+                                if f.size_bytes < 1024 { format!("{} B", f.size_bytes) }
+                                else if f.size_bytes < 1048576 { format!("{} KB", f.size_bytes / 1024) }
+                                else { format!("{:.1} MB", f.size_bytes as f64 / 1048576.0) }
+                            ));
+                        }
                     }
-                }
 
-                if !file_parts.is_empty() {
-                    parts.push(format!("--- Project Files ---\n{}", file_parts.join("\n\n")));
+                    parts.push(format!(
+                        "The following files have been uploaded to this project. Their contents are provided below when available. \
+                         Use this information to answer questions about the project.\n\n--- Project Files ---\n{}",
+                        file_parts.join("\n\n")
+                    ));
                 }
             }
 

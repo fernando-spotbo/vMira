@@ -348,6 +348,26 @@ fn read_calendar_tool() -> serde_json::Value {
     })
 }
 
+fn read_project_file_tool() -> serde_json::Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": "read_project_file",
+            "description": "Read the contents of a file uploaded to the current project. Call list_project_files first to see available files, then read a specific one by filename. Use when the user asks about project files, documents, or wants to reference uploaded content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "The original filename to read (e.g. 'spec.txt', 'data.csv'). Use 'list' to see all available files."
+                    }
+                },
+                "required": ["filename"]
+            }
+        }
+    })
+}
+
 // ── Thinking parser ─────────────────────────────────────────────────────────
 
 pub fn parse_thinking(content: &str) -> (Option<String>, String) {
@@ -785,6 +805,7 @@ pub fn stream_ai_response(
     user_name: Option<String>,
     user_email: Option<String>,
     project_instructions: Option<String>,
+    project_id: Option<uuid::Uuid>,
 ) -> Pin<Box<dyn Stream<Item = AiEvent> + Send>> {
     let url = format!("{}/chat/completions", config.ai_model_url);
     let api_key = config.ai_model_api_key.clone();
@@ -1006,7 +1027,11 @@ pub fn stream_ai_response(
             body["enable_thinking"] = json!(false);
             body["tools"] = json!([web_search_tool()]);
         } else if supports_tools {
-            body["tools"] = json!([web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool(), read_memory_tool()]);
+            let mut tools = vec![web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool(), read_memory_tool()];
+            if project_id.is_some() {
+                tools.push(read_project_file_tool());
+            }
+            body["tools"] = json!(tools);
         }
 
         // Stream the first call — tokens go to user immediately,
@@ -1617,6 +1642,95 @@ pub fn stream_ai_response(
                         }
                     } else {
                         tool_result_content = "Memory is not available for guest users.".to_string();
+                    }
+                } else if tc.function_name == "read_project_file" {
+                    #[derive(serde::Deserialize)]
+                    struct FileArgs { filename: String }
+
+                    if let (Some(pid), Some(ref pool)) = (project_id, &db) {
+                        let args: FileArgs = match serde_json::from_str(&tc.function_arguments) {
+                            Ok(a) => a,
+                            Err(e) => {
+                                tool_result_content = format!("Invalid arguments: {e}");
+                                full_messages.push(json!({
+                                    "role": "assistant", "content": null,
+                                    "tool_calls": [{"id": tc.id, "type": "function", "function": {"name": tc.function_name, "arguments": tc.function_arguments}}]
+                                }));
+                                full_messages.push(json!({"role": "tool", "tool_call_id": tc.id, "content": tool_result_content}));
+                                continue;
+                            }
+                        };
+
+                        if args.filename == "list" {
+                            // List all files in the project
+                            let files: Vec<(String, String, i64)> = sqlx::query_as(
+                                "SELECT original_filename, mime_type, size_bytes FROM project_files WHERE project_id = $1 ORDER BY created_at ASC"
+                            )
+                            .bind(pid)
+                            .fetch_all(pool)
+                            .await
+                            .unwrap_or_default();
+
+                            if files.is_empty() {
+                                tool_result_content = "No files uploaded to this project.".to_string();
+                            } else {
+                                let list: Vec<String> = files.iter().map(|(name, mime, size)| {
+                                    format!("- {} ({}, {})", name, mime,
+                                        if *size < 1024 { format!("{} B", size) }
+                                        else if *size < 1048576 { format!("{} KB", size / 1024) }
+                                        else { format!("{:.1} MB", *size as f64 / 1048576.0) })
+                                }).collect();
+                                tool_result_content = format!("Project files ({}):\n{}", files.len(), list.join("\n"));
+                            }
+                        } else {
+                            // Read specific file by original_filename
+                            let file: Option<crate::models::ProjectFile> = sqlx::query_as(
+                                "SELECT * FROM project_files WHERE project_id = $1 AND original_filename = $2"
+                            )
+                            .bind(pid)
+                            .bind(&args.filename)
+                            .fetch_optional(pool)
+                            .await
+                            .unwrap_or(None);
+
+                            if let Some(f) = file {
+                                // Try reading as text
+                                match tokio::fs::read_to_string(&f.storage_path).await {
+                                    Ok(content) => {
+                                        // Cap at 16KB to avoid blowing up context
+                                        let capped = if content.len() > 16384 {
+                                            format!("{}...\n\n(File truncated at 16KB. Total size: {} bytes)", &content[..16384], content.len())
+                                        } else {
+                                            content
+                                        };
+                                        tool_result_content = format!("Contents of '{}':\n\n{}", f.original_filename, capped);
+                                    }
+                                    Err(_) => {
+                                        tool_result_content = format!(
+                                            "File '{}' is a binary file ({}) and cannot be read as text. Size: {} bytes.",
+                                            f.original_filename, f.mime_type, f.size_bytes
+                                        );
+                                    }
+                                }
+                            } else {
+                                // Fuzzy help: list available files
+                                let files: Vec<(String,)> = sqlx::query_as(
+                                    "SELECT original_filename FROM project_files WHERE project_id = $1"
+                                )
+                                .bind(pid)
+                                .fetch_all(pool)
+                                .await
+                                .unwrap_or_default();
+                                let names: Vec<&str> = files.iter().map(|(n,)| n.as_str()).collect();
+                                tool_result_content = format!(
+                                    "File '{}' not found. Available files: {}",
+                                    args.filename,
+                                    if names.is_empty() { "none".to_string() } else { names.join(", ") }
+                                );
+                            }
+                        }
+                    } else {
+                        tool_result_content = "No project context available.".to_string();
                     }
                 } else {
                     tracing::warn!(tool = %tc.function_name, "Unknown tool call");

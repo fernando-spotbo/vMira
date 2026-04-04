@@ -378,6 +378,7 @@ async fn chat_completions(
                 None, None, None,
                 user_name_scrub.clone(), user_email_scrub.clone(),
                 None, // no project instructions for API completions
+                None, // no project_id for API completions
             );
 
             tokio::pin!(ai_stream);
@@ -644,6 +645,7 @@ async fn chat_completions(
             None, None, None,
             Some(user.name.clone()), user.email.clone(),
             None, // no project instructions for API completions
+            None, // no project_id for API completions
         );
 
         tokio::pin!(ai_stream);

@@ -748,8 +748,6 @@ function RemoteConsole({
     };
   }, []);
 
-  const hasInput = input.trim().length > 0;
-
   // ── Derived display values ──
   const displayName = session ? dirName(session.directory) : "...";
   const displayBranch = session?.branch;

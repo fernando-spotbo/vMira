@@ -641,11 +641,12 @@ async fn yandex_auth(
             let user_id = Uuid::new_v4();
             sqlx::query(
                 "INSERT INTO users (id, name, email, yandex_id, avatar_url, language, plan, \
-                 daily_messages_used, daily_reset_at, is_active, is_verified, \
-                 consent_personal_data, consent_personal_data_at, \
-                 chat_plan, code_plan, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, 'ru', 'free', 0, NOW(), true, true, \
-                 true, NOW(), 'free', 'free', NOW(), NOW())"
+                 daily_messages_used, daily_reset_at, is_active, is_verified, is_admin, \
+                 failed_login_attempts, consent_personal_data, consent_personal_data_at, \
+                 balance_kopecks, total_spent_kopecks, total_topped_up_kopecks, \
+                 allow_overage_billing, chat_plan, code_plan, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, 'ru', 'free', 0, NOW(), true, true, false, \
+                 0, true, NOW(), 0, 0, 0, false, 'free', 'free', NOW(), NOW())"
             )
             .bind(user_id)
             .bind(&display_name)
@@ -835,11 +836,12 @@ async fn telegram_auth(
 
         sqlx::query(
             "INSERT INTO users (id, name, telegram_id, avatar_url, language, plan, \
-             daily_messages_used, daily_reset_at, is_active, is_verified, \
-             consent_personal_data, consent_personal_data_at, \
-             chat_plan, code_plan, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, 'ru', 'free', 0, NOW(), true, true, \
-             true, NOW(), 'free', 'free', NOW(), NOW())"
+             daily_messages_used, daily_reset_at, is_active, is_verified, is_admin, \
+             failed_login_attempts, consent_personal_data, consent_personal_data_at, \
+             balance_kopecks, total_spent_kopecks, total_topped_up_kopecks, \
+             allow_overage_billing, chat_plan, code_plan, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, 'ru', 'free', 0, NOW(), true, true, false, \
+             0, true, NOW(), 0, 0, 0, false, 'free', 'free', NOW(), NOW())"
         )
         .bind(user_id)
         .bind(&display_name)

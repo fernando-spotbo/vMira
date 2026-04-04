@@ -3,6 +3,34 @@
 use std::convert::Infallible;
 use std::time::{Duration, Instant};
 
+/// Strip CLI framework XML tags from message content for clean web display.
+/// Removes <available-deferred-tools>, <system-reminder>, <command-name>,
+/// <local-command-stdout> blocks while preserving the actual user text.
+fn strip_cli_xml(content: &str) -> String {
+    let mut result = content.to_string();
+    let tags = [
+        "available-deferred-tools",
+        "system-reminder",
+        "command-name",
+        "command-message",
+        "command-args",
+        "local-command-stdout",
+    ];
+    for tag in tags {
+        let open = format!("<{}>", tag);
+        let close = format!("</{}>", tag);
+        while let Some(start) = result.find(&open) {
+            if let Some(end) = result.find(&close) {
+                result = format!("{}{}", &result[..start], &result[end + close.len()..]);
+            } else {
+                result = result[..start].to_string();
+                break;
+            }
+        }
+    }
+    result.trim().to_string()
+}
+
 use axum::{
     extract::State,
     response::{
@@ -230,44 +258,20 @@ async fn chat_completions(
         }
     }
 
-    // Strip system messages and CLI framework content that pollutes the model context
+    // Strip system messages only — keep tool descriptions in user messages
+    // (the model needs <available-deferred-tools> to know its capabilities)
     let history: Vec<ChatMessage> = body
         .messages
         .iter()
         .filter(|m| m.role != "system")
-        .map(|m| {
-            // Remove CLI framework XML injections from user messages
-            let mut content = m.content.clone();
-            // Strip <available-deferred-tools>...</available-deferred-tools> blocks
-            while let Some(start) = content.find("<available-deferred-tools>") {
-                if let Some(end) = content.find("</available-deferred-tools>") {
-                    content = format!("{}{}", &content[..start], &content[end + "</available-deferred-tools>".len()..]);
-                } else {
-                    content = content[..start].to_string();
-                }
-            }
-            // Strip other CLI XML blocks
-            for tag in ["<system-reminder>", "<command-name>", "<local-command-stdout>"] {
-                let end_tag = tag.replace('<', "</");
-                while let Some(start) = content.find(tag) {
-                    if let Some(end) = content.find(&end_tag) {
-                        content = format!("{}{}", &content[..start], &content[end + end_tag.len()..]);
-                    } else {
-                        content = content[..start].to_string();
-                    }
-                }
-            }
-            let content = content.trim().to_string();
-            ChatMessage {
-                role: m.role.clone(),
-                content: sanitize::sanitize_input(&content),
-                tool_calls: None,
-                tool_call_id: None,
-                name: None,
-                attachments: vec![],
-            }
+        .map(|m| ChatMessage {
+            role: m.role.clone(),
+            content: sanitize::sanitize_input(&m.content),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+            attachments: vec![],
         })
-        .filter(|m| !m.content.is_empty()) // remove messages that became empty after stripping
         .collect();
 
     let model = body.model.clone();
@@ -558,14 +562,18 @@ async fn chat_completions(
                             && !m.content.contains("<system-reminder>")
                             && !m.content.trim().starts_with('/')
                     }) {
+                        // Strip CLI XML from content before storing for web display
+                        let clean = strip_cli_xml(&last_user.content);
+                        if !clean.is_empty() {
                         let _ = sqlx::query(
                             "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'user', $2, $3)"
                         )
                         .bind(env_id)
-                        .bind(&last_user.content)
+                        .bind(&clean)
                         .bind(Utc::now() - chrono::Duration::milliseconds(100))
                         .execute(&state_clone.db)
                         .await;
+                    }
                     }
 
                     // Store assistant response
@@ -783,14 +791,17 @@ async fn chat_completions(
                         && !m.content.contains("<system-reminder>")
                         && !m.content.trim().starts_with('/')
                 }) {
+                    let clean = strip_cli_xml(&last_user.content);
+                    if !clean.is_empty() {
                     let _ = sqlx::query(
                         "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'user', $2, $3)"
                     )
                     .bind(env_id)
-                    .bind(&last_user.content)
+                    .bind(&clean)
                     .bind(Utc::now() - chrono::Duration::milliseconds(100))
                     .execute(&state.db)
                     .await;
+                    }
                 }
                 let _ = sqlx::query(
                     "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'assistant', $2, $3)"

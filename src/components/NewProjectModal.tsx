@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { FolderOpen, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { t } from "@/lib/i18n";
 
@@ -60,15 +60,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-1">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04]">
-              <FolderOpen size={16} strokeWidth={1.8} className="text-white/40" />
-            </div>
-            <div>
-              <h2 className="text-[16px] font-semibold text-white">{t("project.new")}</h2>
-              <p className="text-[13px] text-white/30 mt-0.5">Organize chats and add context</p>
-            </div>
-          </div>
+          <h2 className="text-[18px] font-semibold text-white">{t("project.new")}</h2>
           <button
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
@@ -79,7 +71,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
 
         {/* Body */}
         <div className="px-6 py-5">
-          <label className="block text-[13px] font-medium text-white/50 mb-2">
+          <label className="block text-[13px] text-white/40 mb-2">
             Project name
           </label>
           <input
@@ -90,7 +82,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
               if (e.key === "Enter") handleSubmit();
             }}
             placeholder="e.g. Marketing Campaign, Research Paper..."
-            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[15px] text-white placeholder-white/20 focus:outline-none focus:border-white/[0.18] transition-colors"
+            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-[16px] text-white placeholder-white/20 focus:outline-none focus:border-white/[0.18] transition-colors"
           />
         </div>
 
@@ -98,14 +90,14 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
         <div className="flex items-center justify-end gap-2.5 px-6 pb-5">
           <button
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-[14px] text-white/50 hover:text-white/80 hover:bg-white/[0.04] transition-colors"
+            className="rounded-full px-5 py-2 text-[14px] text-white/50 hover:text-white/80 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!name.trim() || submitting}
-            className="rounded-lg bg-white px-5 py-2 text-[14px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-30 disabled:pointer-events-none"
+            className="rounded-full bg-white px-5 py-2 text-[14px] font-medium text-[#161616] hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-30 disabled:pointer-events-none"
           >
             {submitting ? "Creating..." : "Create project"}
           </button>

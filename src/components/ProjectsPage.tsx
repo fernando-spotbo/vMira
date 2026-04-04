@@ -5,17 +5,12 @@ import {
   Plus,
   Pencil,
   Trash2,
-  MessageSquare,
   ArrowLeft,
   MoreHorizontal,
   Search,
-  FolderOpen,
-  Star,
   FileText,
   X,
   FileUp,
-  ArrowUp,
-  Clock,
 } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
@@ -134,7 +129,7 @@ function ProjectList({
           <div className="flex items-center gap-3">
             <button
               onClick={onBack}
-              className="flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 transition-colors md:hidden"
+              className="flex items-center text-white/40 hover:text-white/70 transition-colors md:hidden"
             >
               <ArrowLeft size={16} strokeWidth={1.8} />
             </button>
@@ -144,10 +139,9 @@ function ProjectList({
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-white/[0.06] px-4 py-2 text-[14px] font-medium text-white/80 hover:bg-white/[0.10] hover:text-white transition-colors"
+            className="rounded-full bg-white px-4 py-2 text-[14px] font-medium text-[#161616] hover:bg-white/90 transition-colors"
           >
-            <Plus size={15} strokeWidth={2} />
-            <span>{t("project.new")}</span>
+            {t("project.new")}
           </button>
         </div>
       </div>
@@ -157,7 +151,7 @@ function ProjectList({
         <div className="max-w-4xl mx-auto px-5 pb-10">
           {/* Search */}
           {projects.length >= 1 && (
-            <div className="mb-5">
+            <div className="mb-6">
               <div className="relative">
                 <Search
                   size={15}
@@ -167,8 +161,8 @@ function ProjectList({
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search projects..."
-                  className="w-full rounded-xl border border-white/[0.06] bg-white/[0.025] pl-10 pr-4 py-2.5 text-[14px] text-white placeholder-white/20 focus:outline-none focus:border-white/[0.12] transition-colors"
+                  placeholder={t("sidebar.search") || "Search..."}
+                  className="w-full rounded-xl border border-white/[0.06] bg-white/[0.025] pl-10 pr-4 py-2.5 text-[16px] text-white placeholder-white/20 focus:outline-none focus:border-white/[0.12] transition-colors"
                 />
               </div>
             </div>
@@ -177,11 +171,8 @@ function ProjectList({
           {/* Empty state */}
           {projects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.03] mb-5">
-                <FolderOpen size={28} strokeWidth={1.4} className="text-white/15" />
-              </div>
-              <p className="text-[16px] text-white/25">No projects yet</p>
-              <p className="text-[14px] text-white/15 mt-1.5 text-center max-w-xs">
+              <p className="text-[16px] text-white/25 mb-1.5">No projects yet</p>
+              <p className="text-[13px] text-white/15 text-center max-w-xs">
                 Projects let you organize chats, add instructions, and attach reference files
               </p>
             </div>
@@ -189,8 +180,7 @@ function ProjectList({
             <>
               {search && filtered.length === 0 && (
                 <div className="flex flex-col items-center py-16">
-                  <Search size={20} strokeWidth={1.4} className="text-white/15 mb-3" />
-                  <p className="text-[14px] text-white/25">No results for &ldquo;{search}&rdquo;</p>
+                  <p className="text-[16px] text-white/25">No results for &ldquo;{search}&rdquo;</p>
                 </div>
               )}
 
@@ -207,15 +197,15 @@ function ProjectList({
                     <button
                       key={project.id}
                       onClick={() => onSelectProject(project.id)}
-                      className="group relative text-left rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.1] p-5 transition-all duration-200"
+                      className="text-left rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.1] p-5 transition-all duration-200"
                     >
-                      <h3 className="text-[15px] font-medium text-white leading-snug mb-1.5 pr-2 line-clamp-2">
+                      <h3 className="text-[16px] font-medium text-white leading-snug mb-1 line-clamp-2">
                         {project.name}
                       </h3>
                       <p className="text-[13px] text-white/25 mb-4">{lastUpdated(updated)}</p>
 
                       {convs.length > 0 ? (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                           {convs.slice(0, 3).map((c) => (
                             <p key={c.id} className="text-[13px] text-white/30 truncate leading-snug">
                               {c.title}
@@ -226,11 +216,10 @@ function ProjectList({
                           )}
                         </div>
                       ) : (
-                        <p className="text-[13px] text-white/15 italic">No chats yet</p>
+                        <p className="text-[13px] text-white/20">No chats yet</p>
                       )}
 
-                      <div className="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-1.5">
-                        <MessageSquare size={12} strokeWidth={1.8} className="text-white/20" />
+                      <div className="mt-4 pt-3 border-t border-white/[0.04]">
                         <span className="text-[13px] text-white/20">
                           {convs.length} {convs.length === 1 ? "conversation" : "conversations"}
                         </span>
@@ -435,7 +424,7 @@ function ProjectDetail({
             className="flex items-center gap-1.5 text-[13px] text-white/40 hover:text-white/70 transition-colors"
           >
             <ArrowLeft size={14} strokeWidth={1.8} />
-            All projects
+            {t("sidebar.projects")}
           </button>
         </div>
       </div>
@@ -456,52 +445,43 @@ function ProjectDetail({
                     if (e.key === "Escape") setRenaming(false);
                   }}
                   onBlur={handleRename}
-                  className="w-full text-[22px] font-semibold text-white bg-transparent border-b border-white/[0.12] focus:border-white/[0.25] focus:outline-none pb-1 transition-colors"
+                  className="w-full text-[20px] font-semibold text-white bg-transparent border-b border-white/[0.12] focus:border-white/[0.25] focus:outline-none pb-1 transition-colors"
                 />
               ) : (
-                <h1 className="text-[22px] font-semibold text-white leading-tight">
+                <h1 className="text-[20px] font-semibold text-white leading-tight">
                   {project.name}
                 </h1>
               )}
             </div>
 
             {!renaming && (
-              <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
-                <div className="relative">
-                  <button
-                    onClick={() => setMenuOpen(!menuOpen)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
-                  >
-                    <MoreHorizontal size={16} strokeWidth={1.8} />
-                  </button>
-                  {menuOpen && (
-                    <div
-                      ref={menuRef}
-                      className="absolute right-0 top-full z-50 mt-1 w-44 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
-                    >
-                      <button
-                        onClick={() => { setMenuOpen(false); setRenameValue(project.name); setRenaming(true); }}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors"
-                      >
-                        <Pencil size={14} />
-                        <span>{t("project.rename")}</span>
-                      </button>
-                      <div className="my-1 border-t border-white/[0.06]" />
-                      <button
-                        onClick={handleDelete}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-white/[0.05] transition-colors"
-                      >
-                        <Trash2 size={14} />
-                        <span>{t("project.delete")}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+              <div className="relative shrink-0 mt-0.5">
                 <button
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.06] transition-colors"
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
                 >
-                  <Star size={16} strokeWidth={1.8} />
+                  <MoreHorizontal size={16} strokeWidth={1.8} />
                 </button>
+                {menuOpen && (
+                  <div
+                    ref={menuRef}
+                    className="absolute right-0 top-full z-50 mt-1 w-44 rounded-xl border border-white/[0.08] bg-[#1e1e1e] py-1 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+                  >
+                    <button
+                      onClick={() => { setMenuOpen(false); setRenameValue(project.name); setRenaming(true); }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-[16px] text-white hover:bg-white/[0.06] transition-colors"
+                    >
+                      {t("project.rename")}
+                    </button>
+                    <div className="my-1 border-t border-white/[0.06]" />
+                    <button
+                      onClick={handleDelete}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-[16px] text-red-400 hover:text-red-300 hover:bg-white/[0.05] transition-colors"
+                    >
+                      {t("project.delete")}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -522,26 +502,23 @@ function ProjectDetail({
                     <button
                       key={conv.id}
                       onClick={() => openConversation(conv.id)}
-                      className="flex w-full items-center gap-3 py-3.5 px-2 -mx-2 rounded-xl hover:bg-white/[0.06] transition-colors text-left group/conv border-b border-white/[0.03] last:border-0"
+                      className="flex w-full items-center py-3.5 px-2 -mx-2 rounded-xl hover:bg-white/[0.06] transition-colors text-left border-b border-white/[0.03] last:border-0"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-[15px] text-white group-hover/conv:text-white truncate transition-colors leading-snug">
+                        <p className="text-[16px] text-white truncate leading-snug">
                           {conv.title}
                         </p>
-                        <p className="text-[13px] text-white/30 mt-0.5 flex items-center gap-1.5">
-                          Last message {timeAgo(conv.createdAt)}
+                        <p className="text-[13px] text-white/25 mt-0.5">
+                          {timeAgo(conv.createdAt)}
                         </p>
                       </div>
-                      {conv.starred && (
-                        <Star size={12} strokeWidth={1.8} className="text-white/25 fill-white/15 shrink-0" />
-                      )}
                     </button>
                   ))}
                 </div>
               ) : (
                 <div className="py-8 text-center">
                   <p className="text-[13px] text-white/20">
-                    No conversations in this project yet
+                    No conversations yet
                   </p>
                 </div>
               )}

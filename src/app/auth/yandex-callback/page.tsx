@@ -1,16 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
-/**
- * Yandex OAuth callback page.
- *
- * After the user authorizes, Yandex redirects here with ?code=...
- * This page sends the code back to the opener window via postMessage,
- * then closes itself.
- */
-export default function YandexCallbackPage() {
+function YandexCallbackInner() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -25,12 +18,19 @@ export default function YandexCallbackPage() {
     }
   }, [searchParams]);
 
+  return null;
+}
+
+export default function YandexCallbackPage() {
   return (
     <div className="min-h-screen bg-[#161616] flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin w-6 h-6 border-2 border-white/[0.08] border-t-white/60 rounded-full mx-auto" />
         <p className="mt-4 text-[14px] text-white/40">Completing login...</p>
       </div>
+      <Suspense>
+        <YandexCallbackInner />
+      </Suspense>
     </div>
   );
 }

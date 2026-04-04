@@ -237,7 +237,7 @@ async fn poll_device_token(
             let key_name = format!("mira-cli-{}", chrono::Utc::now().format("%Y-%m-%d"));
 
             sqlx::query(
-                "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, is_active) VALUES ($1, $2, $3, $4, $5, true)"
+                "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, is_active, requests_today, total_requests, total_tokens) VALUES ($1, $2, $3, $4, $5, true, 0, 0, 0)"
             )
             .bind(uuid::Uuid::new_v4())
             .bind(user_id)

@@ -637,7 +637,16 @@ function RemoteConsole({
   // processes it through its AI pipeline, and the response appears
   // in bridge_messages (polled every 3s by the message polling effect).
   const handleRemoteSend = useCallback(async (text: string) => {
+    // Show user message immediately on the web
+    const userMsg: RemoteMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: text,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
     autoFollow.current = true;
+
     const result = await sendRemotePrompt(sessionId, text);
     if (!result.ok) {
       const errMsg: RemoteMessage = {
@@ -648,7 +657,7 @@ function RemoteConsole({
       };
       setMessages((prev) => [...prev, errMsg]);
     }
-    // The user message and AI response will appear via bridge_messages polling
+    // CLI picks up the prompt, processes it, response appears via bridge_messages polling
   }, [sessionId]);
 
   // ── Derived display values ──

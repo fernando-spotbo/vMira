@@ -1,24 +1,25 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import CodePage from "@/components/CodePage";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { useEffect } from "react";
 
-export default function CodeSessionPage() {
+/**
+ * /code/:id redirects to /chat?code=:id
+ * The chat layout reads the query param and opens the Code section
+ * with that session selected.
+ */
+export default function CodeRedirectPage() {
   const params = useParams();
   const router = useRouter();
   const sessionId = params?.id as string | undefined;
 
-  return (
-    <ProtectedRoute>
-      <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#161616]">
-        <main className="relative flex flex-1 flex-col min-w-0 min-h-0 h-full overflow-hidden">
-          <CodePage
-            onBack={() => router.push("/chat")}
-            initialSessionId={sessionId}
-          />
-        </main>
-      </div>
-    </ProtectedRoute>
-  );
+  useEffect(() => {
+    if (sessionId) {
+      router.replace(`/chat?code=${sessionId}`);
+    } else {
+      router.replace("/chat");
+    }
+  }, [sessionId, router]);
+
+  return null;
 }

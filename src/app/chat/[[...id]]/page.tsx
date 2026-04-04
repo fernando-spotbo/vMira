@@ -39,6 +39,17 @@ function ChatLayout() {
   // Read conversation ID from URL on mount (e.g. /chat/abc123)
   const urlConvId = (params?.id as string[] | undefined)?.[0] ?? null;
 
+  // Read code session ID from query param (e.g. /chat?code=uuid)
+  const codeSessionId = searchParams.get("code");
+  const codeHandled = useRef(false);
+  useEffect(() => {
+    if (!codeSessionId || codeHandled.current) return;
+    codeHandled.current = true;
+    setShowCode(true);
+    // Clear the query param from URL
+    window.history.replaceState({}, "", "/chat");
+  }, [codeSessionId, setShowCode]);
+
   // Set active conversation from URL param — wait for conversations to load
   useEffect(() => {
     if (!urlConvId) return;
@@ -92,7 +103,7 @@ function ChatLayout() {
       <Sidebar />
       <main className="relative flex flex-1 flex-col min-w-0 min-h-0 h-full overflow-hidden">
         {showCode ? (
-          <CodePage onBack={() => setShowCode(false)} />
+          <CodePage onBack={() => setShowCode(false)} initialSessionId={codeSessionId ?? undefined} />
         ) : showReminders ? (
           <RemindersPage onBack={() => setShowReminders(false)} />
         ) : showProjects ? (

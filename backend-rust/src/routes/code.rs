@@ -312,9 +312,9 @@ async fn send_message(
                         serde_json::json!({"type": "token", "content": chunk}).to_string()
                     ));
                 }
-                crate::services::ai_proxy::AiEvent::SearchQuery(q) => {
+                crate::services::ai_proxy::AiEvent::SearchStarted { query } => {
                     yield Ok(Event::default().data(
-                        serde_json::json!({"type": "thinking", "content": format!("Searching: {}", q)}).to_string()
+                        serde_json::json!({"type": "thinking", "content": format!("Searching: {}", query)}).to_string()
                     ));
                 }
                 _ => {}

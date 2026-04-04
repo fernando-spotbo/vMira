@@ -165,47 +165,59 @@ export default function AuthModal({ mode: initialMode, onClose, redirectTo }: Au
   };
 
   const handleTelegramLogin = useCallback(() => {
-    // Open Telegram Login Widget in a popup
     const botId = "8335474240";
     const origin = window.location.origin;
     const w = 550, h = 470;
     const left = (screen.width - w) / 2;
     const top = (screen.height - h) / 2;
 
-    // Listen for the auth result from the popup
+    // Telegram OAuth redirects back to return_to URL with auth data in the hash.
+    // We open a popup, then poll it for the redirect result.
+    const popup = window.open(
+      `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&embed=0&request_access=write&return_to=${encodeURIComponent(origin + "/auth/telegram-callback")}`,
+      "TelegramAuth",
+      `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`
+    );
+
+    if (!popup) {
+      setError("Popup blocked — please allow popups for this site");
+      return;
+    }
+
+    // Listen for postMessage from the callback page
     const handler = async (e: MessageEvent) => {
-      if (e.origin !== "https://oauth.telegram.org") return;
+      if (e.origin !== origin) return;
+      if (e.data?.type !== "telegram-auth") return;
+
       window.removeEventListener("message", handler);
 
-      try {
-        // Telegram sends the auth data as a JSON string or structured object
-        const data: TelegramAuthData = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
-        if (!data?.id || !data?.hash) return;
+      const data: TelegramAuthData = e.data.data;
+      if (!data?.id || !data?.hash) {
+        setError("Invalid Telegram auth response");
+        return;
+      }
 
-        setSubmitting(true);
-        setError("");
-        const result = await loginWithTelegram(data);
-        setSubmitting(false);
+      setSubmitting(true);
+      setError("");
+      const result = await loginWithTelegram(data);
+      setSubmitting(false);
 
-        if (result.ok) {
-          setVisible(false);
-          setTimeout(() => { onClose(); router.push(redirectTo || "/chat"); }, 250);
-        } else {
-          setError(result.error || "Telegram login failed");
-        }
-      } catch {
-        setSubmitting(false);
-        setError("Telegram login failed");
+      if (result.ok) {
+        setVisible(false);
+        setTimeout(() => { onClose(); router.push(redirectTo || "/chat"); }, 250);
+      } else {
+        setError(result.error || "Telegram login failed");
       }
     };
     window.addEventListener("message", handler);
 
-    // Open the Telegram OAuth widget
-    window.open(
-      `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(origin)}&embed=0&request_access=write&return_to=${encodeURIComponent(origin)}`,
-      "TelegramAuth",
-      `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`
-    );
+    // Cleanup if popup is closed without completing auth
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener("message", handler);
+      }
+    }, 1000);
   }, [loginWithTelegram, onClose, redirectTo, router]);
 
   const switchMode = (newMode: AuthMode) => {

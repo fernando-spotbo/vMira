@@ -21,7 +21,7 @@ static LOCAL_MODEL_ID: OnceCell<String> = OnceCell::new();
 
 /// Resolve the actual model ID from the local llama-server.
 /// Fetches /v1/models once and caches the result.
-async fn resolve_local_model_id(config: &Config) -> Option<String> {
+async fn resolve_local_model_id(config: &std::sync::Arc<Config>) -> Option<String> {
     if let Some(id) = LOCAL_MODEL_ID.get() {
         return Some(id.clone());
     }
@@ -893,23 +893,22 @@ pub fn stream_ai_response(
         }
     }
 
-    // Map user-facing model names to the actual model ID on the local server.
-    // The llama-server requires the exact GGUF filename. We auto-detect it
-    // from /v1/models on first use, falling back to the user-facing name
-    // (which works for remote APIs like DeepSeek/OpenAI).
-    let upstream_model = if model.starts_with("mira") {
-        resolve_local_model_id(config).await.unwrap_or_else(|| model.to_string())
-    } else {
-        model.to_string()
-    };
-
     // Mira model supports tool calling via chatml template
     let supports_tools = !model.contains("thinking");
+    let model_for_resolve = model.clone();
 
     // Clone PII mapping for the async streaming closure
     let pii_map = pii_mapping.clone();
 
     tokio::spawn(async move {
+        // Map user-facing model names to the actual model ID on the local server.
+        // The llama-server requires the exact GGUF filename. We auto-detect it
+        // from /v1/models on first use, falling back to the user-facing name.
+        let upstream_model = if model_for_resolve.starts_with("mira") {
+            resolve_local_model_id(&config).await.unwrap_or_else(|| model_for_resolve.clone())
+        } else {
+            model_for_resolve.clone()
+        };
         // Helper: restore PII in a token string before sending to the user
         let restore_pii = |text: String| -> String {
             if pii_map.is_empty() { text } else { crate::services::pii_scrub::restore(&text, &pii_map) }

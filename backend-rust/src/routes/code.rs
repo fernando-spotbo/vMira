@@ -119,9 +119,22 @@ async fn list_sessions(
     .execute(&state.db)
     .await?;
 
+    // Clean up old offline sessions (>5 min since last heartbeat)
+    sqlx::query(
+        "DELETE FROM bridge_environments
+         WHERE organization_id = $1
+           AND status = 'offline'
+           AND last_heartbeat_at < now() - interval '5 minutes'",
+    )
+    .bind(org_id)
+    .execute(&state.db)
+    .await?;
+
+    // Only return active sessions (connected or recently disconnected)
     let envs = sqlx::query_as::<_, BridgeEnvironment>(
         "SELECT * FROM bridge_environments
          WHERE organization_id = $1
+           AND (status = 'connected' OR last_heartbeat_at > now() - interval '5 minutes')
          ORDER BY created_at DESC",
     )
     .bind(org_id)

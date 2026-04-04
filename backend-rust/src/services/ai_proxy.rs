@@ -896,7 +896,7 @@ pub fn stream_ai_response(
         // Minimal identity prompt — model name is dynamic
         full_messages.push(json!({
             "role": "system",
-            "content": format!("You are Mira, model {}. Respond concisely and helpfully.{}", model, datetime_context),
+            "content": format!("You are Mira, model {}. Respond concisely and helpfully.{}", &model, &datetime_context),
         }));
     }
     // Skip the first message if it was already used as system prompt above

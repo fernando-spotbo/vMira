@@ -499,14 +499,22 @@ async fn handle_voice_message(
     // Voice transcription removed — tell user to type or use the web app
     let _ = bot.send_message(
         chat_id,
-        "🎤 Голосовые сообщения пока не поддерживаются в Telegram-боте.\n\nНапишите текстом или используйте голосовой ввод на <a href=\"https://vmira.ai/chat\">vmira.ai</a>",
-        Some("HTML"),
+        "🎤 Голосовые сообщения пока не поддерживаются в Telegram-боте.\n\nНапишите текстом или используйте голосовой ввод на vmira.ai/chat",
+        None,
     ).await;
-    return;
+}
 
-    // Dead code below — kept for reference if voice support is re-added
-    #[allow(unreachable_code)]
-    let _voice = msg.voice.unwrap();
+// Voice transcription helper removed — was calling local Whisper service.
+// If voice support is re-added, implement here.
+
+#[allow(dead_code)]
+async fn _handle_voice_message_legacy(
+    state: AppState,
+    bot: TelegramBot,
+    msg: crate::services::telegram::TgMessage,
+) {
+    let chat_id = msg.chat.id;
+    let voice = msg.voice.unwrap();
 
     let link = sqlx::query_as::<_, TelegramLink>(
         "SELECT * FROM telegram_links WHERE chat_id = $1 AND is_active = true"

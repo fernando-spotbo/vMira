@@ -1026,7 +1026,10 @@ pub fn stream_ai_response(
             // Disable thinking for instant responses — no <think> tags generated
             body["enable_thinking"] = json!(false);
             body["tools"] = json!([web_search_tool()]);
-        } else if supports_tools {
+        } else if supports_tools && user_id.is_some() {
+            // Only include chat-specific tools when called from the web chat
+            // (user_id is Some). CLI completions pass user_id=None and should
+            // not receive reminder/calendar/memory tools.
             let mut tools = vec![web_search_tool(), reminder_tool(), scheduled_content_tool(), propose_action_tool(), read_calendar_tool(), read_memory_tool()];
             if project_id.is_some() {
                 tools.push(read_project_file_tool());

@@ -495,66 +495,42 @@ function SourcesBadge({
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
 function AttachmentGrid({ attachments }: { attachments: Attachment[] }) {
   if (!attachments || attachments.length === 0) return null;
 
-  const images = attachments.filter((a) => IMAGE_TYPES.includes(a.mime_type));
-  const files = attachments.filter((a) => !IMAGE_TYPES.includes(a.mime_type));
-
   return (
-    <div className="mt-2 space-y-2">
-      {/* Image grid */}
-      {images.length > 0 && (
-        <div className={`flex gap-2 flex-wrap ${images.length === 1 ? "" : "max-w-md"}`}>
-          {images.map((img) => {
-            const src = img.previewUrl || `/api/proxy/attachments/${img.id}`;
-            return (
-              <a
-                key={img.id}
-                href={src}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block overflow-hidden rounded-xl border border-white/[0.06] hover:border-white/[0.15] transition-colors"
-              >
-                <img
-                  src={src}
-                  alt={img.original_filename}
-                  className={`object-cover ${images.length === 1 ? "max-h-[360px] max-w-full" : "h-32 w-32"}`}
-                  loading="lazy"
-                />
-              </a>
-            );
-          })}
-        </div>
-      )}
-
-      {/* File links */}
-      {files.map((file) => (
-        <a
-          key={file.id}
-          href={`/api/proxy/attachments/${file.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-3 hover:bg-white/[0.07] transition-colors max-w-xs"
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-white/60">
-              <path d="M4 1h5l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-              <path d="M9 1v4h4" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-            </svg>
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {attachments.map((att) => {
+        const isImage = IMAGE_TYPES.includes(att.mime_type);
+        const ext = att.original_filename.split(".").pop()?.toUpperCase() || (isImage ? "IMG" : "FILE");
+        return (
+          <div
+            key={att.id}
+            className="inline-flex items-center gap-2 rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-1.5"
+          >
+            {isImage ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="text-white/35 shrink-0">
+                <rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.2"/>
+                <circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/>
+                <path d="M1 11l3.5-3.5L7 10l3-4 5 5.5V13a2 2 0 01-2 2H3a2 2 0 01-2-2v-2z" fill="currentColor" opacity="0.3"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="text-white/35 shrink-0">
+                <path d="M4 1h5l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                <path d="M9 1v4h4" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+              </svg>
+            )}
+            <span className="text-[12px] text-white/50 truncate max-w-[120px]">{att.original_filename}</span>
+            <span className="text-[10px] text-white/20">{ext} · {formatFileSize(att.size_bytes)}</span>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] text-white/80">{file.original_filename}</p>
-            <p className="text-[11px] text-white/30">
-              {file.size_bytes < 1024
-                ? `${file.size_bytes} B`
-                : file.size_bytes < 1048576
-                ? `${(file.size_bytes / 1024).toFixed(0)} KB`
-                : `${(file.size_bytes / 1048576).toFixed(1)} MB`}
-            </p>
-          </div>
-        </a>
-      ))}
+        );
+      })}
     </div>
   );
 }

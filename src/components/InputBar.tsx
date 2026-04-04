@@ -224,40 +224,33 @@ export default function InputBar({ centered = false }: InputBarProps) {
         onChange={handleFileSelect}
       />
 
-      {/* File preview strip */}
+      {/* Pending file badges */}
       {hasFiles && (
-        <div className="flex gap-2 mb-3 flex-wrap">
-          {pendingFiles.map((file, i) => (
-            <div
-              key={`${file.name}-${i}`}
-              className="group/file relative flex items-center gap-2 rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2 text-sm"
-            >
-              {file.type.startsWith("image/") ? (
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={file.name}
-                  className="h-10 w-10 rounded object-cover"
-                  onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
-                />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded bg-white/[0.06]">
-                  <FileUp size={16} className="text-white/50" />
-                </div>
-              )}
-              <div className="max-w-[120px]">
-                <p className="truncate text-white/80 text-[13px]">{file.name}</p>
-                <p className="text-white/30 text-[11px]">
-                  {file.size < 1024 ? `${file.size} B` : file.size < 1048576 ? `${(file.size / 1024).toFixed(0)} KB` : `${(file.size / 1048576).toFixed(1)} MB`}
-                </p>
-              </div>
-              <button
-                onClick={() => removePendingFile(i)}
-                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#2a2a2a] border border-white/[0.1] text-white/50 hover:text-white hover:bg-[#3a3a3a] transition-colors opacity-0 group-hover/file:opacity-100"
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          {pendingFiles.map((file, i) => {
+            const ext = file.name.split(".").pop()?.toUpperCase() || "FILE";
+            const size = file.size < 1024 ? `${file.size} B` : file.size < 1048576 ? `${(file.size / 1024).toFixed(0)} KB` : `${(file.size / 1048576).toFixed(1)} MB`;
+            return (
+              <div
+                key={`${file.name}-${i}`}
+                className="group/file relative inline-flex items-center gap-2 rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-1.5"
               >
-                <X size={10} />
-              </button>
-            </div>
-          ))}
+                {file.type.startsWith("image/") ? (
+                  <Image size={14} className="text-white/35 shrink-0" />
+                ) : (
+                  <FileUp size={14} className="text-white/35 shrink-0" />
+                )}
+                <span className="text-[12px] text-white/50 truncate max-w-[120px]">{file.name}</span>
+                <span className="text-[10px] text-white/20">{ext} · {size}</span>
+                <button
+                  onClick={() => removePendingFile(i)}
+                  className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-white/30 hover:text-white/70 hover:bg-white/[0.1] transition-colors"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 

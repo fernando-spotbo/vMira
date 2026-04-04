@@ -751,7 +751,7 @@ function RemoteConsole({
         remoteMode
         onSend={handleRemoteSend}
         onCancel={handleCancel}
-        isRemoteStreaming={isStreaming}
+        isRemoteStreaming={false}
         placeholder={t("code.sendPlaceholder")}
       />
     </div>

@@ -61,79 +61,18 @@ export async function disconnectRemoteSession(id: string): Promise<boolean> {
   return result.ok;
 }
 
-// ---- Messages (SSE streaming) ----
+// ---- Send prompt to CLI (queued for CLI processing) ----
 
-export type RemoteStreamEvent =
-  | { type: "thinking"; content: string }
-  | { type: "token"; content: string }
-  | { type: "tool_use"; name: string; input: string }
-  | { type: "tool_result"; content: string }
-  | { type: "done"; usage?: { input_tokens: number; output_tokens: number } }
-  | { type: "error"; message: string };
-
-export async function* streamRemoteMessage(
+export async function sendRemotePrompt(
   sessionId: string,
   content: string,
-  signal?: AbortSignal,
-): AsyncGenerator<RemoteStreamEvent, void, undefined> {
-  const token = getAccessToken();
-
-  const res = await fetch(
-    `${PROXY_URL}/code/sessions/${sessionId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({ content }),
-      signal,
-    },
-  );
-
-  if (!res.ok || !res.body) {
-    const error = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(error.detail || `API error: ${res.status}`);
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await apiCall<{ id: string; status: string }>(`/code/sessions/${sessionId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+  if (!result.ok) {
+    return { ok: false, error: (result.data as any)?.detail || "Failed to send" };
   }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  const STREAM_TIMEOUT_MS = 120_000;
-  let lastActivity = Date.now();
-  const timeoutChecker = setInterval(() => {
-    if (Date.now() - lastActivity > STREAM_TIMEOUT_MS) {
-      reader.cancel();
-      clearInterval(timeoutChecker);
-    }
-  }, 5000);
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      lastActivity = Date.now();
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith("data: ")) continue;
-        const json = trimmed.slice(6);
-        if (json === "[DONE]") return;
-        try {
-          yield JSON.parse(json) as RemoteStreamEvent;
-        } catch {}
-      }
-    }
-  } finally {
-    clearInterval(timeoutChecker);
-    reader.releaseLock();
-  }
+  return { ok: true };
 }

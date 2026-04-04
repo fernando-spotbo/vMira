@@ -24,7 +24,7 @@ import {
   fetchRemoteSessions,
   fetchRemoteSession,
   disconnectRemoteSession,
-  streamRemoteMessage,
+  sendRemotePrompt,
   type ApiRemoteSession,
   type ApiRemoteMessage,
   type RemoteStreamEvent,
@@ -501,16 +501,12 @@ function RemoteConsole({
 }) {
   const [session, setSession] = useState<RemoteSession | null>(null);
   const [messages, setMessages] = useState<RemoteMessage[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingThinking, setStreamingThinking] = useState("");
-  const [streamingContent, setStreamingContent] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const autoFollow = useRef(true);
   const selfScroll = useRef(false);
-  const abortRef = useRef<AbortController | null>(null);
 
   // ── Load session + messages ──
   useEffect(() => {
@@ -550,7 +546,7 @@ function RemoteConsole({
 
   // ── Real-time message polling (every 3s) ──
   useEffect(() => {
-    if (isStreaming) return; // don't poll while we're streaming our own response
+    // Poll for new messages from CLI (responses to remote prompts)
     const poll = setInterval(async () => {
       try {
         const result = await fetchRemoteSession(sessionId);
@@ -570,7 +566,7 @@ function RemoteConsole({
       }
     }, 3000);
     return () => clearInterval(poll);
-  }, [sessionId, isStreaming]);
+  }, [sessionId]);
 
   // ── Scroll helpers ──
   const scrollToEnd = useCallback(() => {
@@ -586,11 +582,11 @@ function RemoteConsole({
   // Auto-scroll on new messages
   useEffect(() => {
     if (autoFollow.current) scrollToEnd();
-  }, [messages.length, streamingContent, streamingThinking, scrollToEnd]);
+  }, [messages.length, scrollToEnd]);
 
   // Follow stream with MutationObserver
   useEffect(() => {
-    if (!isStreaming || !autoFollow.current) return;
+    if (!autoFollow.current) return;
     const el = scrollRef.current;
     if (!el) return;
 
@@ -634,112 +630,27 @@ function RemoteConsole({
 
   // ── Cancel ──
   const handleCancel = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setIsStreaming(false);
+    // Cancel not applicable in relay mode
   }, []);
 
   // ── Send (called by InputBar via onSend prop) ──
+  // Queues the prompt for the CLI to process. The CLI picks it up,
+  // processes it through its AI pipeline, and the response appears
+  // in bridge_messages (polled every 3s by the message polling effect).
   const handleRemoteSend = useCallback(async (text: string) => {
-    const userMsg: RemoteMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: text,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setIsStreaming(true);
-    setStreamingThinking("");
-    setStreamingContent("");
     autoFollow.current = true;
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    let thinkBuf = "";
-    let contentBuf = "";
-
-    try {
-      for await (const event of streamRemoteMessage(
-        sessionId,
-        text,
-        controller.signal,
-      )) {
-        switch (event.type) {
-          case "thinking":
-            thinkBuf += event.content;
-            setStreamingThinking(thinkBuf);
-            break;
-          case "token":
-            contentBuf += event.content;
-            setStreamingContent(contentBuf);
-            break;
-          case "tool_use":
-            contentBuf += `\n\`\`\`\n> ${event.name}\n\`\`\`\n`;
-            setStreamingContent(contentBuf);
-            break;
-          case "tool_result":
-            contentBuf += event.content ? `\n${event.content}\n` : "";
-            setStreamingContent(contentBuf);
-            break;
-          case "done": {
-            const asstMsg: RemoteMessage = {
-              id: `asst-${Date.now()}`,
-              role: "assistant",
-              content: contentBuf,
-              thinking: thinkBuf || undefined,
-              createdAt: new Date().toISOString(),
-            };
-            setMessages((prev) => [...prev, asstMsg]);
-            setStreamingContent("");
-            setStreamingThinking("");
-            break;
-          }
-          case "error": {
-            const errMsg: RemoteMessage = {
-              id: `asst-err-${Date.now()}`,
-              role: "assistant",
-              content: `Error: ${event.message}`,
-              createdAt: new Date().toISOString(),
-            };
-            setMessages((prev) => [...prev, errMsg]);
-            setStreamingContent("");
-            setStreamingThinking("");
-            break;
-          }
-        }
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
-        // User cancelled — commit whatever we have
-        if (contentBuf) {
-          const partialMsg: RemoteMessage = {
-            id: `asst-cancel-${Date.now()}`,
-            role: "assistant",
-            content: contentBuf,
-            thinking: thinkBuf || undefined,
-            createdAt: new Date().toISOString(),
-          };
-          setMessages((prev) => [...prev, partialMsg]);
-        }
-        setStreamingContent("");
-        setStreamingThinking("");
-      } else {
-        const errMsg: RemoteMessage = {
-          id: `asst-err-${Date.now()}`,
-          role: "assistant",
-          content: `Error: ${err instanceof Error ? err.message : "Unknown error"}`,
-          createdAt: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, errMsg]);
-        setStreamingContent("");
-        setStreamingThinking("");
-      }
-    } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
+    const result = await sendRemotePrompt(sessionId, text);
+    if (!result.ok) {
+      const errMsg: RemoteMessage = {
+        id: `err-${Date.now()}`,
+        role: "assistant",
+        content: `Failed to send: ${result.error || "Unknown error"}`,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
     }
-  }, [isStreaming, sessionId]);
+    // The user message and AI response will appear via bridge_messages polling
+  }, [sessionId]);
 
   // ── Cleanup abort on unmount ──
   useEffect(() => {
@@ -822,17 +733,6 @@ function RemoteConsole({
                   )}
                 </div>
               ))}
-
-              {/* Streaming message */}
-              {isStreaming && (
-                <div data-role="assistant">
-                  <AssistantBubble
-                    content={streamingContent}
-                    thinking={streamingThinking}
-                    isStreaming
-                  />
-                </div>
-              )}
 
               <div ref={endRef} className="h-6" aria-hidden="true" />
             </div>

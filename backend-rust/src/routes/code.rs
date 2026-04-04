@@ -33,6 +33,7 @@ pub fn code_routes() -> Router<AppState> {
         .route("/sessions", get(list_sessions))
         .route("/sessions/{id}", get(get_session).delete(disconnect_session))
         .route("/sessions/{id}/messages", post(send_message))
+        .route("/sessions/{id}/prompts", get(get_pending_prompts))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -205,7 +206,7 @@ async fn get_session(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  POST /sessions/{id}/messages — send a message and stream the response
+//  POST /sessions/{id}/messages — queue a prompt for the CLI to process
 // ═══════════════════════════════════════════════════════════════════════════
 
 async fn send_message(
@@ -213,7 +214,7 @@ async fn send_message(
     AuthUser(user): AuthUser,
     Path(id): Path<Uuid>,
     Json(body): Json<BridgeMessageRequest>,
-) -> Result<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>>, AppError> {
+) -> Result<Json<serde_json::Value>, AppError> {
     body.validate()
         .map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
@@ -229,120 +230,63 @@ async fn send_message(
         ));
     }
 
-    let now = Utc::now();
-
-    // 1. Persist the user's message.
+    // Store as a pending prompt for the CLI to pick up
+    let prompt_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO bridge_messages (id, environment_id, role, content, created_at)
-         VALUES ($1, $2, 'user', $3, $4)",
+        "INSERT INTO bridge_work_queue (id, environment_id, work_type, data, state, created_at)
+         VALUES ($1, $2, 'prompt', $3, 'pending', $4)",
     )
-    .bind(Uuid::new_v4())
+    .bind(prompt_id)
     .bind(env.id)
-    .bind(&body.content)
-    .bind(now)
+    .bind(serde_json::json!({ "content": body.content }))
+    .bind(Utc::now())
     .execute(&state.db)
     .await?;
 
-    // 2. Load recent conversation history from bridge_messages for context
-    let recent_msgs = sqlx::query_as::<_, BridgeMessage>(
-        "SELECT * FROM bridge_messages WHERE environment_id = $1 ORDER BY created_at DESC LIMIT 20"
+    Ok(Json(serde_json::json!({
+        "id": prompt_id,
+        "status": "queued",
+        "message": "Prompt sent to CLI"
+    })))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GET /sessions/{id}/prompts — CLI polls for pending prompts from web
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn get_pending_prompts(
+    State(state): State<AppState>,
+    AuthUser(_user): AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    // Get pending prompts and mark them as claimed atomically
+    let items = sqlx::query_as::<_, crate::models::BridgeWorkItem>(
+        "UPDATE bridge_work_queue
+         SET state = 'claimed'
+         WHERE id IN (
+             SELECT id FROM bridge_work_queue
+             WHERE environment_id = $1 AND work_type = 'prompt' AND state = 'pending'
+             ORDER BY created_at ASC
+             LIMIT 10
+         )
+         RETURNING *",
     )
-    .bind(env.id)
+    .bind(id)
     .fetch_all(&state.db)
     .await?;
 
-    // Build messages array for AI (oldest first)
-    let mut ai_messages: Vec<crate::services::ai_proxy::ChatMessage> = recent_msgs
+    let prompts: Vec<serde_json::Value> = items
         .iter()
-        .rev()
-        .map(|m| crate::services::ai_proxy::ChatMessage {
-            role: m.role.clone(),
-            content: m.content.clone(),
-            tool_calls: None,
-            tool_call_id: None,
-            name: None,
-            attachments: vec![],
+        .filter_map(|item| {
+            let content = item.data.get("content")?.as_str()?;
+            Some(serde_json::json!({
+                "id": item.id,
+                "content": content,
+            }))
         })
         .collect();
 
-    // Add the new user message
-    ai_messages.push(crate::services::ai_proxy::ChatMessage {
-        role: "user".to_string(),
-        content: body.content.clone(),
-        tool_calls: None,
-        tool_call_id: None,
-        name: None,
-        attachments: vec![],
-    });
-
-    // 3. Stream AI response directly and store result
-    let db = state.db.clone();
-    let env_id = env.id;
-    let config = state.config.clone();
-
-    let mut ai_stream = crate::services::ai_proxy::stream_ai_response(
-        ai_messages,
-        "mira".to_string(),
-        0.7,
-        4096,
-        "pro",
-        false,
-        &config,
-        Some(user.id),
-        Some(state.db.clone()),
-        None,
-        None,
-        None,
-        None,
-    );
-
-    use tokio_stream::StreamExt as _;
-    let stream = async_stream::stream! {
-        yield Ok::<_, Infallible>(Event::default().data(
-            serde_json::json!({"type": "processing"}).to_string()
-        ));
-
-        let mut full_response = String::new();
-
-        while let Some(event) = ai_stream.next().await {
-            match event {
-                crate::services::ai_proxy::AiEvent::Token(chunk) => {
-                    full_response.push_str(&chunk);
-                    yield Ok(Event::default().data(
-                        serde_json::json!({"type": "token", "content": chunk}).to_string()
-                    ));
-                }
-                crate::services::ai_proxy::AiEvent::SearchStarted { query } => {
-                    yield Ok(Event::default().data(
-                        serde_json::json!({"type": "thinking", "content": format!("Searching: {}", query)}).to_string()
-                    ));
-                }
-                _ => {}
-            }
-        }
-
-        // Store assistant response in bridge_messages
-        if !full_response.is_empty() {
-            let _ = sqlx::query(
-                "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'assistant', $2, $3)"
-            )
-            .bind(env_id)
-            .bind(&full_response)
-            .bind(Utc::now())
-            .execute(&db)
-            .await;
-        }
-
-        yield Ok(Event::default().data(
-            serde_json::json!({"type": "done"}).to_string()
-        ));
-    };
-
-    Ok(Sse::new(stream).keep_alive(
-        KeepAlive::new()
-            .interval(Duration::from_secs(15))
-            .text("ping"),
-    ))
+    Ok(Json(prompts))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

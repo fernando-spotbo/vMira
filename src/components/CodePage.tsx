@@ -8,18 +8,17 @@ import {
 } from "react";
 import {
   ArrowLeft,
-  ArrowUp,
   ChevronDown,
   GitBranch,
   Monitor,
   Power,
-  Square,
   Terminal,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { t } from "@/lib/i18n";
 import CodeBlock from "./CodeBlock";
+import InputBar from "./InputBar";
 import type { RemoteSession, RemoteMessage } from "@/lib/types";
 import {
   fetchRemoteSessions,
@@ -502,7 +501,6 @@ function RemoteConsole({
 }) {
   const [session, setSession] = useState<RemoteSession | null>(null);
   const [messages, setMessages] = useState<RemoteMessage[]>([]);
-  const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
@@ -510,7 +508,6 @@ function RemoteConsole({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const autoFollow = useRef(true);
   const selfScroll = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -550,6 +547,30 @@ function RemoteConsole({
     }, 10_000);
     return () => clearInterval(poll);
   }, [sessionId]);
+
+  // ── Real-time message polling (every 3s) ──
+  useEffect(() => {
+    if (isStreaming) return; // don't poll while we're streaming our own response
+    const poll = setInterval(async () => {
+      try {
+        const result = await fetchRemoteSession(sessionId);
+        if (result) {
+          const newMsgs = result.messages.map(mapMessage);
+          setMessages(prev => {
+            // Only update if there are new messages
+            if (newMsgs.length !== prev.length) return newMsgs;
+            const lastNew = newMsgs[newMsgs.length - 1];
+            const lastOld = prev[prev.length - 1];
+            if (lastNew && lastOld && lastNew.id !== lastOld.id) return newMsgs;
+            return prev;
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [sessionId, isStreaming]);
 
   // ── Scroll helpers ──
   const scrollToEnd = useCallback(() => {
@@ -611,19 +632,15 @@ function RemoteConsole({
     onBack();
   }, [sessionId, onBack]);
 
-  // ── Send / Cancel ──
-  const handleSend = useCallback(async () => {
-    if (isStreaming) {
-      // Cancel current stream
-      abortRef.current?.abort();
-      abortRef.current = null;
-      setIsStreaming(false);
-      return;
-    }
+  // ── Cancel ──
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsStreaming(false);
+  }, []);
 
-    const text = input.trim();
-    if (!text) return;
-
+  // ── Send (called by InputBar via onSend prop) ──
+  const handleRemoteSend = useCallback(async (text: string) => {
     const userMsg: RemoteMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -631,16 +648,10 @@ function RemoteConsole({
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
     setIsStreaming(true);
     setStreamingThinking("");
     setStreamingContent("");
     autoFollow.current = true;
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -728,29 +739,7 @@ function RemoteConsole({
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, sessionId]);
-
-  // ── Keyboard ──
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend],
-  );
-
-  // ── Auto-resize textarea ──
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInput(e.target.value);
-      const el = e.target;
-      el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 160) + "px";
-    },
-    [],
-  );
+  }, [isStreaming, sessionId]);
 
   // ── Cleanup abort on unmount ──
   useEffect(() => {
@@ -867,40 +856,14 @@ function RemoteConsole({
         )}
       </div>
 
-      {/* ── Input bar ── */}
-      <div className="shrink-0 px-4 pb-[max(env(safe-area-inset-bottom),16px)]">
-        <div className="mx-auto max-w-[52rem]">
-          <div className="rounded-2xl border border-white/[0.06] bg-[#252525] flex items-end gap-2 px-4 py-2.5">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder={t("code.sendPlaceholder")}
-              disabled={!session || session.status === "offline"}
-              rows={1}
-              className="flex-1 resize-none bg-transparent text-[15px] leading-6 text-white placeholder-white/20 focus:outline-none disabled:opacity-40 max-h-[160px]"
-            />
-            <button
-              onClick={handleSend}
-              disabled={!hasInput && !isStreaming}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all ${
-                isStreaming
-                  ? "bg-white text-[#161616] hover:bg-white/90"
-                  : hasInput
-                    ? "bg-white text-[#161616] hover:bg-white/90"
-                    : "bg-white/[0.1] text-white/30 cursor-default"
-              }`}
-            >
-              {isStreaming ? (
-                <Square size={14} strokeWidth={2} fill="currentColor" />
-              ) : (
-                <ArrowUp size={16} strokeWidth={2} />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* ── Input bar (reuses chat InputBar in remote mode) ── */}
+      <InputBar
+        remoteMode
+        onSend={handleRemoteSend}
+        onCancel={handleCancel}
+        isRemoteStreaming={isStreaming}
+        placeholder={t("code.sendPlaceholder")}
+      />
     </div>
   );
 }

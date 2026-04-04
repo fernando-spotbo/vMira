@@ -15,6 +15,16 @@ const MAX_FILES_PER_MESSAGE = 10;
 
 interface InputBarProps {
   centered?: boolean;
+  /** Remote control mode: hides attachments/voice, uses custom send handler */
+  remoteMode?: boolean;
+  /** Custom send handler (overrides chat context sendMessage) */
+  onSend?: (content: string) => void;
+  /** Custom cancel handler */
+  onCancel?: () => void;
+  /** Override streaming state */
+  isRemoteStreaming?: boolean;
+  /** Custom placeholder text */
+  placeholder?: string;
 }
 
 function VoiceModeIcon({ animated = false }: { animated?: boolean }) {
@@ -56,7 +66,7 @@ function VoiceModeIcon({ animated = false }: { animated?: boolean }) {
   );
 }
 
-export default function InputBar({ centered = false }: InputBarProps) {
+export default function InputBar({ centered = false, remoteMode = false, onSend, onCancel, isRemoteStreaming, placeholder }: InputBarProps) {
   const [input, setInput] = useState("");
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showVoiceRecording, setShowVoiceRecording] = useState(false);
@@ -145,11 +155,16 @@ export default function InputBar({ centered = false }: InputBarProps) {
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed && pendingFiles.length === 0) return;
+    if (!trimmed && (!remoteMode && pendingFiles.length === 0)) return;
 
     setInput("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
+    }
+
+    if (remoteMode && onSend) {
+      if (trimmed) onSend(trimmed);
+      return;
     }
 
     // sendChatMessage handles: create conv if needed, add user msg, stream AI response
@@ -196,7 +211,7 @@ export default function InputBar({ centered = false }: InputBarProps) {
 
   const hasText = input.trim().length > 0;
   const hasFiles = pendingFiles.length > 0;
-  const isGenerating = isStreaming || isThinking;
+  const isGenerating = remoteMode ? (isRemoteStreaming ?? false) : (isStreaming || isThinking);
 
   // When centered (empty state), render just the input container without wrapper padding
   const inputElement = (
@@ -260,13 +275,13 @@ export default function InputBar({ centered = false }: InputBarProps) {
         onChange={handleInput}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
-        placeholder={t("chat.placeholder")}
+        placeholder={placeholder || t("chat.placeholder")}
         rows={1}
         className="w-full max-h-[45vh] resize-none overflow-y-auto bg-transparent text-[17px] leading-relaxed text-white placeholder-white/25 focus:outline-none"
       />
 
       <div className="mt-3 flex items-center justify-between">
-        <div className="relative" ref={attachMenuRef}>
+        {remoteMode ? <div /> : <div className="relative" ref={attachMenuRef}>
           <button
             onClick={() => setShowAttachMenu(!showAttachMenu)}
             className={`flex h-9 w-9 items-center justify-center rounded-[10px] transition-colors duration-200
@@ -301,12 +316,12 @@ export default function InputBar({ centered = false }: InputBarProps) {
               {t("chat.uploadFile")}
             </button>
           </div>
-        </div>
+        </div>}
 
         <div className="flex items-center gap-1.5">
           {isGenerating ? (
             <button
-              onClick={cancelMessage}
+              onClick={remoteMode && onCancel ? onCancel : cancelMessage}
               className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white text-[#161616] hover:bg-white/90 active:scale-95 transition-all duration-200"
               title="Stop generating"
             >
@@ -322,27 +337,29 @@ export default function InputBar({ centered = false }: InputBarProps) {
             </button>
           ) : (
             <>
-              {/* Mic button — voice-to-text dictation */}
-              <button
-                onClick={() => setShowVoiceRecording(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-[10px] text-white/40 hover:text-white/70 hover:bg-black/30 transition-all duration-200"
-                title="Voice input"
-              >
-                <Mic size={20} strokeWidth={1.8} />
-              </button>
-
-              {/* Waveform button — voice mode (Pro+ only) */}
-              {hasPaidPlan && (
+              {!remoteMode && <>
+                {/* Mic button — voice-to-text dictation */}
                 <button
-                  onClick={() => setShowVoiceMode(true)}
-                  onMouseEnter={() => setVoiceBtnHover(true)}
-                  onMouseLeave={() => setVoiceBtnHover(false)}
+                  onClick={() => setShowVoiceRecording(true)}
                   className="flex h-9 w-9 items-center justify-center rounded-[10px] text-white/40 hover:text-white/70 hover:bg-black/30 transition-all duration-200"
-                  title="Voice mode"
+                  title="Voice input"
                 >
-                  <VoiceModeIcon animated={voiceBtnHover} />
+                  <Mic size={20} strokeWidth={1.8} />
                 </button>
-              )}
+
+                {/* Waveform button — voice mode (Pro+ only) */}
+                {hasPaidPlan && (
+                  <button
+                    onClick={() => setShowVoiceMode(true)}
+                    onMouseEnter={() => setVoiceBtnHover(true)}
+                    onMouseLeave={() => setVoiceBtnHover(false)}
+                    className="flex h-9 w-9 items-center justify-center rounded-[10px] text-white/40 hover:text-white/70 hover:bg-black/30 transition-all duration-200"
+                    title="Voice mode"
+                  >
+                    <VoiceModeIcon animated={voiceBtnHover} />
+                  </button>
+                )}
+              </>}
             </>
           )}
         </div>

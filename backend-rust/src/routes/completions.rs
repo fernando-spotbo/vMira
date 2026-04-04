@@ -261,10 +261,11 @@ async fn chat_completions(
             ChatMessage {
                 role: m.role.clone(),
                 content: sanitize::sanitize_input(&content),
-            tool_calls: None,
-            tool_call_id: None,
-            name: None,
-            attachments: vec![],
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+                attachments: vec![],
+            }
         })
         .filter(|m| !m.content.is_empty()) // remove messages that became empty after stripping
         .collect();

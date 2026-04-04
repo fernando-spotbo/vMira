@@ -27,7 +27,6 @@ import {
   sendRemotePrompt,
   type ApiRemoteSession,
   type ApiRemoteMessage,
-  type RemoteStreamEvent,
 } from "@/lib/api-code";
 
 // ── Helpers ─────────────────────────────────────────────────────────────

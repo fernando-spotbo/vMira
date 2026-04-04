@@ -17,5 +17,6 @@ pub struct Attachment {
     pub storage_path: String,
     pub width: Option<i32>,
     pub height: Option<i32>,
+    pub extracted_content: Option<String>,
     pub created_at: DateTime<Utc>,
 }

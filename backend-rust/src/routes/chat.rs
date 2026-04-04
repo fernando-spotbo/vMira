@@ -735,6 +735,7 @@ async fn send_message(
                     mime_type: att.mime_type,
                     original_filename: att.original_filename,
                     storage_path: att.storage_path,
+                    extracted_content: att.extracted_content,
                 }
             );
         }

@@ -99,11 +99,15 @@ pub struct ChatMessage {
 }
 
 /// An attachment resolved from the database for inclusion in AI requests.
+/// Uses pre-extracted content (process-and-discard) — no disk read needed.
 #[derive(Debug, Clone)]
 pub struct MessageAttachment {
     pub mime_type: String,
     pub original_filename: String,
     pub storage_path: String,
+    /// Pre-extracted content from the upload step. If present, used directly
+    /// instead of reading the file from disk.
+    pub extracted_content: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -386,15 +390,33 @@ fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
 
 const IMAGE_MIMES: &[&str] = &["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-/// Read a file from disk and convert it to text content blocks for the AI model.
-/// The current model is text-only, so images are described by metadata and
-/// PDFs/text files are extracted as text.
+/// Convert attachment to text content blocks for the AI model.
+/// Uses pre-extracted content when available (process-and-discard flow).
+/// Falls back to reading from disk for legacy attachments that still have files.
 fn resolve_attachment_content(att: &MessageAttachment) -> Result<Vec<serde_json::Value>, String> {
-    let data = std::fs::read(&att.storage_path)
-        .map_err(|e| format!("read {}: {e}", att.storage_path))?;
+    // Fast path: use pre-extracted content (new process-and-discard flow)
+    if let Some(ref content) = att.extracted_content {
+        if !content.is_empty() {
+            return Ok(vec![json!({
+                "type": "text",
+                "text": content,
+            })]);
+        }
+    }
+
+    // Legacy path: read from disk (for attachments uploaded before process-and-discard)
+    let data = match std::fs::read(&att.storage_path) {
+        Ok(d) => d,
+        Err(_) => {
+            // File gone (cleaned up or never stored) — show metadata only
+            return Ok(vec![json!({
+                "type": "text",
+                "text": format!("[File: {} ({})]", att.original_filename, att.mime_type),
+            })]);
+        }
+    };
 
     if IMAGE_MIMES.iter().any(|m| *m == att.mime_type) {
-        // Image: describe metadata (current model is text-only, no vision support)
         let size_kb = data.len() / 1024;
         let dims = image::io::Reader::new(std::io::Cursor::new(&data))
             .with_guessed_format()
@@ -406,7 +428,7 @@ fn resolve_attachment_content(att: &MessageAttachment) -> Result<Vec<serde_json:
         };
         Ok(vec![json!({
             "type": "text",
-            "text": format!("[Изображение «{}»: {}, {}KB, {}]", att.original_filename, att.mime_type, size_kb, dim_str),
+            "text": format!("[Image: {} | {} | {}KB | {}]", att.original_filename, att.mime_type, size_kb, dim_str),
         })])
     } else if att.mime_type == "application/pdf" {
         // PDF: extract text

@@ -846,7 +846,20 @@ pub fn stream_ai_response(
         _ => String::new(),
     };
     let mut full_messages: Vec<serde_json::Value> = Vec::new();
-    if voice_mode {
+    let has_user_system_msg = messages.first().map_or(false, |m| m.role == "system");
+
+    if has_user_system_msg {
+        // User provided their own system message (e.g. CLI with custom prompt)
+        // Append our context to theirs instead of injecting a separate one
+        let user_sys = &messages[0];
+        let extra = format!("{}{}", project_context, datetime_context);
+        let scrubbed = crate::services::pii_scrub::scrub(&user_sys.content, user_name, user_email);
+        pii_mapping.extend(scrubbed.mapping);
+        full_messages.push(json!({
+            "role": "system",
+            "content": format!("{}{}", scrubbed.scrubbed, extra),
+        }));
+    } else if voice_mode {
         full_messages.push(json!({
             "role": "system",
             "content": format!("{}{}{}", MIRA_VOICE_PROMPT, project_context, datetime_context),
@@ -859,7 +872,13 @@ pub fn stream_ai_response(
             "content": extra_context,
         }));
     }
-    for m in &messages {
+    // Skip the first message if it was already used as system prompt above
+    let msg_iter: Box<dyn Iterator<Item = &ChatMessage>> = if has_user_system_msg {
+        Box::new(messages.iter().skip(1))
+    } else {
+        Box::new(messages.iter())
+    };
+    for m in msg_iter {
         let scrubbed = crate::services::pii_scrub::scrub(&m.content, user_name, user_email);
         pii_mapping.extend(scrubbed.mapping);
 

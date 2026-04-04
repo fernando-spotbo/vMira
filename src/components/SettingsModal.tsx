@@ -93,10 +93,12 @@ function ProfileTab() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null);
   const [saved, setSaved] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const showSaved = () => {
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
     setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 1500);
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,7 +106,9 @@ function ProfileTab() {
     if (!file) return;
 
     const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement("canvas");
       canvas.width = 64;
       canvas.height = 64;
@@ -121,7 +125,7 @@ function ProfileTab() {
       updateUser({ avatar_url: dataUrl });
       showSaved();
     };
-    img.src = URL.createObjectURL(file);
+    img.src = objectUrl;
     // Reset input so same file can be re-selected
     e.target.value = "";
   };
@@ -159,7 +163,7 @@ function ProfileTab() {
     <div>
       {/* Saved indicator */}
       {saved && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 rounded-full bg-white/[0.1] border border-white/[0.08] px-4 py-2 text-[13px] text-white/70 backdrop-blur-sm">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 rounded-full bg-[#2a2a2a] border border-white/[0.08] px-4 py-2 text-[13px] text-white/70">
           <Check size={14} className="text-green-400/80" />
           {t("settings.profileSaved")}
         </div>
@@ -640,52 +644,54 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   return (
     <div
       onClick={handleBackdropClick}
-      className={`fixed inset-0 z-[200] flex items-center justify-center px-4 transition-all duration-250 ${
-        visible ? "bg-black/60 backdrop-blur-sm" : "bg-black/0"
+      className={`fixed inset-0 z-[200] flex items-center justify-center sm:px-4 transition-all duration-250 ${
+        visible ? "bg-black/60 sm:backdrop-blur-sm" : "bg-black/0"
       }`}
     >
       <div
         ref={modalRef}
-        className={`w-full max-w-[680px] h-[480px] flex rounded-2xl bg-[#1a1a1a] border border-white/[0.06] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-250 ${
+        className={`w-full h-full sm:w-full sm:max-w-[680px] sm:h-[480px] flex flex-col sm:flex-row sm:rounded-2xl bg-[#1a1a1a] sm:border sm:border-white/[0.06] sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-250 ${
           visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
         }`}
       >
-        {/* Left: tab navigation */}
-        <div className="w-[220px] shrink-0 border-r border-white/[0.06] p-3 flex flex-col">
-          <div className="flex items-center justify-between mb-4 px-2">
+        {/* Tab navigation — horizontal on mobile, vertical sidebar on desktop */}
+        <div className="shrink-0 sm:w-[220px] sm:border-r border-b sm:border-b-0 border-white/[0.06] sm:p-3 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 sm:mb-4 sm:px-2 sm:py-0">
             <h2 className="text-[18px] font-medium text-white">{t("settings.title")}</h2>
             <button
               onClick={() => { setVisible(false); setTimeout(onClose, 250); }}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
+              className="flex h-11 w-11 sm:h-7 sm:w-7 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors -mr-2 sm:mr-0"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
-          <nav className="space-y-0.5">
+          {/* Tabs — horizontal scroll on mobile, vertical list on desktop */}
+          <nav className="flex sm:flex-col gap-1 sm:gap-0.5 overflow-x-auto px-3 pb-2 sm:px-0 sm:pb-0 hide-scrollbar">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[16px] transition-colors ${
+                className={`flex items-center gap-2 sm:gap-3 shrink-0 rounded-lg px-3 py-2 sm:py-2.5 sm:w-full text-[13px] sm:text-[16px] transition-colors ${
                   activeTab === tab.id
                     ? "bg-white/[0.08] text-white font-medium"
-                    : "text-white hover:bg-white/[0.06]"
+                    : "text-white/60 sm:text-white hover:bg-white/[0.06]"
                 }`}
               >
                 <tab.icon size={16} strokeWidth={1.8} />
-                <span>{t(tab.labelKey)}</span>
+                <span className="whitespace-nowrap">{t(tab.labelKey)}</span>
               </button>
             ))}
           </nav>
         </div>
 
-        {/* Right: tab content */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        {/* Tab content */}
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-h-0">
           <h3 className="text-lg font-medium text-white mb-1">
             {t(TABS.find((tab) => tab.id === activeTab)?.labelKey || "")}
           </h3>
-          <div className="mt-4">
+          <div className="mt-4 pb-6 sm:pb-0">
             {renderTab()}
           </div>
         </div>

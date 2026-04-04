@@ -997,17 +997,84 @@ async fn send_message(
         .ok()
         .flatten();
 
-        // Fetch project instructions if conversation belongs to a project
+        // Fetch full project context if conversation belongs to a project:
+        // 1. Project instructions
+        // 2. Project file contents (text/PDF extracted text)
+        // 3. Sibling conversation summaries (titles + last assistant message)
         let project_instructions = if let Some(pid) = conv_project_id {
-            sqlx::query_scalar::<_, Option<String>>(
+            let mut parts: Vec<String> = Vec::new();
+
+            // 1. Project instructions
+            if let Ok(Some(Some(instr))) = sqlx::query_scalar::<_, Option<String>>(
                 "SELECT instructions FROM projects WHERE id = $1"
             )
             .bind(pid)
             .fetch_optional(&state_clone.db)
             .await
-            .ok()
-            .flatten()
-            .flatten()
+            {
+                if !instr.is_empty() {
+                    parts.push(instr);
+                }
+            }
+
+            // 2. Project files — read content from disk (text files only, cap at 8KB total)
+            if let Ok(files) = sqlx::query_as::<_, crate::models::ProjectFile>(
+                "SELECT * FROM project_files WHERE project_id = $1 ORDER BY created_at ASC LIMIT 20"
+            )
+            .bind(pid)
+            .fetch_all(&state_clone.db)
+            .await
+            {
+                let mut file_parts: Vec<String> = Vec::new();
+                let mut total_bytes: usize = 0;
+                const MAX_FILE_BYTES: usize = 8192;
+
+                for f in &files {
+                    if total_bytes >= MAX_FILE_BYTES { break; }
+                    if let Ok(content) = tokio::fs::read_to_string(&f.storage_path).await {
+                        let remaining = MAX_FILE_BYTES - total_bytes;
+                        let truncated = if content.len() > remaining {
+                            format!("{}...(truncated)", &content[..remaining])
+                        } else {
+                            content.clone()
+                        };
+                        total_bytes += truncated.len();
+                        file_parts.push(format!("[File: {}]\n{}", f.original_filename, truncated));
+                    }
+                }
+
+                if !file_parts.is_empty() {
+                    parts.push(format!("--- Project Files ---\n{}", file_parts.join("\n\n")));
+                }
+            }
+
+            // 3. Sibling conversations — titles + last assistant snippet for cross-chat awareness
+            if let Ok(siblings) = sqlx::query_as::<_, (String, Option<String>)>(
+                "SELECT c.title, (
+                    SELECT LEFT(m.content, 200) FROM messages m
+                    WHERE m.conversation_id = c.id AND m.role = 'assistant'
+                    ORDER BY m.created_at DESC LIMIT 1
+                ) FROM conversations c
+                WHERE c.project_id = $1 AND c.id != $2 AND c.archived = false
+                ORDER BY c.updated_at DESC LIMIT 5"
+            )
+            .bind(pid)
+            .bind(conversation_id)
+            .fetch_all(&state_clone.db)
+            .await
+            {
+                if !siblings.is_empty() {
+                    let summaries: Vec<String> = siblings.iter().map(|(title, last_msg)| {
+                        match last_msg {
+                            Some(msg) if !msg.is_empty() => format!("- {}: {}", title, msg),
+                            _ => format!("- {}", title),
+                        }
+                    }).collect();
+                    parts.push(format!("--- Other Conversations in This Project ---\n{}", summaries.join("\n")));
+                }
+            }
+
+            if parts.is_empty() { None } else { Some(parts.join("\n\n")) }
         } else {
             None
         };

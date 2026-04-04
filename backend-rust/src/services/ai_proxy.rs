@@ -864,14 +864,15 @@ pub fn stream_ai_response(
             "role": "system",
             "content": format!("{}{}{}", MIRA_VOICE_PROMPT, project_context, datetime_context),
         }));
-    } else {
-        // Minimal context: datetime + project instructions + tool hints (no personality prompt)
-        let extra_context = format!("{}{}{}", MIRA_TOOL_HINTS, project_context, datetime_context).trim().to_string();
+    } else if !project_context.is_empty() {
+        // Only inject system message when there's project context to include
+        let extra_context = format!("{}{}", project_context, datetime_context).trim().to_string();
         full_messages.push(json!({
             "role": "system",
             "content": extra_context,
         }));
     }
+    // No system prompt otherwise — let the model respond naturally without constraints
     // Skip the first message if it was already used as system prompt above
     let msg_iter: Box<dyn Iterator<Item = &ChatMessage>> = if has_user_system_msg {
         Box::new(messages.iter().skip(1))

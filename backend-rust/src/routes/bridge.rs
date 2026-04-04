@@ -32,6 +32,13 @@ pub fn bridge_routes() -> Router<AppState> {
         .route("/{id}/work/{work_id}/stop", post(stop_work))
 }
 
+/// Separate router for /v1/sessions (session creation for bridge environments)
+pub fn bridge_session_routes() -> Router<AppState> {
+    Router::new()
+        .route("/", post(create_session))
+        .route("/{id}/archive", post(archive_session))
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Helpers
 // ═══════════════════════════════════════════════════════════════════════════
@@ -347,4 +354,82 @@ async fn deregister_environment(
     .await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  POST /v1/sessions — create a session on a bridge environment
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Deserialize)]
+struct CreateSessionRequest {
+    environment_id: Uuid,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    events: serde_json::Value,
+    #[serde(default)]
+    session_context: serde_json::Value,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    permission_mode: Option<String>,
+}
+
+async fn create_session(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Json(body): Json<CreateSessionRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), AppError> {
+    // Verify the environment belongs to this user
+    ensure_env_owner(&state, body.environment_id, user.id).await?;
+
+    // Create a session record (stored as a work item with type 'session_created')
+    let session_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO bridge_work_queue (id, environment_id, work_type, data, state, created_at)
+         VALUES ($1, $2, 'session_created', $3, 'completed', $4)"
+    )
+    .bind(session_id)
+    .bind(body.environment_id)
+    .bind(serde_json::json!({
+        "title": body.title,
+        "source": body.source,
+        "session_context": body.session_context,
+    }))
+    .bind(Utc::now())
+    .execute(&state.db)
+    .await?;
+
+    Ok((StatusCode::CREATED, Json(serde_json::json!({
+        "id": session_id,
+        "environment_id": body.environment_id,
+        "status": "active",
+    }))))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  POST /v1/sessions/{id}/archive — archive a session
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn archive_session(
+    State(state): State<AppState>,
+    AuthUser(_user): AuthUser,
+    Path(session_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    // Mark session as archived (idempotent)
+    let rows = sqlx::query(
+        "UPDATE bridge_work_queue SET state = 'archived'
+         WHERE id = $1 AND work_type = 'session_created'"
+    )
+    .bind(session_id)
+    .execute(&state.db)
+    .await?;
+
+    if rows.rows_affected() == 0 {
+        // Already archived or doesn't exist — 409 Conflict (idempotent)
+        return Ok(StatusCode::CONFLICT);
+    }
+
+    Ok(StatusCode::OK)
 }

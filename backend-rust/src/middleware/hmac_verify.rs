@@ -56,6 +56,7 @@ const EXEMPT_PATHS: &[&str] = &[
     "/api/v1/billing/webhook/crypto",
     "/api/v1/calendar/feed",
     "/v1/environments",
+    "/v1/sessions",
     "/api/v1/code",
     "/api/v1/organizations",
     "/api/v1/chat",

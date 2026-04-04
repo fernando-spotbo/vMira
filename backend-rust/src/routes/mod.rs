@@ -66,6 +66,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/v1", models::models_routes())
         .nest("/api/v1/live", live_data::live_data_routes())
         .nest("/v1/environments", bridge::bridge_routes())
+        .nest("/v1/sessions", bridge::bridge_session_routes())
         .nest("/api/v1/code", code::code_routes())
         .nest("/v1", completions::completions_routes())
         // Default 2MB body limit for all non-upload routes

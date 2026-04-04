@@ -19,6 +19,7 @@ pub mod bridge;
 pub mod code;
 pub mod organizations;
 pub mod projects;
+pub mod quota;
 pub mod sessions;
 pub mod telegram;
 pub mod voice;
@@ -69,6 +70,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/v1/sessions", bridge::bridge_session_routes())
         .nest("/api/v1/code", code::code_routes())
         .nest("/v1", completions::completions_routes())
+        .nest("/v1", quota::quota_routes())
         // Default 2MB body limit for all non-upload routes
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state)

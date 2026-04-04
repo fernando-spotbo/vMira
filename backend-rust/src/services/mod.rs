@@ -1,4 +1,5 @@
 pub mod ai_proxy;
+pub mod plans;
 pub mod audit;
 pub mod billing;
 pub mod moderation;

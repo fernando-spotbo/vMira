@@ -13,7 +13,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use chrono::Utc;
+use chrono::{Datelike, Utc};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
@@ -32,9 +32,11 @@ use crate::services::ai_proxy::{self, ChatMessage};
 use crate::services::audit::{log_api_event, log_security_event};
 use crate::services::billing;
 use crate::services::moderation::{self, block_message};
+use crate::services::plans;
 use crate::services::queue;
 use crate::services::rate_limit;
 use crate::services::sanitize;
+use crate::routes::organizations::verified_org_id;
 use crate::services::usage;
 
 /// Addendum appended to system prompt for Telegram-originated messages.
@@ -124,25 +126,13 @@ fn msg_response_with_attachments(m: &Message, attachments: Vec<crate::models::At
 /// Plan-based daily message limits.
 /// Free plan gets generous limits (GPT approach — fast responses, no hard wall).
 fn plan_limit(plan: &str) -> i64 {
-    match plan {
-        "free" => 1000,
-        "pro" => 5000,
-        "max" | "enterprise" => -1, // unlimited
-        _ => 1000,
-    }
+    plans::get_plan(plan).chat_daily_messages
 }
 
 /// Check if a user's plan meets the minimum required for a model.
 /// Plan hierarchy: free < pro < max < enterprise.
 fn plan_meets_minimum(user_plan: &str, min_plan: &str) -> bool {
-    let rank = |p: &str| match p {
-        "free" => 0,
-        "pro" => 1,
-        "max" => 2,
-        "enterprise" => 3,
-        _ => 0,
-    };
-    rank(user_plan) >= rank(min_plan)
+    plans::plan_rank(user_plan) >= plans::plan_rank(min_plan)
 }
 
 /// Approximate token count by splitting on whitespace (rough heuristic).
@@ -180,7 +170,7 @@ async fn list_conversations(
     let limit = params.limit.min(200);
     let offset = params.offset.max(0);
 
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let conversations = sqlx::query_as::<_, Conversation>(
         "SELECT * FROM conversations
          WHERE organization_id = $1 AND archived = false
@@ -208,7 +198,7 @@ async fn create_conversation(
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
     // Limit total conversations per org to prevent storage abuse
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let conv_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM conversations WHERE organization_id = $1"
     )
@@ -219,12 +209,7 @@ async fn create_conversation(
     let chat_plan_for_limit = crate::services::subscription::check_and_enforce_expiry(
         &state.db, user.id, "chat",
     ).await.unwrap_or_else(|_| "free".to_string());
-    let max_conversations: i64 = match chat_plan_for_limit.as_str() {
-        "free" => 100,
-        "pro" => 1000,
-        "max" | "enterprise" => 10000,
-        _ => 100,
-    };
+    let max_conversations: i64 = plans::get_plan(&chat_plan_for_limit).max_conversations;
 
     if conv_count >= max_conversations {
         return Err(AppError::BadRequest(format!(
@@ -274,7 +259,7 @@ async fn get_conversation(
     Path(conv_id): Path<Uuid>,
     Query(pg): Query<MessagePagination>,
 ) -> Result<Json<ConversationWithMessages>, AppError> {
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let conv = sqlx::query_as::<_, Conversation>(
         "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2"
     )
@@ -368,7 +353,7 @@ async fn update_conversation(
 ) -> Result<Json<ConversationResponse>, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let conv = sqlx::query_as::<_, Conversation>(
         "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2"
     )
@@ -417,7 +402,7 @@ async fn delete_conversation(
     // concurrent message inserts from creating orphaned rows.
     let mut tx = state.db.begin().await?;
 
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let _conv = sqlx::query_as::<_, Conversation>(
         "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2 FOR UPDATE"
     )
@@ -539,6 +524,28 @@ async fn send_message(
         return Err(AppError::RateLimited { retry_after: 5 });
     }
 
+    // Monthly token budget enforcement
+    let monthly_limit = crate::routes::quota::monthly_token_limit(&chat_plan);
+    if monthly_limit > 0 {
+        let month_start = Utc::now()
+            .with_day(1).unwrap()
+            .date_naive()
+            .and_hms_opt(0, 0, 0).unwrap();
+        let monthly_tokens: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(total_tokens), 0) FROM usage_records
+             WHERE user_id = $1 AND created_at >= $2"
+        )
+        .bind(user.id)
+        .bind(month_start)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+
+        if monthly_tokens >= monthly_limit {
+            return Err(AppError::RateLimited { retry_after: 86400 });
+        }
+    }
+
     // Daily message limit based on chat subscription plan
     let limit = plan_limit(&chat_plan);
     let mut is_overage = false;
@@ -610,7 +617,7 @@ async fn send_message(
     }
 
     // Verify conversation ownership (org-scoped)
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let conv = sqlx::query_as::<_, Conversation>(
         "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2"
     )
@@ -1442,6 +1449,26 @@ async fn anonymous_stream(
         .trim()
         .to_string();
 
+    // Rate limit: IP-only limit (prevents device_id rotation bypass)
+    let ip_rate_key = format!("anon:rate:ip:{}", client_ip);
+    let (ip_allowed, _) = rate_limit::check_rate_limit(
+        &state.redis,
+        &ip_rate_key,
+        10,    // max 10 messages per day per IP
+        86400,
+    )
+    .await
+    .map_err(|e| match e {
+        rate_limit::RateLimitError::Exceeded { .. } => {
+            AppError::RateLimited { retry_after: 3600 }
+        }
+        rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
+    })?;
+
+    if !ip_allowed {
+        return Err(AppError::RateLimited { retry_after: 3600 });
+    }
+
     // Rate limit: 5 messages per day by IP + device hash
     let rate_key = {
         use sha2::{Digest, Sha256};
@@ -1452,8 +1479,8 @@ async fn anonymous_stream(
     let (allowed, _remaining) = rate_limit::check_rate_limit(
         &state.redis,
         &rate_key,
-        5,    // max 5 messages per day
-        86400, // 24 hours
+        5,    // max 5 messages per day per device
+        86400,
     )
     .await
     .map_err(|e| match e {

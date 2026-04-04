@@ -15,6 +15,7 @@ use crate::db::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::models::{BridgeEnvironment, BridgeWorkItem};
+use crate::routes::organizations::ensure_member;
 use crate::schema::{
     HeartbeatResponse, RegisterEnvironmentRequest, RegisterEnvironmentResponse, WorkResponse,
 };
@@ -126,6 +127,7 @@ async fn register_environment(
     let org_id = user.active_organization_id.ok_or_else(|| {
         AppError::BadRequest("No active organization — set one before registering".to_string())
     })?;
+    ensure_member(&state, org_id, user.id).await?;
 
     let secret = format!("env-secret-{}", Uuid::new_v4());
     let now = Utc::now();

@@ -117,6 +117,7 @@ pub fn create_refresh_token(
 /// Decode and validate an access token. Returns `None` if invalid or not of type "access".
 pub fn decode_access_token(token: &str, config: &Config) -> Option<Claims> {
     let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
+    validation.algorithms = vec![jsonwebtoken::Algorithm::HS256]; // explicitly reject all other algorithms
     validation.set_required_spec_claims(&["exp", "iat", "sub"]);
 
     let token_data = decode::<Claims>(

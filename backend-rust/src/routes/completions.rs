@@ -40,7 +40,7 @@ use axum::{
     routing::post,
     Json, Router,
 };
-use chrono::Utc;
+use chrono::{Datelike, Utc};
 use futures_util::StreamExt;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -57,6 +57,7 @@ use crate::services::ai_proxy::{self, ChatMessage};
 use crate::services::audit::log_api_event;
 use crate::services::billing;
 use crate::services::moderation;
+use crate::services::plans;
 use crate::services::queue;
 use crate::services::rate_limit;
 use crate::services::sanitize;
@@ -124,10 +125,7 @@ async fn chat_completions(
 
     // Enforce model access by plan
     if let Ok(pricing) = billing::get_pricing(&state.db, &body.model).await {
-        let plan_rank = |p: &str| match p {
-            "free" => 0, "pro" => 1, "max" => 2, "enterprise" => 3, _ => 0,
-        };
-        if plan_rank(effective_plan) < plan_rank(&pricing.min_plan) {
+        if plans::plan_rank(effective_plan) < plans::plan_rank(&pricing.min_plan) {
             return Err(AppError::Forbidden(format!(
                 "Model {} requires {} plan or higher",
                 body.model, pricing.min_plan
@@ -145,6 +143,28 @@ async fn chat_completions(
         ));
     }
 
+    // Monthly token budget enforcement
+    let monthly_limit = crate::routes::quota::monthly_token_limit(effective_plan);
+    if monthly_limit > 0 {
+        let month_start = Utc::now()
+            .with_day(1).unwrap()
+            .date_naive()
+            .and_hms_opt(0, 0, 0).unwrap();
+        let monthly_tokens: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(total_tokens), 0) FROM usage_records
+             WHERE user_id = $1 AND created_at >= $2"
+        )
+        .bind(user.id)
+        .bind(month_start)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+
+        if monthly_tokens >= monthly_limit {
+            return Err(AppError::RateLimited { retry_after: 86400 });
+        }
+    }
+
     // Rate limit user
     rate_limit::rate_limit_user(&state.redis, &user.id.to_string(), &state.config)
         .await
@@ -156,12 +176,7 @@ async fn chat_completions(
         })?;
 
     // Daily message limit — if exceeded but user has balance, allow as paid overage
-    let daily_limit: i64 = match effective_plan.as_str() {
-        "free" => 20,
-        "pro" => 500,
-        "max" | "enterprise" => -1,
-        _ => 20,
-    };
+    let daily_limit: i64 = plans::get_plan(effective_plan).code_daily_messages;
     let mut is_overage = false;
     if daily_limit != -1 {
         let now = chrono::Utc::now();

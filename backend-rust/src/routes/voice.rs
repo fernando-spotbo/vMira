@@ -15,20 +15,68 @@ use serde_json::json;
 use crate::db::AppState;
 use crate::middleware::auth::AuthUser;
 use crate::services::tts;
+use crate::services::whisper;
 
-/// POST /api/v1/voice/transcribe — DEPRECATED
+/// POST /api/v1/voice/transcribe
 ///
-/// STT is now handled client-side via browser SpeechRecognition.
-/// This endpoint returns 410 Gone.
+/// Accepts multipart audio, forwards to local Whisper service.
+/// Required for browsers without SpeechRecognition (iOS Safari).
 async fn transcribe(
-    _state: State<AppState>,
+    State(state): State<AppState>,
     _user: AuthUser,
-    _multipart: Multipart,
+    mut multipart: Multipart,
 ) -> impl IntoResponse {
-    (
-        StatusCode::GONE,
-        Json(json!({"detail": "Server-side transcription removed. Use browser speech recognition."})),
-    )
+    let mut audio_bytes: Option<Vec<u8>> = None;
+    let mut filename = "audio.webm".to_string();
+    let mut content_type = "audio/webm".to_string();
+    let mut language_hint: Option<String> = None;
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "audio" => {
+                if let Some(ct) = field.content_type() {
+                    content_type = ct.to_string();
+                }
+                if let Some(fname) = field.file_name() {
+                    filename = fname.to_string();
+                }
+                match field.bytes().await {
+                    Ok(bytes) => audio_bytes = Some(bytes.to_vec()),
+                    Err(e) => {
+                        return (StatusCode::BAD_REQUEST, Json(json!({"detail": format!("Failed to read audio: {e}")}))).into_response();
+                    }
+                }
+            }
+            "language" => {
+                if let Ok(text) = field.text().await {
+                    language_hint = Some(text);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let audio = match audio_bytes {
+        Some(b) if b.len() > 500 => b,
+        _ => {
+            return (StatusCode::BAD_REQUEST, Json(json!({"detail": "No audio data provided"}))).into_response();
+        }
+    };
+
+    match whisper::transcribe(&state.config, audio, filename, content_type, language_hint).await {
+        Ok(result) => {
+            Json(json!({
+                "text": result.text,
+                "language": result.language,
+                "duration": result.duration,
+            })).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Whisper transcription failed: {e}");
+            (StatusCode::BAD_GATEWAY, Json(json!({"detail": "Transcription service unavailable"}))).into_response()
+        }
+    }
 }
 
 // ── TTS ──────────────────────────────────────────────────────────────────────

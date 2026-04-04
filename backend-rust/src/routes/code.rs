@@ -19,6 +19,7 @@ use crate::db::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::models::{BridgeEnvironment, BridgeMessage};
+use crate::routes::organizations::ensure_member;
 use crate::schema::{
     BridgeMessageRequest, BridgeMessageResponse, BridgeSessionResponse,
     BridgeSessionWithMessages,
@@ -108,6 +109,9 @@ async fn list_sessions(
         None => return Ok(Json(vec![])),
     };
 
+    // Verify the user is a member of this organization
+    ensure_member(&state, org_id, user.id).await?;
+
     // Mark stale environments as offline (heartbeat missed > 60s).
     sqlx::query(
         "UPDATE bridge_environments
@@ -160,6 +164,7 @@ async fn get_session(
     let org_id = user.active_organization_id.ok_or_else(|| {
         AppError::BadRequest("No active organization".to_string())
     })?;
+    ensure_member(&state, org_id, user.id).await?;
 
     let env = ensure_org_env(&state, id, org_id).await?;
 
@@ -221,6 +226,7 @@ async fn send_message(
     let org_id = user.active_organization_id.ok_or_else(|| {
         AppError::BadRequest("No active organization".to_string())
     })?;
+    ensure_member(&state, org_id, user.id).await?;
 
     let env = ensure_org_env(&state, id, org_id).await?;
 
@@ -256,9 +262,16 @@ async fn send_message(
 
 async fn get_pending_prompts(
     State(state): State<AppState>,
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    // Verify the caller owns this environment via org membership
+    let org_id = user.active_organization_id.ok_or_else(|| {
+        AppError::BadRequest("No active organization".to_string())
+    })?;
+    ensure_member(&state, org_id, user.id).await?;
+    ensure_org_env(&state, id, org_id).await?;
+
     // Get pending prompts and mark them as claimed atomically
     let items = sqlx::query_as::<_, crate::models::BridgeWorkItem>(
         "UPDATE bridge_work_queue
@@ -301,6 +314,7 @@ async fn disconnect_session(
     let org_id = user.active_organization_id.ok_or_else(|| {
         AppError::BadRequest("No active organization".to_string())
     })?;
+    ensure_member(&state, org_id, user.id).await?;
 
     ensure_org_env(&state, id, org_id).await?;
 

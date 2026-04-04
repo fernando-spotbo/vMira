@@ -14,6 +14,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use once_cell::sync::OnceCell;
 
 use crate::config::Config;
+use crate::services::plans;
 use crate::services::search;
 
 /// Cached local model ID — fetched once from /v1/models on the local server.
@@ -55,20 +56,16 @@ Never output raw XML, function calls, or internal syntax in your replies.";
 
 /// Voice mode — keep responses short for TTS.
 pub const MIRA_VOICE_PROMPT: &str = "\
-Voice mode. Reply in 1-2 sentences max. No markdown.";
+Voice mode. Reply in 1-2 sentences max. No markdown.\n\
+Messages include a [Voice call · M:SS] tag showing session duration. \
+Use it naturally if relevant, and stay concise especially in longer calls.";
 
 const MAX_RETRIES: u32 = 2;
 const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
 /// Search results limit per plan.
 pub fn search_results_for_plan(plan: &str) -> usize {
-    match plan {
-        "free" => 4,
-        "pro" => 10,
-        "max" => 20,
-        "enterprise" => 20,
-        _ => 4,
-    }
+    plans::get_plan(plan).search_results
 }
 
 // ── Event types ─────────────────────────────────────────────────────────────

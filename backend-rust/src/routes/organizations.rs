@@ -56,7 +56,7 @@ fn org_response(org: &Organization, member_count: i64) -> OrganizationResponse {
 }
 
 /// Verify that the user is a member of the organization.
-async fn ensure_member(state: &AppState, org_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+pub async fn ensure_member(state: &AppState, org_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
     let is_member: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2)",
     )
@@ -71,6 +71,21 @@ async fn ensure_member(state: &AppState, org_id: Uuid, user_id: Uuid) -> Result<
         ));
     }
     Ok(())
+}
+
+/// Resolve the user's active organization and verify membership.
+/// Falls back to user.id for personal context (no active org set).
+pub async fn verified_org_id(
+    state: &AppState,
+    user: &crate::models::User,
+) -> Result<Uuid, AppError> {
+    match user.active_organization_id {
+        Some(org_id) => {
+            ensure_member(state, org_id, user.id).await?;
+            Ok(org_id)
+        }
+        None => Ok(user.id),
+    }
 }
 
 /// Verify that the user is an owner or admin of the organization.

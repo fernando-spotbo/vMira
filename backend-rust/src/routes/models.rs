@@ -27,7 +27,49 @@ struct ModelsResponse {
 }
 
 pub fn models_routes() -> Router<AppState> {
-    Router::new().route("/models", get(list_models))
+    Router::new()
+        .route("/models", get(list_models))
+        .route("/plans", get(list_plans))
+}
+
+/// GET /plans — returns all plan configs for frontend pricing pages
+async fn list_plans() -> Json<serde_json::Value> {
+    let plans: Vec<_> = crate::services::plans::all_plans()
+        .into_iter()
+        .map(|p| serde_json::json!({
+            "name": p.name,
+            "display_name": p.display_name,
+            "rank": p.rank,
+            "chat_daily_messages": p.chat_daily_messages,
+            "code_daily_messages": p.code_daily_messages,
+            "max_conversations": p.max_conversations,
+            "monthly_token_limit": p.monthly_token_limit,
+            "search_results": p.search_results,
+            "max_response_tokens": p.max_response_tokens,
+            "context_window": p.context_window,
+            "chat_price_kopecks": p.chat_price_kopecks,
+            "code_price_kopecks": p.code_price_kopecks,
+            "chat_price_display": p.chat_price_display,
+            "code_price_display": p.code_price_display,
+            "chat_messages_display": p.chat_messages_display,
+            "code_messages_display": p.code_messages_display,
+            "api_input_price_per_1k": p.api_input_price_per_1k,
+            "api_output_price_per_1k": p.api_output_price_per_1k,
+            "api_thinking_surcharge_pct": p.api_thinking_surcharge_pct,
+            "features": {
+                "voice": p.has_voice,
+                "search": p.has_search,
+                "reminders": p.has_reminders,
+                "calendar": p.has_calendar,
+                "projects": p.has_projects,
+                "remote_control": p.has_remote_control,
+                "organizations": p.has_organizations,
+            },
+            "max_file_upload_mb": p.max_file_upload_mb,
+            "max_org_members": p.max_org_members,
+        }))
+        .collect();
+    Json(serde_json::json!({ "plans": plans }))
 }
 
 async fn list_models() -> Json<ModelsResponse> {

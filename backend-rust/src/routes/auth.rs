@@ -22,6 +22,7 @@ use crate::schema::{
     TelegramAuthRequest, TokenResponse, UpdateUserRequest, UserResponse,
 };
 use crate::services::audit::{log_auth_event, log_security_event};
+use crate::services::plans;
 use crate::services::rate_limit;
 use crate::services::token::{
     create_access_token, create_refresh_token, generate_token, hash_password, hash_token,
@@ -628,18 +629,20 @@ async fn yandex_auth(
             None
         };
 
-        if let Some(u) = by_email {
-            // Link Yandex to existing email account
-            sqlx::query("UPDATE users SET yandex_id = $1, avatar_url = COALESCE($2, avatar_url), updated_at = NOW() WHERE id = $3")
-                .bind(&yandex_id)
-                .bind(&avatar_url)
-                .bind(u.id)
-                .execute(&state.db)
-                .await?;
-            sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-                .bind(u.id)
-                .fetch_one(&state.db)
-                .await?
+        if let Some(_existing) = by_email {
+            // SECURITY: Do NOT auto-link OAuth accounts by email.
+            // An attacker who controls a Yandex account with the victim's email
+            // could take over the victim's Vmira account.
+            // The user must log in with their existing credentials first,
+            // then link Yandex from account settings.
+            log_security_event(
+                "oauth_email_collision",
+                None,
+                Some(&format!("yandex_id={yandex_id} email={}", email.as_deref().unwrap_or("?"))),
+            );
+            return Err(AppError::Conflict(
+                "An account with this email already exists. Log in with your email first, then link Yandex from settings.".to_string(),
+            ));
         } else {
             // Create new user
             let user_id = Uuid::new_v4();
@@ -1306,12 +1309,7 @@ async fn me_usage(
     let monthly = usage::get_user_usage_month(&state.db, user.id).await?;
 
     // Plan-based quota info
-    let daily_limit: i64 = match user.plan.as_str() {
-        "free" => 20,
-        "pro" => 500,
-        "max" | "enterprise" => -1,
-        _ => 20,
-    };
+    let daily_limit: i64 = plans::get_plan(&user.plan).code_daily_messages;
 
     let remaining = if daily_limit == -1 {
         -1 // unlimited

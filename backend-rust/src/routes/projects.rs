@@ -19,6 +19,7 @@ use crate::db::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
 use crate::models::{Project, ProjectFile};
+use crate::routes::organizations::verified_org_id;
 use crate::schema::{ProjectCreate, ProjectFileResponse, ProjectResponse, ProjectUpdate};
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -101,7 +102,7 @@ async fn list_projects(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
 ) -> Result<Json<Vec<ProjectResponse>>, AppError> {
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let projects = sqlx::query_as::<_, Project>(
         "SELECT * FROM projects WHERE organization_id = $1 ORDER BY sort_order ASC, created_at ASC"
     )
@@ -124,7 +125,7 @@ async fn create_project(
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
     // Limit projects per org
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM projects WHERE organization_id = $1"
     )
@@ -173,7 +174,7 @@ async fn get_project(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<Json<ProjectResponse>, AppError> {
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let project = sqlx::query_as::<_, Project>(
         "SELECT * FROM projects WHERE id = $1 AND organization_id = $2"
     )
@@ -198,7 +199,7 @@ async fn update_project(
 ) -> Result<Json<ProjectResponse>, AppError> {
     body.validate().map_err(|e| AppError::Unprocessable(e.to_string()))?;
 
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let project = sqlx::query_as::<_, Project>(
         "SELECT * FROM projects WHERE id = $1 AND organization_id = $2"
     )
@@ -244,7 +245,7 @@ async fn delete_project(
     Path(project_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     // Verify ownership (org-scoped)
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let exists = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1 AND organization_id = $2)"
     )
@@ -276,7 +277,7 @@ async fn list_project_files(
     Path(project_id): Path<Uuid>,
 ) -> Result<Json<Vec<ProjectFileResponse>>, AppError> {
     // Verify project ownership (org-scoped)
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let _project = sqlx::query_as::<_, Project>(
         "SELECT * FROM projects WHERE id = $1 AND organization_id = $2"
     )
@@ -307,7 +308,7 @@ async fn upload_project_file(
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
     // Verify project ownership (org-scoped)
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let _project = sqlx::query_as::<_, Project>(
         "SELECT * FROM projects WHERE id = $1 AND organization_id = $2"
     )
@@ -460,7 +461,7 @@ async fn delete_project_file(
     Path((project_id, file_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
     // Verify project ownership (org-scoped)
-    let org_id = user.active_organization_id.unwrap_or(user.id);
+    let org_id = verified_org_id(&state, &user).await?;
     let _project = sqlx::query_as::<_, Project>(
         "SELECT * FROM projects WHERE id = $1 AND organization_id = $2"
     )

@@ -506,6 +506,7 @@ struct OAuthCallbackQuery {
 
 async fn provider_callback(
     State(state): State<AppState>,
+    AuthUser(caller): AuthUser,
     Path(provider): Path<String>,
     Query(q): Query<OAuthCallbackQuery>,
 ) -> Result<Response, AppError> {
@@ -535,6 +536,15 @@ async fn provider_callback(
         .ok_or_else(|| AppError::BadRequest("Invalid or expired state".into()))?
         .parse()
         .map_err(|_| AppError::BadRequest("Invalid state".into()))?;
+
+    // SECURITY: Verify the authenticated user matches the one who initiated the flow.
+    // Prevents CSRF attacks where an attacker tricks a victim into authorizing
+    // their calendar under the attacker's account.
+    if caller.id != user_id {
+        return Err(AppError::Forbidden(
+            "OAuth session mismatch — please retry calendar linking".to_string(),
+        ));
+    }
 
     // Exchange code for tokens
     let redirect_uri = format!("https://vmira.ai/api/calendar/{}/callback", provider);

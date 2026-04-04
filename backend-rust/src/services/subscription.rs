@@ -9,14 +9,30 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppError;
+use crate::services::plans;
 
 /// Subscription prices in kopecks.
 pub fn subscription_price(product: &str, plan: &str) -> Result<i64, AppError> {
-    match (product, plan) {
-        ("chat", "pro") => Ok(19900),   // 199 RUB
-        ("chat", "max") => Ok(99000),   // 990 RUB
-        ("code", "pro") => Ok(49900),   // 499 RUB
-        ("code", "max") => Ok(99000),   // 990 RUB
+    let cfg = plans::get_plan(plan);
+    match product {
+        "chat" => {
+            if cfg.chat_price_kopecks > 0 {
+                Ok(cfg.chat_price_kopecks)
+            } else {
+                Err(AppError::BadRequest(format!(
+                    "Invalid subscription: product={product}, plan={plan}"
+                )))
+            }
+        }
+        "code" => {
+            if cfg.code_price_kopecks > 0 {
+                Ok(cfg.code_price_kopecks)
+            } else {
+                Err(AppError::BadRequest(format!(
+                    "Invalid subscription: product={product}, plan={plan}"
+                )))
+            }
+        }
         _ => Err(AppError::BadRequest(format!(
             "Invalid subscription: product={product}, plan={plan}"
         ))),

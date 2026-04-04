@@ -100,8 +100,11 @@ async fn chat_completions(
         }
     }
 
-    // Pre-check: paid plan users must have a positive balance
-    if effective_plan != "free" && user.balance_kopecks <= 0 {
+    // Pre-check: require balance only for pay-per-use (no active subscription).
+    // Users with an active code_plan subscription don't need balance.
+    let has_active_subscription = user.code_plan != "free"
+        && user.code_plan_expires_at.map_or(false, |exp| exp > Utc::now());
+    if !has_active_subscription && effective_plan != "free" && user.balance_kopecks <= 0 {
         return Err(AppError::PaymentRequired(
             "Insufficient balance. Please top up your account.".to_string(),
         ));

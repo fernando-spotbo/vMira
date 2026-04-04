@@ -1308,6 +1308,16 @@ async fn send_message(
                 .bind(conversation_id)
                 .execute(&state_clone.db)
                 .await;
+
+            // Clear extracted_content — it was only needed for the AI request.
+            // No point storing extracted text after the model has processed it.
+            let _ = sqlx::query(
+                "UPDATE attachments SET extracted_content = NULL \
+                 WHERE conversation_id = $1 AND extracted_content IS NOT NULL"
+            )
+            .bind(conversation_id)
+            .execute(&state_clone.db)
+            .await;
         }
     };
 

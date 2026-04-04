@@ -23,6 +23,89 @@ pub async fn run_reminder_scheduler(state: AppState) {
     }
 }
 
+/// Daily cleanup — deletes old data to keep storage bounded.
+/// Runs every 6 hours, checks if cleanup is needed.
+pub async fn run_cleanup_scheduler(db: PgPool) {
+    tracing::info!("Cleanup scheduler started (6h interval)");
+    let mut interval = tokio::time::interval(Duration::from_secs(6 * 3600));
+
+    loop {
+        interval.tick().await;
+        if let Err(e) = run_cleanup(&db).await {
+            tracing::error!(error = %e, "Cleanup scheduler error");
+        }
+    }
+}
+
+async fn run_cleanup(db: &PgPool) -> Result<(), sqlx::Error> {
+    // 1. Delete conversations older than 90 days for free users (and their messages/attachments)
+    let deleted_convs = sqlx::query_scalar::<_, i64>(
+        "WITH old_convs AS (
+            DELETE FROM conversations
+            WHERE updated_at < NOW() - INTERVAL '90 days'
+              AND user_id IN (SELECT id FROM users WHERE chat_plan = 'free' AND plan = 'free')
+            RETURNING id
+        )
+        SELECT COUNT(*) FROM old_convs"
+    )
+    .fetch_one(db)
+    .await?;
+
+    if deleted_convs > 0 {
+        tracing::info!(deleted = deleted_convs, "Cleaned up old conversations (90-day TTL for free users)");
+    }
+
+    // 2. Clear any lingering extracted_content (should be NULL after AI processes it,
+    //    but clean up stragglers older than 1 day as a safety net)
+    let cleared = sqlx::query_scalar::<_, i64>(
+        "WITH cleared AS (
+            UPDATE attachments SET extracted_content = NULL
+            WHERE extracted_content IS NOT NULL AND created_at < NOW() - INTERVAL '1 day'
+            RETURNING id
+        )
+        SELECT COUNT(*) FROM cleared"
+    )
+    .fetch_one(db)
+    .await?;
+
+    if cleared > 0 {
+        tracing::info!(cleared = cleared, "Cleared stale extracted_content from attachments");
+    }
+
+    // 3. Delete orphaned attachments (no message_id, older than 1 day — upload started but never sent)
+    let orphans = sqlx::query_scalar::<_, i64>(
+        "WITH orphans AS (
+            DELETE FROM attachments
+            WHERE message_id IS NULL AND created_at < NOW() - INTERVAL '1 day'
+            RETURNING id
+        )
+        SELECT COUNT(*) FROM orphans"
+    )
+    .fetch_one(db)
+    .await?;
+
+    if orphans > 0 {
+        tracing::info!(deleted = orphans, "Cleaned up orphaned attachments");
+    }
+
+    // 4. Delete expired refresh tokens
+    let expired_tokens = sqlx::query_scalar::<_, i64>(
+        "WITH expired AS (
+            DELETE FROM refresh_tokens WHERE expires_at < NOW()
+            RETURNING id
+        )
+        SELECT COUNT(*) FROM expired"
+    )
+    .fetch_one(db)
+    .await?;
+
+    if expired_tokens > 0 {
+        tracing::info!(deleted = expired_tokens, "Cleaned up expired refresh tokens");
+    }
+
+    Ok(())
+}
+
 async fn process_due_reminders(state: &AppState) -> Result<(), sqlx::Error> {
     // Atomically fetch + mark as fired using SKIP LOCKED to avoid double-fire
     let due = sqlx::query_as::<_, Reminder>(

@@ -69,6 +69,12 @@ async fn main() {
         services::scheduler::run_reminder_scheduler(scheduler_state).await;
     });
 
+    // Spawn cleanup scheduler (old conversations, orphaned attachments, expired tokens)
+    let cleanup_db = state.db.clone();
+    tokio::spawn(async move {
+        services::scheduler::run_cleanup_scheduler(cleanup_db).await;
+    });
+
     let app = build_router(state);
 
     // Bind to all interfaces but protect with UFW (only Docker + localhost can reach 8000)

@@ -842,7 +842,7 @@ pub fn stream_ai_response(
     // Regular chat: no system prompt — model responds naturally.
     // Only inject context (datetime, project instructions, tool hints) when needed.
     let project_context = match &project_instructions {
-        Some(instr) if !instr.is_empty() => format!("\n\n--- Project Instructions ---\n{}", instr),
+        Some(ctx) if !ctx.is_empty() => format!("\n\n--- Project Context ---\n{}", ctx),
         _ => String::new(),
     };
     let mut full_messages: Vec<serde_json::Value> = Vec::new();

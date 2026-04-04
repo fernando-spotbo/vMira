@@ -998,23 +998,27 @@ async fn send_message(
         .flatten();
 
         // Fetch full project context if conversation belongs to a project:
-        // 1. Project instructions
+        // 1. Project name + instructions
         // 2. Project file contents (text/PDF extracted text)
         // 3. Sibling conversation summaries (titles + last assistant message)
         let project_instructions = if let Some(pid) = conv_project_id {
             let mut parts: Vec<String> = Vec::new();
 
-            // 1. Project instructions
-            if let Ok(Some(Some(instr))) = sqlx::query_scalar::<_, Option<String>>(
-                "SELECT instructions FROM projects WHERE id = $1"
+            // 1. Project name + instructions
+            if let Ok(Some(project)) = sqlx::query_as::<_, crate::models::Project>(
+                "SELECT * FROM projects WHERE id = $1"
             )
             .bind(pid)
             .fetch_optional(&state_clone.db)
             .await
             {
-                if !instr.is_empty() {
-                    parts.push(instr);
+                let mut header = format!("You are working within the project \"{}\".", project.name);
+                if let Some(ref instr) = project.instructions {
+                    if !instr.is_empty() {
+                        header.push_str(&format!("\n\nProject Instructions:\n{}", instr));
+                    }
                 }
+                parts.push(header);
             }
 
             // 2. Project files — read content from disk (text files only, cap at 8KB total)

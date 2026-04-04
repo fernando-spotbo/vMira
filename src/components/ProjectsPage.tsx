@@ -559,20 +559,19 @@ function ProjectDetail({
                       ref={instructionsRef}
                       value={instructions}
                       onChange={(e) => setInstructions(e.target.value)}
-                      onBlur={handleInstructionsSave}
                       onKeyDown={(e) => {
                         if (e.key === "Escape") handleInstructionsSave();
                       }}
                       placeholder="Add instructions to tailor Mira's responses for this project..."
                       rows={4}
-                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[13px] text-white placeholder-white/20 leading-relaxed resize-none focus:outline-none focus:border-white/[0.15] transition-colors"
+                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[16px] text-white placeholder-white/20 leading-relaxed resize-none focus:outline-none focus:border-white/[0.15] transition-colors"
                     />
-                    <div className="flex justify-end mt-2">
+                    <div className="flex justify-end mt-3">
                       <button
                         onClick={handleInstructionsSave}
-                        className="text-[12px] text-white/40 hover:text-white/70 transition-colors"
+                        className="rounded-full bg-white px-5 py-2 text-[14px] font-medium text-[#1a1a1a] hover:bg-white/90 transition-colors"
                       >
-                        Done
+                        Save
                       </button>
                     </div>
                   </div>
@@ -594,7 +593,9 @@ function ProjectDetail({
               {/* Files */}
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
                 <div className="flex items-center justify-between px-4 py-3.5">
-                  <h3 className="text-[15px] font-medium text-white">Files</h3>
+                  <h3 className="text-[15px] font-medium text-white">
+                    Files{files.length > 0 && <span className="text-white/30 font-normal ml-1.5">({files.length})</span>}
+                  </h3>
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
@@ -614,12 +615,13 @@ function ProjectDetail({
                 />
 
                 <div className="px-4 pb-4">
-                  {files.length > 0 ? (
-                    <div className="space-y-1.5">
+                  {/* File list */}
+                  {files.length > 0 && (
+                    <div className="space-y-1.5 mb-3">
                       {files.map((file) => (
                         <div
                           key={file.id}
-                          className="group/file flex items-center gap-2.5 rounded-lg px-3 py-2.5 bg-white/[0.02] border border-white/[0.04]"
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 bg-white/[0.02] border border-white/[0.04]"
                         >
                           <FileText size={14} strokeWidth={1.8} className="text-white/25 shrink-0" />
                           <div className="flex-1 min-w-0">
@@ -628,30 +630,40 @@ function ProjectDetail({
                           </div>
                           <button
                             onClick={() => handleFileDelete(file.id)}
-                            className="shrink-0 opacity-0 group-hover/file:opacity-100 flex h-6 w-6 items-center justify-center rounded text-white/20 hover:text-red-400 transition-all"
+                            className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg text-white/20 hover:text-red-400/70 hover:bg-white/[0.04] transition-colors"
                           >
-                            <X size={12} />
+                            <X size={14} />
                           </button>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div
-                      className="rounded-xl border border-dashed border-white/[0.06] bg-white/[0.01] flex flex-col items-center justify-center py-8 px-4 cursor-pointer hover:border-white/[0.1] hover:bg-white/[0.02] transition-colors"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <FileUp size={20} strokeWidth={1.4} className="text-white/15 mb-2.5" />
-                      <p className="text-[13px] text-white/25 text-center leading-relaxed">
-                        Add PDFs, documents, or text files to reference in this project.
-                      </p>
-                    </div>
                   )}
 
-                  {uploading && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="h-4 w-4 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
-                      <span className="text-[12px] text-white/30">Uploading...</span>
-                    </div>
+                  {/* Upload area — always visible */}
+                  <div
+                    className="rounded-xl border border-dashed border-white/[0.06] bg-white/[0.01] flex flex-col items-center justify-center py-6 px-4 cursor-pointer hover:border-white/[0.12] hover:bg-white/[0.02] transition-colors"
+                    onClick={() => !uploading && fileInputRef.current?.click()}
+                  >
+                    {uploading ? (
+                      <>
+                        <div className="h-5 w-5 rounded-full border-2 border-white/[0.08] border-t-white/50 animate-spin mb-2" />
+                        <p className="text-[13px] text-white/30">Uploading...</p>
+                      </>
+                    ) : (
+                      <>
+                        <FileUp size={18} strokeWidth={1.4} className="text-white/15 mb-2" />
+                        <p className="text-[13px] text-white/25 text-center">
+                          {files.length > 0 ? "Add more files" : "Add files to reference in this project"}
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Storage indicator */}
+                  {files.length > 0 && (
+                    <p className="text-[11px] text-white/15 mt-2.5 text-center">
+                      {formatFileSize(files.reduce((sum, f) => sum + f.sizeBytes, 0))} of 50 MB used
+                    </p>
                   )}
                 </div>
               </div>

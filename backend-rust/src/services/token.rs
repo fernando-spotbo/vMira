@@ -81,12 +81,7 @@ pub fn generate_token() -> String {
     URL_SAFE_NO_PAD.encode(buf)
 }
 
-/// Generate an API key in the format `sk-mira-{random_base64url_32bytes}`.
-pub fn generate_api_key() -> String {
-    let mut buf = [0u8; 32];
-    OsRng.fill_bytes(&mut buf);
-    format!("sk-mira-{}", URL_SAFE_NO_PAD.encode(buf))
-}
+// API key generation consolidated in crate::models::api_key::generate_api_key()
 
 // ── JWT access tokens ───────────────────────────────────────────────────────
 

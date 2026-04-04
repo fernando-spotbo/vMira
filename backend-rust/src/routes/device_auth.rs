@@ -8,13 +8,15 @@
 //! Device codes are stored in Redis with a 10-minute TTL.
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::http::HeaderMap;
 use rand::Rng;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 
 use crate::db::AppState;
 use crate::error::AppError;
-use crate::services::token::{create_access_token, create_refresh_token, hash_token};
+use crate::services::rate_limit;
+use crate::services::token::hash_token;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Router
@@ -103,7 +105,22 @@ const DEVICE_CODE_TTL_SECONDS: u64 = 600; // 10 minutes
 
 async fn request_device_code(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<DeviceCodeResponse>, AppError> {
+    // I1 FIX: Rate limit device code requests by IP
+    let client_ip = headers.get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.rsplit(',').next())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    rate_limit::rate_limit_login(&state.redis, &format!("device:{client_ip}"))
+        .await
+        .map_err(|e| match e {
+            rate_limit::RateLimitError::Exceeded { retry_after_seconds } =>
+                AppError::RateLimited { retry_after: retry_after_seconds as u32 },
+            rate_limit::RateLimitError::Redis(msg) => AppError::Internal(msg),
+        })?;
+
     let device_code = generate_device_code();
     let user_code = generate_user_code();
 
@@ -153,7 +170,18 @@ async fn poll_device_token(
     let mut conn = state.redis.get_multiplexed_async_connection().await
         .map_err(|e| AppError::Internal(format!("Redis error: {e}")))?;
 
-    let value: Option<String> = redis::cmd("GET")
+    // Validate device_code format (40 hex chars)
+    if body.device_code.len() != 40 || !body.device_code.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(Json(DeviceTokenResponse {
+            status: "expired".to_string(),
+            access_token: None,
+            token_type: None,
+            expires_in: None,
+        }));
+    }
+
+    // C1 FIX: Use GETDEL atomically to prevent TOCTOU race (duplicate API key creation)
+    let value: Option<String> = redis::cmd("GETDEL")
         .arg(device_code_key(&body.device_code))
         .query_async(&mut conn)
         .await
@@ -170,6 +198,16 @@ async fn poll_device_token(
             }))
         }
         Some(val) if val.starts_with("pending:") => {
+            // Not yet approved — put the value back (GETDEL consumed it)
+            let _: () = redis::cmd("SET")
+                .arg(device_code_key(&body.device_code))
+                .arg(&val)
+                .arg("EX")
+                .arg(DEVICE_CODE_TTL_SECONDS)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(());
+
             Ok(Json(DeviceTokenResponse {
                 status: "pending".to_string(),
                 access_token: None,
@@ -179,31 +217,21 @@ async fn poll_device_token(
         }
         Some(val) if val.starts_with("approved:") => {
             // Format: "approved:{user_id}"
+            // GETDEL already consumed the key — no concurrent poll can reach this branch
             let user_id_str = val.strip_prefix("approved:").unwrap_or("");
             let user_id: uuid::Uuid = user_id_str.parse()
                 .map_err(|_| AppError::Internal("Invalid user_id in device auth".to_string()))?;
 
-            // Create refresh token and store in DB
-            let (raw_refresh, token_hash, expires_at) = create_refresh_token(&user_id, &state.config);
+            // C2 FIX: Use transaction and propagate errors (no silent `let _ =`)
+            let mut tx = state.db.begin().await?;
 
-            let _ = sqlx::query(
-                "INSERT INTO refresh_tokens (id, user_id, token_hash, user_agent, expires_at) VALUES ($1, $2, $3, $4, $5)"
-            )
-            .bind(uuid::Uuid::new_v4())
-            .bind(user_id)
-            .bind(&token_hash)
-            .bind("mira-code-cli")
-            .bind(expires_at)
-            .execute(&state.db)
-            .await;
-
-            // Create API key for CLI
+            // Create API key for CLI (I6 FIX: removed orphaned refresh token creation)
             let api_key = crate::models::api_key::generate_api_key();
             let key_hash = hash_token(&api_key, &state.config.secret_key);
             let key_prefix = &api_key[..16.min(api_key.len())];
             let key_name = format!("mira-cli-{}", chrono::Utc::now().format("%Y-%m-%d"));
 
-            let _ = sqlx::query(
+            sqlx::query(
                 "INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, is_active) VALUES ($1, $2, $3, $4, $5, true)"
             )
             .bind(uuid::Uuid::new_v4())
@@ -211,21 +239,17 @@ async fn poll_device_token(
             .bind(&key_name)
             .bind(&key_hash)
             .bind(key_prefix)
-            .execute(&state.db)
-            .await;
+            .execute(&mut *tx)
+            .await?;
 
-            // Clean up Redis
-            let _: () = redis::cmd("DEL")
-                .arg(device_code_key(&body.device_code))
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(());
+            tx.commit().await?;
 
+            // I5 FIX: expires_in is None (API keys do not expire)
             Ok(Json(DeviceTokenResponse {
                 status: "approved".to_string(),
-                access_token: Some(api_key), // Return the API key, not JWT
+                access_token: Some(api_key),
                 token_type: Some("bearer".to_string()),
-                expires_in: Some(state.config.access_token_expire_minutes * 60),
+                expires_in: None,
             }))
         }
         _ => {
@@ -248,7 +272,7 @@ async fn approve_device_code(
     crate::middleware::auth::AuthUser(user): crate::middleware::auth::AuthUser,
     Json(body): Json<ApproveRequest>,
 ) -> Result<Json<ApproveResponse>, AppError> {
-    let normalized_code = body.user_code.to_uppercase().replace('-', "");
+    // user_code_key() handles normalization internally
 
     let mut conn = state.redis.get_multiplexed_async_connection().await
         .map_err(|e| AppError::Internal(format!("Redis error: {e}")))?;

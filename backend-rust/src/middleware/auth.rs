@@ -88,6 +88,15 @@ where
                     if !user.is_active {
                         return Err(AppError::Unauthorized("Account disabled".to_string()));
                     }
+
+                    // I3 FIX: Check token revocation for API key users too
+                    let revoked = token_revocation::is_user_revoked(
+                        &app_state.redis, &user.id.to_string()
+                    ).await.unwrap_or(true);
+                    if revoked {
+                        return Err(AppError::Unauthorized("Session revoked".to_string()));
+                    }
+
                     return Ok(AuthUser(user));
                 }
                 return Err(AppError::Unauthorized("Invalid token".to_string()));

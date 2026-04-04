@@ -728,6 +728,39 @@ async fn chat_completions(
             }
         }
 
+        // ── Bridge sync (non-streaming path) ──
+        if !full_content.is_empty() {
+            let bridge_env = sqlx::query_scalar::<_, uuid::Uuid>(
+                "SELECT id FROM bridge_environments WHERE user_id = $1 AND status = 'connected' LIMIT 1"
+            )
+            .bind(user.id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+
+            if let Some(env_id) = bridge_env {
+                if let Some(last_user) = history.iter().rev().find(|m| m.role == "user") {
+                    let _ = sqlx::query(
+                        "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'user', $2, $3)"
+                    )
+                    .bind(env_id)
+                    .bind(&last_user.content)
+                    .bind(Utc::now() - chrono::Duration::milliseconds(100))
+                    .execute(&state.db)
+                    .await;
+                }
+                let _ = sqlx::query(
+                    "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'assistant', $2, $3)"
+                )
+                .bind(env_id)
+                .bind(&full_content)
+                .bind(Utc::now())
+                .execute(&state.db)
+                .await;
+            }
+        }
+
         let response = ChatCompletionResponse::new(
             request_id,
             Utc::now().timestamp(),

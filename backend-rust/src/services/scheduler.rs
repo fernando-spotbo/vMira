@@ -133,9 +133,39 @@ async fn run_cleanup(db: &PgPool) -> Result<(), sqlx::Error> {
         tracing::info!(deleted = old_notifs, "Cleaned up old notifications (90-day TTL)");
     }
 
-    // 7. VACUUM ANALYZE high-churn tables (reclaims dead rows, updates planner stats)
+    // 7. Clean up files from idle projects (no conversation activity in 90 days, free users only)
+    // Fetch file paths first so we can delete from disk, then remove DB records.
+    let idle_files: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT pf.id, pf.storage_path FROM project_files pf
+         JOIN projects p ON p.id = pf.project_id
+         JOIN users u ON u.id = p.user_id
+         WHERE u.chat_plan = 'free' AND u.plan = 'free'
+           AND p.updated_at < NOW() - INTERVAL '90 days'
+           AND NOT EXISTS (
+               SELECT 1 FROM conversations c
+               WHERE c.project_id = p.id AND c.updated_at > NOW() - INTERVAL '90 days'
+           )"
+    )
+    .fetch_all(db)
+    .await?;
+
+    if !idle_files.is_empty() {
+        let file_count = idle_files.len();
+        for (file_id, storage_path) in &idle_files {
+            // Remove from disk (best-effort)
+            let _ = tokio::fs::remove_file(storage_path).await;
+            // Remove DB record
+            let _ = sqlx::query("DELETE FROM project_files WHERE id = $1")
+                .bind(file_id)
+                .execute(db)
+                .await;
+        }
+        tracing::info!(deleted = file_count, "Cleaned up project files from idle projects (90-day TTL)");
+    }
+
+    // 8. VACUUM ANALYZE high-churn tables (reclaims dead rows, updates planner stats)
     // Safe to run concurrently — VACUUM without FULL doesn't lock the table.
-    for table in &["messages", "usage_records", "refresh_tokens", "attachments", "notifications"] {
+    for table in &["messages", "usage_records", "refresh_tokens", "attachments", "notifications", "project_files"] {
         let _ = sqlx::query(&format!("VACUUM ANALYZE {}", table))
             .execute(db)
             .await;

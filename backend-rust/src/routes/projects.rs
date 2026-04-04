@@ -30,6 +30,9 @@ const PROJECT_FILE_ALLOWED_MIMES: &[&str] = &[
     "text/plain",
 ];
 
+/// Maximum total file storage per project (50 MB)
+const MAX_PROJECT_STORAGE_BYTES: i64 = 50 * 1024 * 1024;
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Router
 // ═══════════════════════════════════════════════════════════════════════════
@@ -326,6 +329,21 @@ async fn upload_project_file(
         return Err(AppError::BadRequest(
             "Maximum 50 files per project".to_string(),
         ));
+    }
+
+    // Check total storage used by this project
+    let total_storage: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(size_bytes), 0) FROM project_files WHERE project_id = $1"
+    )
+    .bind(project_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if total_storage >= MAX_PROJECT_STORAGE_BYTES {
+        return Err(AppError::BadRequest(format!(
+            "Project storage limit reached ({} MB). Remove some files first.",
+            MAX_PROJECT_STORAGE_BYTES / 1024 / 1024
+        )));
     }
 
     // Ensure upload directory exists

@@ -491,18 +491,22 @@ async fn handle_text_message(
 // ── Two-way chat: voice message ─────────────────────────────────────────
 
 async fn handle_voice_message(
-    state: AppState,
+    _state: AppState,
     bot: TelegramBot,
     msg: crate::services::telegram::TgMessage,
 ) {
     let chat_id = msg.chat.id;
-    let voice = msg.voice.unwrap();
+    // Voice transcription removed — tell user to type or use the web app
+    let _ = bot.send_message(
+        chat_id,
+        "🎤 Голосовые сообщения пока не поддерживаются в Telegram-боте.\n\nНапишите текстом или используйте голосовой ввод на <a href=\"https://vmira.ai/chat\">vmira.ai</a>",
+        Some("HTML"),
+    ).await;
+    return;
 
-    // M4: Reject voice messages longer than 2 minutes
-    if voice.duration > 120 {
-        let _ = bot.send_message(chat_id, "⚠️ Голосовое слишком длинное (макс. 2 мин).", None).await;
-        return;
-    }
+    // Dead code below — kept for reference if voice support is re-added
+    #[allow(unreachable_code)]
+    let _voice = msg.voice.unwrap();
 
     let link = sqlx::query_as::<_, TelegramLink>(
         "SELECT * FROM telegram_links WHERE chat_id = $1 AND is_active = true"

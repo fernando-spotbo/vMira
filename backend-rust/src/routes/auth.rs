@@ -643,10 +643,11 @@ async fn yandex_auth(
                 "INSERT INTO users (id, name, email, yandex_id, avatar_url, language, plan, \
                  daily_messages_used, daily_reset_at, is_active, is_verified, is_admin, \
                  failed_login_attempts, consent_personal_data, consent_personal_data_at, \
+                 consent_marketing, \
                  balance_kopecks, total_spent_kopecks, total_topped_up_kopecks, \
                  allow_overage_billing, chat_plan, code_plan, created_at, updated_at) \
                  VALUES ($1, $2, $3, $4, $5, 'ru', 'free', 0, NOW(), true, true, false, \
-                 0, true, NOW(), 0, 0, 0, false, 'free', 'free', NOW(), NOW())"
+                 0, true, NOW(), false, 0, 0, 0, false, 'free', 'free', NOW(), NOW())"
             )
             .bind(user_id)
             .bind(&display_name)
@@ -838,10 +839,11 @@ async fn telegram_auth(
             "INSERT INTO users (id, name, telegram_id, avatar_url, language, plan, \
              daily_messages_used, daily_reset_at, is_active, is_verified, is_admin, \
              failed_login_attempts, consent_personal_data, consent_personal_data_at, \
+             consent_marketing, \
              balance_kopecks, total_spent_kopecks, total_topped_up_kopecks, \
              allow_overage_billing, chat_plan, code_plan, created_at, updated_at) \
              VALUES ($1, $2, $3, $4, 'ru', 'free', 0, NOW(), true, true, false, \
-             0, true, NOW(), 0, 0, 0, false, 'free', 'free', NOW(), NOW())"
+             0, true, NOW(), false, 0, 0, 0, false, 'free', 'free', NOW(), NOW())"
         )
         .bind(user_id)
         .bind(&display_name)

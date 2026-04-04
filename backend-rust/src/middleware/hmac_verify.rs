@@ -61,6 +61,7 @@ const EXEMPT_PATHS: &[&str] = &[
     "/api/v1/code",
     "/api/v1/organizations",
     "/api/v1/chat",
+    "/api/v1/billing",
 ];
 
 /// Tower middleware function for HMAC verification.

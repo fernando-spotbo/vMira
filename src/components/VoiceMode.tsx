@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Mic, MicOff } from "lucide-react";
+import { X, Mic, MicOff, Globe, Timer } from "lucide-react";
 import * as chatApi from "@/lib/api-chat";
 import { getAccessToken, transcribeAudio, synthesizeAudio } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
@@ -137,6 +137,14 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [responsePreview, setResponsePreview] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // User preferences — persist in sessionStorage so they survive re-opens within the tab
+  const [sttLang, setSttLang] = useState<string>(() => {
+    try { return sessionStorage.getItem("mira_voice_lang") || "auto"; } catch { return "auto"; }
+  });
+  const [patience, setPatience] = useState<"fast" | "normal" | "patient">(() => {
+    try { return (sessionStorage.getItem("mira_voice_patience") as any) || "normal"; } catch { return "normal"; }
+  });
+
   const { activeConversationId, selectedModel, addMessage, ensureConversation } = useChat();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -151,9 +159,14 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const addMessageRef = useRef(addMessage);
   const ensureConvRef = useRef(ensureConversation);
 
+  const sttLangRef = useRef(sttLang);
+  const patienceRef = useRef(patience);
+
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { convIdRef.current = activeConversationId; }, [activeConversationId]);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { sttLangRef.current = sttLang; try { sessionStorage.setItem("mira_voice_lang", sttLang); } catch {} }, [sttLang]);
+  useEffect(() => { patienceRef.current = patience; try { sessionStorage.setItem("mira_voice_patience", patience); } catch {} }, [patience]);
   useEffect(() => { selectedModelRef.current = selectedModel; }, [selectedModel]);
   useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
   useEffect(() => { ensureConvRef.current = ensureConversation; }, [ensureConversation]);
@@ -248,9 +261,17 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     let lastVoiceTime = 0;
 
     const SILENCE_THRESHOLD = 0.03;  // avg frequency level to count as speech
-    const SILENCE_TIMEOUT = 1000;    // 1s silence after speech → send to AI
     const MIN_RECORDING = 400;       // minimum recording duration (ms)
-    const INTERRUPT_THRESHOLD = 0.12; // louder threshold for interrupt during TTS
+    const INTERRUPT_THRESHOLD = 0.06; // low threshold so user can interrupt naturally
+
+    // Dynamic silence timeout based on user preference
+    const getSilenceTimeout = () => {
+      switch (patienceRef.current) {
+        case "fast": return 1200;    // 1.2s — quick back-and-forth
+        case "patient": return 4000; // 4s — lets you think between sentences
+        default: return 2500;        // 2.5s — natural conversation pace
+      }
+    };
 
     // Smooth phase blend targets
     const blendTarget = { listening: 0, thinking: 0, speaking: 0 };
@@ -633,8 +654,9 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           recognition = new SpeechRecognitionCtor();
           recognition.continuous = true;
           recognition.interimResults = true;
-          // Use browser language for STT; empty string causes silent failure on some browsers
-          recognition.lang = navigator.language || "en-US";
+          // Use user-selected language; "auto" maps to browser default
+          const langPref = sttLangRef.current;
+          recognition.lang = langPref === "auto" ? (navigator.language || "en-US") : langPref;
 
           recognition.onresult = (event: any) => {
             let finalText = "";
@@ -740,8 +762,8 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
               voiceDetected = true;
               lastVoiceTime = now;
             }
-            // Voice was detected, now silent for SILENCE_TIMEOUT → send
-            if (voiceDetected && lastVoiceTime > 0 && now - lastVoiceTime > SILENCE_TIMEOUT) {
+            // Voice was detected, now silent for timeout → send
+            if (voiceDetected && lastVoiceTime > 0 && now - lastVoiceTime > getSilenceTimeout()) {
               if (useNativeSTT || (now - recordingStartTime > MIN_RECORDING)) {
                 handleSilenceEnd();
               }
@@ -799,6 +821,50 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           <span className="relative inline-flex rounded-full h-2 w-2 bg-white/25" />
         </span>
         <p className="text-[15px] text-white/20 tabular-nums font-mono">{fmt(elapsed)}</p>
+      </div>
+
+      {/* Voice preferences */}
+      <div className="flex items-center gap-4 mb-8">
+        {/* Language selector */}
+        <div className="flex items-center gap-1.5">
+          <Globe size={13} className="text-white/20" />
+          <select
+            value={sttLang}
+            onChange={(e) => setSttLang(e.target.value)}
+            className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1 text-[12px] text-white/40 outline-none cursor-pointer hover:bg-white/[0.07] transition-colors"
+          >
+            <option value="auto">Auto</option>
+            <option value="en-US">English</option>
+            <option value="ru-RU">Русский</option>
+            <option value="es-ES">Español</option>
+            <option value="fr-FR">Français</option>
+            <option value="de-DE">Deutsch</option>
+            <option value="pt-BR">Português</option>
+            <option value="zh-CN">中文</option>
+            <option value="ja-JP">日本語</option>
+            <option value="ar-SA">العربية</option>
+          </select>
+        </div>
+
+        {/* Patience control */}
+        <div className="flex items-center gap-1.5">
+          <Timer size={13} className="text-white/20" />
+          <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+            {(["fast", "normal", "patient"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPatience(p)}
+                className={`px-2.5 py-1 text-[11px] transition-colors ${
+                  patience === p
+                    ? "bg-white/[0.10] text-white/60"
+                    : "text-white/25 hover:text-white/40 hover:bg-white/[0.04]"
+                }`}
+              >
+                {p === "fast" ? "Quick" : p === "normal" ? "Normal" : "Patient"}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-6">

@@ -650,17 +650,19 @@ function ProjectPickerModal({
       >
         {/* Header */}
         <div className="px-5 pt-5 pb-3">
-          <h3 className="text-[15px] font-medium text-white mb-3">Move to project</h3>
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
-            <input
-              ref={inputRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search projects..."
-              className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-2.5 text-[14px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.12] transition-colors"
-            />
-          </div>
+          <h3 className="text-[18px] font-semibold text-white mb-3">{t("menu.moveToProject")}</h3>
+          {projects.length > 3 && (
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+              <input
+                ref={inputRef}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("sidebar.search") || "Search..."}
+                className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-2.5 text-[16px] text-white placeholder-white/25 focus:outline-none focus:border-white/[0.12] transition-colors"
+              />
+            </div>
+          )}
         </div>
 
         {/* Project list */}
@@ -669,10 +671,9 @@ function ProjectPickerModal({
           {currentProjectId && (
             <button
               onClick={() => onSelect(null)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] text-white/50 hover:bg-white/[0.04] transition-colors mb-1"
+              className="flex w-full items-center rounded-xl px-3 py-3 text-[16px] text-red-400/70 hover:bg-white/[0.04] transition-colors mb-1"
             >
-              <X size={15} className="shrink-0 text-white/30" />
-              <span>Remove from project</span>
+              {t("menu.removeFromProject")}
             </button>
           )}
 
@@ -689,13 +690,12 @@ function ProjectPickerModal({
                 key={p.id}
                 onClick={() => { if (!isCurrent) onSelect(p.id); }}
                 disabled={isCurrent}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] transition-colors ${
+                className={`flex w-full items-center rounded-xl px-3 py-3 text-[16px] transition-colors ${
                   isCurrent
                     ? "text-white/30 cursor-default bg-white/[0.02]"
                     : "text-white hover:bg-white/[0.04]"
                 }`}
               >
-                <span className="text-[16px] shrink-0">{p.emoji || "📁"}</span>
                 <span className="flex-1 text-left truncate">{p.name}</span>
                 {isCurrent && (
                   <span className="text-[11px] text-white/20 uppercase tracking-wide">Current</span>
@@ -708,10 +708,9 @@ function ProjectPickerModal({
           <div className="mt-1 pt-1 border-t border-white/[0.04]">
             <button
               onClick={onNewProject}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] text-white/50 hover:text-white hover:bg-white/[0.04] transition-colors"
+              className="flex w-full items-center rounded-xl px-3 py-3 text-[16px] text-white/50 hover:text-white hover:bg-white/[0.04] transition-colors"
             >
-              <Plus size={15} className="shrink-0" />
-              <span>New project</span>
+              {t("project.new")}
             </button>
           </div>
         </div>

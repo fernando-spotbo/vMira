@@ -180,8 +180,8 @@ async fn poll_device_token(
         }));
     }
 
-    // C1 FIX: Use GETDEL atomically to prevent TOCTOU race (duplicate API key creation)
-    let value: Option<String> = redis::cmd("GETDEL")
+    // First read with GET to check status without consuming
+    let value: Option<String> = redis::cmd("GET")
         .arg(device_code_key(&body.device_code))
         .query_async(&mut conn)
         .await
@@ -198,16 +198,7 @@ async fn poll_device_token(
             }))
         }
         Some(val) if val.starts_with("pending:") => {
-            // Not yet approved — put the value back (GETDEL consumed it)
-            let _: () = redis::cmd("SET")
-                .arg(device_code_key(&body.device_code))
-                .arg(&val)
-                .arg("EX")
-                .arg(DEVICE_CODE_TTL_SECONDS)
-                .query_async(&mut conn)
-                .await
-                .unwrap_or(());
-
+            // Not yet approved — key stays in Redis untouched
             Ok(Json(DeviceTokenResponse {
                 status: "pending".to_string(),
                 access_token: None,
@@ -216,8 +207,22 @@ async fn poll_device_token(
             }))
         }
         Some(val) if val.starts_with("approved:") => {
-            // Format: "approved:{user_id}"
-            // GETDEL already consumed the key — no concurrent poll can reach this branch
+            // Atomically consume with GETDEL to prevent duplicate API key creation
+            let consumed: Option<String> = redis::cmd("GETDEL")
+                .arg(device_code_key(&body.device_code))
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| AppError::Internal(format!("Redis error: {e}")))?;
+
+            // If another poll consumed it first, return pending (they got the key)
+            if consumed.is_none() || !consumed.as_ref().unwrap().starts_with("approved:") {
+                return Ok(Json(DeviceTokenResponse {
+                    status: "pending".to_string(),
+                    access_token: None,
+                    token_type: None,
+                    expires_in: None,
+                }));
+            }
             let user_id_str = val.strip_prefix("approved:").unwrap_or("");
             let user_id: uuid::Uuid = user_id_str.parse()
                 .map_err(|_| AppError::Internal("Invalid user_id in device auth".to_string()))?;

@@ -420,13 +420,21 @@ fn validate_host(url: &str, allowed_hosts: &[String]) -> Result<(), String> {
 
 const IMAGE_MIMES: &[&str] = &["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-/// Convert attachment to text content blocks for the AI model.
-/// Uses pre-extracted content when available (process-and-discard flow).
-/// Falls back to reading from disk for legacy attachments that still have files.
+/// Convert attachment to content blocks for the AI model.
+/// Images stored as data URIs are sent as image_url blocks (vision model).
+/// Text content is sent as text blocks.
 fn resolve_attachment_content(att: &MessageAttachment) -> Result<Vec<serde_json::Value>, String> {
-    // Fast path: use pre-extracted content (new process-and-discard flow)
+    // Fast path: use pre-extracted content (process-and-discard flow)
     if let Some(ref content) = att.extracted_content {
         if !content.is_empty() {
+            // Detect base64 image data URI → send as image_url for vision model
+            if content.starts_with("data:image/") {
+                return Ok(vec![json!({
+                    "type": "image_url",
+                    "image_url": { "url": content },
+                })]);
+            }
+            // Text content (PDFs, text files, metadata)
             return Ok(vec![json!({
                 "type": "text",
                 "text": content,
@@ -862,33 +870,33 @@ pub fn stream_ai_response(
                 "content": scrubbed.scrubbed,
             }));
         } else {
-            // Message with attachments — resolve to text and combine into a single string
-            // (current model is text-only, no vision support for content arrays)
-            let mut parts: Vec<String> = Vec::new();
+            // Message with attachments — build multimodal content array.
+            // Supports both text and image_url blocks for vision models.
+            let mut content_parts: Vec<serde_json::Value> = Vec::new();
 
             if !scrubbed.scrubbed.is_empty() {
-                parts.push(scrubbed.scrubbed);
+                content_parts.push(json!({
+                    "type": "text",
+                    "text": scrubbed.scrubbed,
+                }));
             }
 
             for att in &m.attachments {
                 match resolve_attachment_content(att) {
-                    Ok(blocks) => {
-                        for block in blocks {
-                            if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
-                                parts.push(text.to_string());
-                            }
-                        }
-                    }
+                    Ok(blocks) => content_parts.extend(blocks),
                     Err(e) => {
                         tracing::warn!(file = %att.original_filename, error = %e, "Failed to resolve attachment");
-                        parts.push(format!("[Файл «{}» не удалось обработать]", att.original_filename));
+                        content_parts.push(json!({
+                            "type": "text",
+                            "text": format!("[File '{}' could not be processed]", att.original_filename),
+                        }));
                     }
                 }
             }
 
             full_messages.push(json!({
                 "role": m.role,
-                "content": parts.join("\n\n"),
+                "content": content_parts,
             }));
         }
     }

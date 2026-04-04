@@ -244,25 +244,56 @@ async fn get_attachment_meta(
 //  Content extraction (process step)
 // ═══════════════════════════════════════════════════════════════
 
-/// Extract text/metadata from uploaded file. This is what the AI will see.
-/// The original file is never stored — only the extracted content.
+/// Extract content from uploaded file for the AI model.
+/// Images are resized and stored as base64 data URIs so the vision model can see them.
+/// Text/PDFs are extracted as plain text. Original files are never stored on disk.
 fn extract_content(data: &[u8], mime_type: &str, filename: &str) -> (String, Option<i32>, Option<i32>) {
     if IMAGE_MIME_TYPES.contains(&mime_type) {
-        // Image: extract dimensions and metadata
-        let size_kb = data.len() / 1024;
-        let dims = image::io::Reader::new(std::io::Cursor::new(data))
-            .with_guessed_format()
-            .ok()
-            .and_then(|r| {
-                let (w, h) = r.into_dimensions().ok()?;
-                Some((w, h))
-            });
-        let (w, h) = dims.unwrap_or((0, 0));
-        let content = format!(
-            "[Image: {} | {} | {}KB | {}×{}]",
-            filename, mime_type, size_kb, w, h
-        );
-        (content, Some(w as i32), Some(h as i32))
+        // Image: resize to max 1024px, compress as JPEG, encode as base64 data URI.
+        // This is sent to the vision model as an image_url content block.
+        use image::ImageReader;
+        use std::io::Cursor;
+        use base64::Engine;
+
+        match ImageReader::new(Cursor::new(data)).with_guessed_format() {
+            Ok(reader) => {
+                let (orig_w, orig_h) = reader.into_dimensions().unwrap_or((0, 0));
+
+                // Re-read for decoding (dimensions consumed the reader)
+                let img = match ImageReader::new(Cursor::new(data)).with_guessed_format()
+                    .and_then(|r| Ok(r.decode().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?))
+                {
+                    Ok(img) => img,
+                    Err(_) => {
+                        return (format!("[Image: {} — decode failed]", filename), Some(orig_w as i32), Some(orig_h as i32));
+                    }
+                };
+
+                // Resize if larger than 1024px on any side
+                let resized = if img.width() > 1024 || img.height() > 1024 {
+                    img.resize(1024, 1024, image::imageops::FilterType::Lanczos3)
+                } else {
+                    img
+                };
+
+                let (w, h) = (resized.width(), resized.height());
+
+                // Encode as JPEG (smaller than PNG for photos)
+                let mut buf = Vec::new();
+                if resized.write_to(&mut Cursor::new(&mut buf), image::ImageFormat::Jpeg).is_err() {
+                    return (format!("[Image: {} — encode failed]", filename), Some(w as i32), Some(h as i32));
+                }
+
+                // Base64 encode with data URI prefix — ai_proxy.rs detects this and sends as image_url
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&buf);
+                let data_uri = format!("data:image/jpeg;base64,{}", b64);
+
+                (data_uri, Some(w as i32), Some(h as i32))
+            }
+            Err(_) => {
+                (format!("[Image: {} — could not read]", filename), None, None)
+            }
+        }
     } else if mime_type == "application/pdf" {
         // PDF: extract text
         match pdf_extract::extract_text_from_mem(data) {

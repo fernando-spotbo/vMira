@@ -79,12 +79,20 @@ async fn chat_completions(
         }
     }
 
+    // Determine effective plan: use code_plan for API key users (CLI),
+    // fall back to general plan if code_plan is not set
+    let effective_plan = if user.code_plan != "free" {
+        &user.code_plan
+    } else {
+        &user.plan
+    };
+
     // Enforce model access by plan
     if let Ok(pricing) = billing::get_pricing(&state.db, &body.model).await {
         let plan_rank = |p: &str| match p {
             "free" => 0, "pro" => 1, "max" => 2, "enterprise" => 3, _ => 0,
         };
-        if plan_rank(&user.plan) < plan_rank(&pricing.min_plan) {
+        if plan_rank(effective_plan) < plan_rank(&pricing.min_plan) {
             return Err(AppError::Forbidden(format!(
                 "Model {} requires {} plan or higher",
                 body.model, pricing.min_plan
@@ -93,7 +101,7 @@ async fn chat_completions(
     }
 
     // Pre-check: paid plan users must have a positive balance
-    if user.plan != "free" && user.balance_kopecks <= 0 {
+    if effective_plan != "free" && user.balance_kopecks <= 0 {
         return Err(AppError::PaymentRequired(
             "Insufficient balance. Please top up your account.".to_string(),
         ));

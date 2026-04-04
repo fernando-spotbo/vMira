@@ -651,13 +651,6 @@ function RemoteConsole({
     // The user message and AI response will appear via bridge_messages polling
   }, [sessionId]);
 
-  // ── Cleanup abort on unmount ──
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, []);
-
   // ── Derived display values ──
   const displayName = session ? dirName(session.directory) : "...";
   const displayBranch = session?.branch;

@@ -892,11 +892,11 @@ pub fn stream_ai_response(
             "role": "system",
             "content": extra_context,
         }));
-    } else if user_id.is_none() {
-        // CLI/API completions: override model's fine-tuned persona
+    } else {
+        // Minimal identity prompt — model name is dynamic
         full_messages.push(json!({
             "role": "system",
-            "content": "You are a helpful coding assistant. Respond concisely. Do not mention reminders, calendars, scheduled content, task management, Telegram, or any features beyond answering questions and writing code.",
+            "content": format!("You are Mira, model {}. Respond concisely and helpfully.{}", model, datetime_context),
         }));
     }
     // Skip the first message if it was already used as system prompt above

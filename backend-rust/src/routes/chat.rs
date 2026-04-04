@@ -1248,17 +1248,33 @@ async fn send_message(
                 sanitize::sanitize_output(&full_content)
             };
 
-            // Build steps JSON if we have search data
+            // Build steps JSON — store only what the frontend needs for display.
+            // Strip search content, chart data, and duplicated text to keep rows lean.
             let steps_json: Option<serde_json::Value> = if !search_steps.is_empty() || reminder_data.is_some() || scheduled_content_data.is_some() || action_data.is_some() {
                 let mut steps = Vec::new();
                 if !search_steps.is_empty() {
+                    // Keep only query + result title/domain/url — drop scraped content
+                    let lean_searches: Vec<serde_json::Value> = search_steps.iter().map(|s| {
+                        let lean_results: Vec<serde_json::Value> = s["results"].as_array()
+                            .map(|arr| arr.iter().map(|r| serde_json::json!({
+                                "title": r["title"],
+                                "domain": r["domain"],
+                                "url": r["url"],
+                            })).collect())
+                            .unwrap_or_default();
+                        serde_json::json!({
+                            "query": s["query"],
+                            "resultCount": lean_results.len(),
+                            "results": lean_results,
+                        })
+                    }).collect();
                     steps.push(serde_json::json!({
                         "type": "reasoning",
                         "summary": search_steps.iter()
                             .map(|s| s["query"].as_str().unwrap_or(""))
                             .collect::<Vec<_>>()
                             .join(", "),
-                        "searches": search_steps,
+                        "searches": lean_searches,
                     }));
                 }
                 if let Some(ref rd) = reminder_data {
@@ -1268,12 +1284,14 @@ async fn send_message(
                     steps.push(sc.clone());
                 }
                 if let Some(ref ap) = action_data {
-                    steps.push(ap.clone());
+                    // Strip chart data from stock actions — it's fetched live, not stored
+                    let mut lean_action = ap.clone();
+                    if let Some(payload) = lean_action.get_mut("payload") {
+                        payload.as_object_mut().map(|obj| obj.remove("chart"));
+                    }
+                    steps.push(lean_action);
                 }
-                steps.push(serde_json::json!({
-                    "type": "text",
-                    "content": final_content,
-                }));
+                // Don't duplicate content — it's already in the content column
                 Some(serde_json::json!(steps))
             } else {
                 None

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, User, Palette, Bell, Shield, Keyboard, CalendarDays, ChevronRight, Copy, Check, ExternalLink, Camera, Settings2 } from "lucide-react";
+import { X, User, Palette, Bell, Shield, Keyboard, CalendarDays, ChevronRight, Copy, Check, ExternalLink, Camera, Settings2, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
 import TelegramLinkModal from "./TelegramLinkModal";
@@ -598,8 +598,18 @@ function ShortcutsTab() {
   );
 }
 
+// Menu sections for mobile drill-down view — grouped like the Claude reference
+const MENU_SECTIONS: { items: TabId[]; }[] = [
+  { items: ["profile"] },
+  { items: ["general", "appearance"] },
+  { items: ["notifications", "calendar"] },
+  { items: ["privacy", "shortcuts"] },
+];
+
 export default function SettingsModal({ onClose }: SettingsModalProps) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>("profile");
+  const [mobileSubPage, setMobileSubPage] = useState<TabId | null>(null);
   const [visible, setVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -610,11 +620,15 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setVisible(false);
-        setTimeout(onClose, 250);
+        if (mobileSubPage) {
+          setMobileSubPage(null);
+        } else {
+          setVisible(false);
+          setTimeout(onClose, 250);
+        }
       }
     },
-    [onClose]
+    [onClose, mobileSubPage]
   );
 
   useEffect(() => {
@@ -622,15 +636,19 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  const handleClose = () => {
+    setVisible(false);
+    setTimeout(onClose, 250);
+  };
+
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      setVisible(false);
-      setTimeout(onClose, 250);
+      handleClose();
     }
   };
 
-  const renderTab = () => {
-    switch (activeTab) {
+  const renderTab = (tabId?: TabId) => {
+    switch (tabId || activeTab) {
       case "profile": return <ProfileTab />;
       case "general": return <GeneralTab />;
       case "appearance": return <AppearanceTab />;
@@ -641,57 +659,116 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
+  const mobileTitle = mobileSubPage
+    ? t(TABS.find((tab) => tab.id === mobileSubPage)?.labelKey || "")
+    : t("settings.title");
+
   return (
     <div
       onClick={handleBackdropClick}
-      className={`fixed inset-0 z-[200] flex items-center justify-center sm:px-4 transition-all duration-250 ${
+      className={`fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:px-4 transition-all duration-250 ${
         visible ? "bg-black/60 sm:backdrop-blur-sm" : "bg-black/0"
       }`}
     >
       <div
         ref={modalRef}
-        className={`w-full h-full sm:w-full sm:max-w-[680px] sm:h-[480px] flex flex-col sm:flex-row sm:rounded-2xl bg-[#1a1a1a] sm:border sm:border-white/[0.06] sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-250 ${
-          visible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+        className={`w-full max-h-[85vh] sm:max-h-none sm:max-w-[680px] sm:h-[480px] flex flex-col sm:flex-row rounded-t-2xl sm:rounded-2xl bg-[#1a1a1a] border-t border-white/[0.06] sm:border sm:border-white/[0.06] sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-250 ${
+          visible ? "opacity-100 translate-y-0 sm:scale-100" : "opacity-0 translate-y-8 sm:translate-y-0 sm:scale-95"
         }`}
       >
-        {/* Tab navigation — horizontal on mobile, vertical sidebar on desktop */}
-        <div className="shrink-0 sm:w-[220px] sm:border-r border-b sm:border-b-0 border-white/[0.06] sm:p-3 flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 sm:mb-4 sm:px-2 sm:py-0">
+        {/* ═══ MOBILE LAYOUT ═══ */}
+        <div className="flex flex-col flex-1 min-h-0 sm:hidden">
+          {/* Mobile header */}
+          <div className="flex items-center justify-between px-4 py-3 shrink-0">
+            <button
+              onClick={mobileSubPage ? () => setMobileSubPage(null) : handleClose}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06] text-white"
+            >
+              {mobileSubPage ? <ArrowLeft size={18} /> : <X size={18} />}
+            </button>
+            <h2 className="text-[17px] font-semibold text-white absolute left-1/2 -translate-x-1/2">
+              {mobileTitle}
+            </h2>
+            <div className="w-10" />
+          </div>
+
+          {/* Mobile content — menu list or sub-page */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {mobileSubPage === null ? (
+              /* ── Menu list ── */
+              <div className="px-4 pb-8">
+                {/* User email pill */}
+                {(user?.email || user?.phone) && (
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-3 mb-4">
+                    <span className="text-[15px] text-white/70">{user.email || user.phone}</span>
+                  </div>
+                )}
+
+                {MENU_SECTIONS.map((section, si) => (
+                  <div key={si} className={si > 0 ? "mt-2 pt-2 border-t border-white/[0.06]" : ""}>
+                    {section.items.map((tabId) => {
+                      const tab = TABS.find((t) => t.id === tabId)!;
+                      return (
+                        <button
+                          key={tabId}
+                          onClick={() => setMobileSubPage(tabId)}
+                          className="flex w-full items-center gap-4 px-1 py-3.5 text-left active:bg-white/[0.04] transition-colors rounded-lg"
+                        >
+                          <tab.icon size={20} strokeWidth={1.6} className="text-white/50 shrink-0" />
+                          <span className="flex-1 text-[16px] text-white">{t(tab.labelKey)}</span>
+                          <ChevronRight size={18} className="text-white/25 shrink-0" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* ── Sub-page content ── */
+              <div className="px-4 pb-8">
+                {renderTab(mobileSubPage)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ═══ DESKTOP LAYOUT (unchanged) ═══ */}
+        {/* Left: tab navigation */}
+        <div className="hidden sm:flex w-[220px] shrink-0 border-r border-white/[0.06] p-3 flex-col">
+          <div className="flex items-center justify-between mb-4 px-2">
             <h2 className="text-[18px] font-medium text-white">{t("settings.title")}</h2>
             <button
-              onClick={() => { setVisible(false); setTimeout(onClose, 250); }}
-              className="flex h-11 w-11 sm:h-7 sm:w-7 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors -mr-2 sm:mr-0"
+              onClick={handleClose}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-white hover:bg-white/[0.06] transition-colors"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
 
-          {/* Tabs — horizontal scroll on mobile, vertical list on desktop */}
-          <nav className="flex sm:flex-col gap-1 sm:gap-0.5 overflow-x-auto px-3 pb-2 sm:px-0 sm:pb-0 hide-scrollbar">
+          <nav className="space-y-0.5">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 sm:gap-3 shrink-0 rounded-lg px-3 py-2 sm:py-2.5 sm:w-full text-[13px] sm:text-[16px] transition-colors ${
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[16px] transition-colors ${
                   activeTab === tab.id
                     ? "bg-white/[0.08] text-white font-medium"
-                    : "text-white/60 sm:text-white hover:bg-white/[0.06]"
+                    : "text-white hover:bg-white/[0.06]"
                 }`}
               >
                 <tab.icon size={16} strokeWidth={1.8} />
-                <span className="whitespace-nowrap">{t(tab.labelKey)}</span>
+                <span>{t(tab.labelKey)}</span>
               </button>
             ))}
           </nav>
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-h-0">
+        {/* Right: tab content */}
+        <div className="hidden sm:block flex-1 p-6 overflow-y-auto">
           <h3 className="text-lg font-medium text-white mb-1">
             {t(TABS.find((tab) => tab.id === activeTab)?.labelKey || "")}
           </h3>
-          <div className="mt-4 pb-6 sm:pb-0">
+          <div className="mt-4">
             {renderTab()}
           </div>
         </div>

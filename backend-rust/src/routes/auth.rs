@@ -898,6 +898,21 @@ async fn logout(
             })
         });
 
+    // Extract user ID from the access token to revoke all their JWTs
+    let access_token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    if let Some(claims) = crate::services::token::decode_access_token(access_token, &state.config) {
+        if let Ok(user_id) = claims.sub.parse::<Uuid>() {
+            // Revoke all access tokens for this user for the duration of the access token TTL
+            let ttl = (state.config.access_token_expire_minutes * 60) as u64;
+            let _ = token_revocation::revoke_user_tokens(&state.redis, &user_id.to_string(), ttl).await;
+        }
+    }
+
     if let Some(raw_token) = raw_token {
         let token_hash = hash_token(&raw_token, &state.config.secret_key);
         sqlx::query("DELETE FROM refresh_tokens WHERE token_hash = $1")

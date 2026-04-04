@@ -129,6 +129,7 @@ fn build_router(state: AppState) -> Router {
             state.clone(),
             middleware::hmac_verify::hmac_verify,
         ))
+        .layer(axum_mw::from_fn(reject_null_bytes_middleware))
         .layer(CompressionLayer::new())
         .layer(RequestBodyLimitLayer::new(12 * 1024 * 1024)) // 12 MiB (allows 10MB uploads + multipart overhead; route-level DefaultBodyLimit further restricts non-upload routes)
         .layer(ConcurrencyLimitLayer::new(5000)) // Max 5000 concurrent requests to prevent resource exhaustion
@@ -140,6 +141,69 @@ fn build_router(state: AppState) -> Router {
 // ═══════════════════════════════════════════════════════════════
 //  Security headers middleware
 // ═══════════════════════════════════════════════════════════════
+
+/// Reject request bodies containing null bytes (prevents PostgreSQL text column crashes)
+/// and limit JSON nesting depth to 20 levels (prevents parser DoS).
+async fn reject_null_bytes_middleware(
+    request: Request<Body>,
+    next: axum::middleware::Next,
+) -> Response {
+    // Only check JSON request bodies
+    let is_json = request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("json"))
+        .unwrap_or(false);
+
+    if is_json {
+        let (parts, body) = request.into_parts();
+        let bytes = match axum::body::to_bytes(body, 2 * 1024 * 1024).await {
+            Ok(b) => b,
+            Err(_) => {
+                return Response::builder()
+                    .status(StatusCode::PAYLOAD_TOO_LARGE)
+                    .body(Body::from(r#"{"detail":"Request body too large"}"#))
+                    .unwrap();
+            }
+        };
+
+        // Check for null bytes
+        if bytes.iter().any(|&b| b == 0) {
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"detail":"Request body must not contain null bytes"}"#))
+                .unwrap();
+        }
+
+        // Check JSON nesting depth (limit 20)
+        let mut depth: usize = 0;
+        let mut max_depth: usize = 0;
+        for &b in bytes.iter() {
+            match b {
+                b'{' | b'[' => {
+                    depth += 1;
+                    if depth > max_depth { max_depth = depth; }
+                    if depth > 20 {
+                        return Response::builder()
+                            .status(StatusCode::BAD_REQUEST)
+                            .header(header::CONTENT_TYPE, "application/json")
+                            .body(Body::from(r#"{"detail":"JSON nesting depth exceeds limit (max 20)"}"#))
+                            .unwrap();
+                    }
+                }
+                b'}' | b']' => { depth = depth.saturating_sub(1); }
+                _ => {}
+            }
+        }
+
+        let request = Request::from_parts(parts, Body::from(bytes));
+        return next.run(request).await;
+    }
+
+    next.run(request).await
+}
 
 async fn security_headers_middleware(
     State(_state): State<AppState>,

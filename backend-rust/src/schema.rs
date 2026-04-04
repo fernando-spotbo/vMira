@@ -165,7 +165,7 @@ pub struct UserResponse {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct MessageRequest {
-    #[validate(length(min = 1, max = 32000))]
+    #[validate(length(min = 1, max = 32000), custom(function = "validate_no_null_bytes"))]
     pub content: String,
 
     #[serde(default = "default_model")]
@@ -190,7 +190,7 @@ fn default_model() -> String {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ConversationCreate {
-    #[validate(length(min = 1, max = 256))]
+    #[validate(length(min = 1, max = 256), custom(function = "validate_no_null_bytes"))]
     #[serde(default = "default_title")]
     pub title: String,
 
@@ -206,7 +206,7 @@ fn default_title() -> String {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ConversationUpdate {
-    #[validate(length(max = 256))]
+    #[validate(length(max = 256), custom(function = "validate_no_null_bytes"))]
     pub title: Option<String>,
     pub starred: Option<bool>,
     pub archived: Option<bool>,
@@ -772,3 +772,13 @@ static PHONE_RE: LazyLock<regex::Regex> =
 
 static SLUG_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$").expect("valid regex"));
+
+/// Reject strings containing null bytes (prevents PostgreSQL text column crashes).
+pub fn validate_no_null_bytes(s: &str) -> Result<(), validator::ValidationError> {
+    if s.contains('\0') {
+        let mut err = validator::ValidationError::new("null_bytes");
+        err.message = Some("Input must not contain null bytes".into());
+        return Err(err);
+    }
+    Ok(())
+}

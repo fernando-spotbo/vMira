@@ -333,7 +333,7 @@ async fn upload_project_file(
 
     // Check total storage used by this project
     let total_storage: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(size_bytes), 0) FROM project_files WHERE project_id = $1"
+        "SELECT COALESCE(SUM(size_bytes), 0)::BIGINT FROM project_files WHERE project_id = $1"
     )
     .bind(project_id)
     .fetch_one(&state.db)

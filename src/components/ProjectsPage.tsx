@@ -284,6 +284,7 @@ function ProjectDetail({
   const [instructionsEditing, setInstructionsEditing] = useState(false);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
@@ -378,6 +379,8 @@ function ProjectDetail({
   const handleFileUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     setUploading(true);
+    setUploadError(null);
+    let anyFailed = false;
     for (const file of Array.from(fileList)) {
       try {
         const result = await uploadProjectFile(project.id, file);
@@ -396,10 +399,17 @@ function ProjectDetail({
               createdAt: f.created_at,
             },
           ]);
+        } else {
+          anyFailed = true;
         }
       } catch (e) {
+        anyFailed = true;
         console.error("File upload failed:", e);
       }
+    }
+    if (anyFailed) {
+      setUploadError("Some files failed to upload. Check file type and size.");
+      setTimeout(() => setUploadError(null), 5000);
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -658,6 +668,11 @@ function ProjectDetail({
                       </>
                     )}
                   </div>
+
+                  {/* Error message */}
+                  {uploadError && (
+                    <p className="text-[12px] text-red-400/70 mt-2 text-center">{uploadError}</p>
+                  )}
 
                   {/* Storage indicator */}
                   {files.length > 0 && (

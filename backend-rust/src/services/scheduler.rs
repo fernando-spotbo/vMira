@@ -103,6 +103,44 @@ async fn run_cleanup(db: &PgPool) -> Result<(), sqlx::Error> {
         tracing::info!(deleted = expired_tokens, "Cleaned up expired refresh tokens");
     }
 
+    // 5. Archive old usage records (>180 days) — these grow linearly with every AI request
+    let old_usage = sqlx::query_scalar::<_, i64>(
+        "WITH old AS (
+            DELETE FROM usage_records WHERE created_at < NOW() - INTERVAL '180 days'
+            RETURNING id
+        )
+        SELECT COUNT(*) FROM old"
+    )
+    .fetch_one(db)
+    .await?;
+
+    if old_usage > 0 {
+        tracing::info!(deleted = old_usage, "Cleaned up old usage records (180-day TTL)");
+    }
+
+    // 6. Delete old notifications (>90 days)
+    let old_notifs = sqlx::query_scalar::<_, i64>(
+        "WITH old AS (
+            DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '90 days'
+            RETURNING id
+        )
+        SELECT COUNT(*) FROM old"
+    )
+    .fetch_one(db)
+    .await?;
+
+    if old_notifs > 0 {
+        tracing::info!(deleted = old_notifs, "Cleaned up old notifications (90-day TTL)");
+    }
+
+    // 7. VACUUM ANALYZE high-churn tables (reclaims dead rows, updates planner stats)
+    // Safe to run concurrently — VACUUM without FULL doesn't lock the table.
+    for table in &["messages", "usage_records", "refresh_tokens", "attachments", "notifications"] {
+        let _ = sqlx::query(&format!("VACUUM ANALYZE {}", table))
+            .execute(db)
+            .await;
+    }
+
     Ok(())
 }
 

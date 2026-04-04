@@ -255,6 +255,7 @@ async fn chat_completions(
         let request_id = format!("chatcmpl-{}", &Uuid::new_v4().to_string()[..24]);
         let model_clone = model.clone();
         let state_clone = state.clone();
+        let history_clone = history.clone();
         let user_id = user.id;
         let user_plan = effective_plan.to_string();
         let user_in_overage = is_overage;
@@ -504,6 +505,43 @@ async fn chat_completions(
                     Err(e) => {
                         tracing::warn!(error = %e, model = %model_clone, "no pricing for model (billing skipped)");
                     }
+                }
+            }
+
+            // ── Bridge sync: store messages for remote control viewers ──
+            if status == "completed" && !full_content.is_empty() {
+                // Find user's active bridge environment
+                let bridge_env = sqlx::query_scalar::<_, uuid::Uuid>(
+                    "SELECT id FROM bridge_environments WHERE user_id = $1 AND status = 'connected' LIMIT 1"
+                )
+                .bind(user_id)
+                .fetch_optional(&state_clone.db)
+                .await
+                .ok()
+                .flatten();
+
+                if let Some(env_id) = bridge_env {
+                    // Store user message (last user message from history)
+                    if let Some(last_user) = history_clone.iter().rev().find(|m| m.role == "user") {
+                        let _ = sqlx::query(
+                            "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'user', $2, $3)"
+                        )
+                        .bind(env_id)
+                        .bind(&last_user.content)
+                        .bind(Utc::now() - chrono::Duration::milliseconds(100)) // slightly before response
+                        .execute(&state_clone.db)
+                        .await;
+                    }
+
+                    // Store assistant response
+                    let _ = sqlx::query(
+                        "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'assistant', $2, $3)"
+                    )
+                    .bind(env_id)
+                    .bind(&full_content)
+                    .bind(Utc::now())
+                    .execute(&state_clone.db)
+                    .await;
                 }
             }
 

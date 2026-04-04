@@ -18,7 +18,7 @@ use validator::Validate;
 use crate::db::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AuthUser;
-use crate::models::{BridgeEnvironment, BridgeMessage, BridgeWorkItem};
+use crate::models::{BridgeEnvironment, BridgeMessage};
 use crate::schema::{
     BridgeMessageRequest, BridgeMessageResponse, BridgeSessionResponse,
     BridgeSessionWithMessages,
@@ -243,75 +243,99 @@ async fn send_message(
     .execute(&state.db)
     .await?;
 
-    // 2. Enqueue a work item for the CLI to pick up.
-    let work_item_id = Uuid::new_v4();
-    let work_data = serde_json::json!({
-        "type": "session",
-        "content": body.content,
-    });
-
-    sqlx::query(
-        "INSERT INTO bridge_work_queue
-            (id, environment_id, work_type, data, state, created_at)
-         VALUES ($1, $2, 'session', $3, 'pending', $4)",
+    // 2. Load recent conversation history from bridge_messages for context
+    let recent_msgs = sqlx::query_as::<_, BridgeMessage>(
+        "SELECT * FROM bridge_messages WHERE environment_id = $1 ORDER BY created_at DESC LIMIT 20"
     )
-    .bind(work_item_id)
     .bind(env.id)
-    .bind(&work_data)
-    .bind(now)
-    .execute(&state.db)
+    .fetch_all(&state.db)
     .await?;
 
-    // 3. Return an SSE stream that polls until the CLI completes the work.
-    let db = state.db.clone();
+    // Build messages array for AI (oldest first)
+    let mut ai_messages: Vec<crate::services::ai_proxy::ChatMessage> = recent_msgs
+        .iter()
+        .rev()
+        .map(|m| crate::services::ai_proxy::ChatMessage {
+            role: m.role.clone(),
+            content: m.content.clone(),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+            attachments: vec![],
+        })
+        .collect();
 
+    // Add the new user message
+    ai_messages.push(crate::services::ai_proxy::ChatMessage {
+        role: "user".to_string(),
+        content: body.content.clone(),
+        tool_calls: None,
+        tool_call_id: None,
+        name: None,
+        attachments: vec![],
+    });
+
+    // 3. Stream AI response directly and store result
+    let db = state.db.clone();
+    let env_id = env.id;
+    let config = state.config.clone();
+
+    let mut ai_stream = crate::services::ai_proxy::stream_ai_response(
+        ai_messages,
+        "mira".to_string(),
+        0.7,
+        4096,
+        "pro",
+        false,
+        &config,
+        Some(user.id),
+        Some(state.db.clone()),
+        None,
+        None,
+        None,
+        None,
+    );
+
+    use tokio_stream::StreamExt as _;
     let stream = async_stream::stream! {
-        // Emit initial processing event.
         yield Ok::<_, Infallible>(Event::default().data(
             serde_json::json!({"type": "processing"}).to_string()
         ));
 
-        let timeout = tokio::time::Instant::now() + Duration::from_secs(120);
+        let mut full_response = String::new();
 
-        loop {
-            if tokio::time::Instant::now() > timeout {
-                yield Ok(Event::default().data(
-                    serde_json::json!({"type": "error", "message": "Timeout waiting for response"}).to_string()
-                ));
-                break;
-            }
-
-            // Check if work is completed.
-            let work = sqlx::query_as::<_, BridgeWorkItem>(
-                "SELECT * FROM bridge_work_queue WHERE id = $1"
-            )
-            .bind(work_item_id)
-            .fetch_optional(&db)
-            .await;
-
-            if let Ok(Some(w)) = work {
-                if w.state == "completed" {
-                    if let Some(result) = w.result {
-                        if let Some(content) = result.get("content").and_then(|c| c.as_str()) {
-                            yield Ok(Event::default().data(
-                                serde_json::json!({"type": "token", "content": content}).to_string()
-                            ));
-                        }
-                        if let Some(thinking) = result.get("thinking").and_then(|c| c.as_str()) {
-                            yield Ok(Event::default().data(
-                                serde_json::json!({"type": "thinking", "content": thinking}).to_string()
-                            ));
-                        }
-                    }
+        while let Some(event) = ai_stream.next().await {
+            match event {
+                crate::services::ai_proxy::AiEvent::Token(chunk) => {
+                    full_response.push_str(&chunk);
                     yield Ok(Event::default().data(
-                        serde_json::json!({"type": "done"}).to_string()
+                        serde_json::json!({"type": "token", "content": chunk}).to_string()
                     ));
-                    break;
                 }
+                crate::services::ai_proxy::AiEvent::SearchQuery(q) => {
+                    yield Ok(Event::default().data(
+                        serde_json::json!({"type": "thinking", "content": format!("Searching: {}", q)}).to_string()
+                    ));
+                }
+                _ => {}
             }
-
-            tokio::time::sleep(Duration::from_millis(500)).await;
         }
+
+        // Store assistant response in bridge_messages
+        if !full_response.is_empty() {
+            let _ = sqlx::query(
+                "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'assistant', $2, $3)"
+            )
+            .bind(env_id)
+            .bind(&full_response)
+            .bind(Utc::now())
+            .execute(&db)
+            .await;
+        }
+
+        yield Ok(Event::default().data(
+            serde_json::json!({"type": "done"}).to_string()
+        ));
     };
 
     Ok(Sse::new(stream).keep_alive(

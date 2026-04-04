@@ -38,6 +38,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   loginWithPhone: (phone: string, code: string) => Promise<{ ok: boolean; error?: string }>;
   loginWithTelegram: (data: TelegramAuthData) => Promise<{ ok: boolean; error?: string }>;
+  loginWithYandex: (code: string) => Promise<{ ok: boolean; error?: string }>;
   register: (name: string, email: string, password: string, consent: boolean) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -187,6 +188,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const loginWithYandex = useCallback(async (code: string) => {
+    const result = await apiCall<{ access_token: string; expires_in: number }>("/auth/yandex", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+
+    if (!result.ok) {
+      return { ok: false, error: (result.data as any)?.detail || "Yandex login failed" };
+    }
+
+    setAccessToken(result.data.access_token);
+
+    const meResult = await getMe();
+    if (meResult.ok) {
+      setUser(meResult.data);
+      setLocale(meResult.data.language as Locale);
+    }
+
+    return { ok: true };
+  }, []);
+
   const register = useCallback(async (name: string, email: string, password: string, consent: boolean) => {
     const result = await apiCall("/auth/register", {
       method: "POST",
@@ -239,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithPhone, loginWithTelegram, register, logout, refreshUser, updateUser, switchOrg }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithPhone, loginWithTelegram, loginWithYandex, register, logout, refreshUser, updateUser, switchOrg }}>
       {children}
     </AuthContext.Provider>
   );

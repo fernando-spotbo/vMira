@@ -536,17 +536,201 @@ async fn vk_auth(State(state): State<AppState>) -> impl IntoResponse {
     )
 }
 
-async fn yandex_auth(State(state): State<AppState>) -> impl IntoResponse {
-    if state.config.yandex_client_id.is_empty() {
-        return (
-            StatusCode::NOT_IMPLEMENTED,
-            Json(serde_json::json!({ "detail": "Yandex OAuth not configured" })),
-        );
+async fn yandex_auth(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<crate::schema::YandexAuthRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    if state.config.yandex_client_id.is_empty() || state.config.yandex_client_secret.is_empty() {
+        return Err(AppError::BadRequest("Yandex OAuth not configured".into()));
     }
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(serde_json::json!({ "detail": "Yandex OAuth not yet implemented in Rust backend" })),
+
+    // Exchange authorization code for access token
+    let client = reqwest::Client::new();
+    let token_resp = client
+        .post("https://oauth.yandex.ru/token")
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("code", &body.code),
+            ("client_id", &state.config.yandex_client_id),
+            ("client_secret", &state.config.yandex_client_secret),
+        ])
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("Yandex token exchange failed: {e}")))?;
+
+    if !token_resp.status().is_success() {
+        let body = token_resp.text().await.unwrap_or_default();
+        tracing::error!(body = %body, "Yandex token exchange error");
+        return Err(AppError::Unauthorized("Yandex authorization failed".into()));
+    }
+
+    let token_data: serde_json::Value = token_resp.json().await
+        .map_err(|e| AppError::Internal(format!("Invalid Yandex token response: {e}")))?;
+    let access_token = token_data["access_token"].as_str()
+        .ok_or_else(|| AppError::Internal("No access_token in Yandex response".into()))?;
+
+    // Fetch user info from Yandex
+    let user_resp = client
+        .get("https://login.yandex.ru/info?format=json")
+        .header("Authorization", format!("OAuth {}", access_token))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("Yandex user info failed: {e}")))?;
+
+    let yandex_user: serde_json::Value = user_resp.json().await
+        .map_err(|e| AppError::Internal(format!("Invalid Yandex user response: {e}")))?;
+
+    let yandex_id = yandex_user["id"].as_str()
+        .ok_or_else(|| AppError::Internal("No id in Yandex user response".into()))?
+        .to_string();
+    let display_name = yandex_user["display_name"].as_str()
+        .or_else(|| yandex_user["real_name"].as_str())
+        .or_else(|| yandex_user["first_name"].as_str())
+        .unwrap_or("Yandex User")
+        .to_string();
+    let email = yandex_user["default_email"].as_str()
+        .or_else(|| yandex_user["emails"].as_array().and_then(|a| a.first()).and_then(|v| v.as_str()))
+        .map(|s| s.to_string());
+    let avatar_url = yandex_user["default_avatar_id"].as_str()
+        .map(|id| format!("https://avatars.yandex.net/get-yapic/{}/islands-200", id));
+
+    // Look up or create user by yandex_id
+    let existing: Option<User> = sqlx::query_as(
+        "SELECT * FROM users WHERE yandex_id = $1"
     )
+    .bind(&yandex_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let user = if let Some(u) = existing {
+        // Update avatar/email if changed
+        sqlx::query("UPDATE users SET avatar_url = COALESCE($1, avatar_url), updated_at = NOW() WHERE id = $2")
+            .bind(&avatar_url)
+            .bind(u.id)
+            .execute(&state.db)
+            .await?;
+        u
+    } else {
+        // Check if email already exists (link accounts)
+        let by_email: Option<User> = if let Some(ref em) = email {
+            sqlx::query_as("SELECT * FROM users WHERE email = $1")
+                .bind(em)
+                .fetch_optional(&state.db)
+                .await?
+        } else {
+            None
+        };
+
+        if let Some(u) = by_email {
+            // Link Yandex to existing email account
+            sqlx::query("UPDATE users SET yandex_id = $1, avatar_url = COALESCE($2, avatar_url), updated_at = NOW() WHERE id = $3")
+                .bind(&yandex_id)
+                .bind(&avatar_url)
+                .bind(u.id)
+                .execute(&state.db)
+                .await?;
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+                .bind(u.id)
+                .fetch_one(&state.db)
+                .await?
+        } else {
+            // Create new user
+            let user_id = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO users (id, name, email, yandex_id, avatar_url, language, plan, \
+                 daily_messages_used, daily_reset_at, is_active, is_verified, \
+                 consent_personal_data, consent_personal_data_at, \
+                 chat_plan, code_plan, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, 'ru', 'free', 0, NOW(), true, true, \
+                 true, NOW(), 'free', 'free', NOW(), NOW())"
+            )
+            .bind(user_id)
+            .bind(&display_name)
+            .bind(&email)
+            .bind(&yandex_id)
+            .bind(&avatar_url)
+            .execute(&state.db)
+            .await?;
+
+            // Create personal organization
+            let org_id = Uuid::new_v4();
+            let slug = format!("user-{}", &user_id.to_string()[..8]);
+            sqlx::query(
+                "INSERT INTO organizations (id, name, slug, owner_id, is_personal, plan, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, true, 'free', NOW(), NOW())"
+            )
+            .bind(org_id)
+            .bind(&display_name)
+            .bind(&slug)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO organization_members (id, organization_id, user_id, role, created_at) \
+                 VALUES ($1, $2, $3, 'owner', NOW())"
+            )
+            .bind(Uuid::new_v4())
+            .bind(org_id)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+
+            sqlx::query("UPDATE users SET active_organization_id = $1 WHERE id = $2")
+                .bind(org_id)
+                .bind(user_id)
+                .execute(&state.db)
+                .await?;
+
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_one(&state.db)
+                .await?
+        }
+    };
+
+    // Issue tokens
+    let access_token_jwt = create_access_token(&user.id, &state.config);
+    let (raw_refresh, token_hash, expires_at) = create_refresh_token(&user.id, &state.config);
+
+    let ip = headers.get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
+    let ua = headers.get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    sqlx::query(
+        "INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at) \
+         VALUES ($1, $2, $3, $4, $5, $6)"
+    )
+    .bind(Uuid::new_v4())
+    .bind(user.id)
+    .bind(&token_hash)
+    .bind(&ip)
+    .bind(&ua)
+    .bind(expires_at)
+    .execute(&state.db)
+    .await?;
+
+    log_auth_event("yandex_login", Some(&user.id), email.as_deref(), ip.as_deref(), ua.as_deref(), true, None);
+
+    let cookie = format!(
+        "refresh_token={}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={}",
+        raw_refresh,
+        state.config.refresh_token_expire_days * 86400
+    );
+
+    let expires_in = state.config.access_token_expire_minutes * 60;
+
+    Ok((
+        StatusCode::OK,
+        [(header::SET_COOKIE, cookie)],
+        Json(TokenResponse::new(access_token_jwt?, expires_in)),
+    ))
 }
 
 async fn google_auth(State(state): State<AppState>) -> impl IntoResponse {

@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useAuth, type TelegramAuthData } from "@/context/AuthContext";
+
+const YANDEX_CLIENT_ID = "f1fa95b3175d4f498cccc04dd9d29147";
 import { apiCall } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
 
@@ -58,7 +60,7 @@ function InputField({
 
 export default function AuthModal({ mode: initialMode, onClose, redirectTo }: AuthModalProps) {
   const router = useRouter();
-  const { login, register, loginWithPhone, loginWithTelegram } = useAuth();
+  const { login, register, loginWithPhone, loginWithTelegram, loginWithYandex } = useAuth();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -163,6 +165,52 @@ export default function AuthModal({ mode: initialMode, onClose, redirectTo }: Au
       setError(result.error || "Invalid code");
     }
   };
+
+  const handleYandexLogin = useCallback(() => {
+    const origin = window.location.origin;
+    const redirectUri = `${origin}/auth/yandex-callback`;
+    const w = 550, h = 600;
+    const left = (screen.width - w) / 2;
+    const top = (screen.height - h) / 2;
+
+    const popup = window.open(
+      `https://oauth.yandex.ru/authorize?response_type=code&client_id=${YANDEX_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+      "YandexAuth",
+      `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`
+    );
+
+    if (!popup) {
+      setError("Popup blocked — please allow popups for this site");
+      return;
+    }
+
+    const handler = async (e: MessageEvent) => {
+      if (e.origin !== origin) return;
+      if (e.data?.type !== "yandex-auth") return;
+
+      window.removeEventListener("message", handler);
+
+      setSubmitting(true);
+      setError("");
+      const result = await loginWithYandex(e.data.code);
+      setSubmitting(false);
+
+      if (result.ok) {
+        setVisible(false);
+        setTimeout(() => { onClose(); router.push(redirectTo || "/chat"); }, 250);
+      } else {
+        setError(result.error || "Yandex login failed");
+      }
+    };
+    window.addEventListener("message", handler);
+
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener("message", handler);
+      }
+    }, 1000);
+  }, [loginWithYandex, onClose, redirectTo, router]);
 
   const handleTelegramLogin = useCallback(() => {
     const botId = "8335474240";
@@ -375,16 +423,29 @@ export default function AuthModal({ mode: initialMode, onClose, redirectTo }: Au
                 <div className="flex-1 h-px bg-white/[0.06]" />
               </div>
 
-              <button
-                onClick={handleTelegramLogin}
-                disabled={submitting}
-                className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/[0.08] bg-[#2AABEE]/10 px-4 py-3 text-[16px] text-white hover:bg-[#2AABEE]/20 hover:border-[#2AABEE]/30 transition-all active:scale-[0.98]"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#2AABEE">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
-                </svg>
-                <span>{t("auth.continueWithTelegram")}</span>
-              </button>
+              <div className="space-y-2.5">
+                <button
+                  onClick={handleYandexLogin}
+                  disabled={submitting}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/[0.08] bg-[#FC3F1D]/10 px-4 py-3 text-[16px] text-white hover:bg-[#FC3F1D]/20 hover:border-[#FC3F1D]/30 transition-all active:scale-[0.98]"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#FC3F1D">
+                    <path d="M13.63 21.69V2.31h-2.2c-3.3 0-5.03 1.68-5.03 4.12 0 2.1.84 3.24 2.73 4.68l2.31 1.77L8.96 21.7h-2.4l2.9-8.06-1.6-1.2C6.12 11.1 4.88 9.47 4.88 6.56 4.88 3.03 7.2.76 11.43.76h4.56v20.93z"/>
+                  </svg>
+                  <span>{t("auth.continueWithYandex")}</span>
+                </button>
+
+                <button
+                  onClick={handleTelegramLogin}
+                  disabled={submitting}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/[0.08] bg-[#2AABEE]/10 px-4 py-3 text-[16px] text-white hover:bg-[#2AABEE]/20 hover:border-[#2AABEE]/30 transition-all active:scale-[0.98]"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#2AABEE">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                  </svg>
+                  <span>{t("auth.continueWithTelegram")}</span>
+                </button>
+              </div>
 
               <p className="mt-6 text-center text-[16px] text-white/50">
                 {mode === "login" ? t("auth.noAccount") : t("auth.hasAccount")}{" "}

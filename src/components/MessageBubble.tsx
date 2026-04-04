@@ -848,7 +848,7 @@ export default function MessageBubble({
                 transition: "opacity 400ms ease, transform 400ms ease",
               }}
             >
-              Думаю
+              {t("thinking.label")}
               <span className="mira-thinking-dots" />
             </span>
           </div>

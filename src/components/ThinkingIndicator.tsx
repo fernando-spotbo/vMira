@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useChat } from "@/context/ChatContext";
+import { t } from "@/lib/i18n";
 
 /**
  * Thinking/loading indicator — shows when Mira is processing.
@@ -27,8 +28,8 @@ export default function ThinkingIndicator() {
   }, []);
 
   const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}с`;
-    return `${Math.floor(seconds / 60)}м ${seconds % 60}с`;
+    if (seconds < 60) return `${seconds}s`;
+    return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
   };
 
   const isQueued = queuePosition !== null && queuePosition > 0;
@@ -45,14 +46,14 @@ export default function ThinkingIndicator() {
         <div className="flex items-center gap-2">
           {isQueued ? (
             <span className="text-[14px] text-white/50">
-              <span className="text-white/70">В очереди</span>
+              <span className="text-white/70">{t("thinking.queue")}</span>
               <span className="mx-1.5 text-white/20">·</span>
-              <span>позиция {queuePosition}</span>
+              <span>{t("thinking.queuePosition")} {queuePosition}</span>
             </span>
           ) : (
             <span className="text-[14px] text-white/50">
               <span className="mira-thinking-text">
-                {phase === 0 ? "Думаю" : phase === 1 ? "Анализирую" : "Формулирую"}
+                {phase === 0 ? t("thinking.label") : phase === 1 ? t("thinking.analyzing") : t("thinking.composing")}
               </span>
               {elapsed >= 5 && (
                 <span className="ml-1.5 text-white/25 tabular-nums">{formatTime(elapsed)}</span>

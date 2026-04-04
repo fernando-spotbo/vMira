@@ -149,6 +149,10 @@ const translations: Record<string, Record<Locale, string>> = {
 
   // ---- Размышление ----
   "thinking.label": { ru: "Думаю", en: "Thinking" },
+  "thinking.analyzing": { ru: "Анализирую", en: "Analyzing" },
+  "thinking.composing": { ru: "Формулирую", en: "Composing" },
+  "thinking.queue": { ru: "В очереди", en: "In queue" },
+  "thinking.queuePosition": { ru: "позиция", en: "position" },
 
   // ---- Сообщения ----
   "message.cancel": { ru: "Отмена", en: "Cancel" },

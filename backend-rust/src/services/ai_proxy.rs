@@ -54,6 +54,34 @@ pub const MIRA_TOOL_HINTS: &str = "\
 Cite search sources as [1], [2], [3].\n\
 Never output raw XML, function calls, or internal syntax in your replies.";
 
+/// Web chat — general-purpose assistant personality.
+pub const MIRA_CHAT_PROMPT: &str = "\
+You are Mira, an AI assistant.\n\
+\n\
+## How to respond\n\
+- Be warm, direct, and genuinely helpful. Avoid filler, sycophancy, and hollow praise.\n\
+- Match your response length to the complexity of the question: a simple question gets a concise answer; \
+a complex question gets a thorough, structured response. Never cut an explanation short just to be brief.\n\
+- Respond in the same language the user writes in. If they switch languages, follow them.\n\
+- Use markdown for structure: headings, bold, lists, code blocks. It makes longer answers readable.\n\
+- When citing web search results, use numbered references like [1], [2], [3].\n\
+- Never output raw XML, function calls, or internal syntax.\n\
+\n\
+## Your capabilities\n\
+You have tools available — use them proactively:\n\
+- **Web search**: for anything current, factual, or that you're unsure about. Don't guess when you can search.\n\
+- **Reminders**: when the user says \"remind me\", \"напомни\", or mentions a future time.\n\
+- **Calendar**: to check or create events when the user asks about their schedule.\n\
+- **Memory**: save facts the user shares (name, city, preferences) and recall them naturally.\n\
+- **Actions**: propose interactive cards (weather, stocks, timers, translations, drafts, calculations) \
+instead of plain text when the format serves the user better.\n\
+- **Scheduled content**: for recurring digests, daily briefings, and periodic content delivery.\n\
+\n\
+## Personality\n\
+You are knowledgeable but not showy. You admit when you don't know something. \
+You disagree when the user is wrong rather than validating everything. \
+You're concise for simple things and thorough for complex ones — the user should feel you put in the right amount of effort.";
+
 /// Voice mode — keep responses short for TTS.
 pub const MIRA_VOICE_PROMPT: &str = "\
 Voice mode. Reply in 1-2 sentences max. No markdown.\n\
@@ -856,19 +884,21 @@ pub fn stream_ai_response(
     let user_email = user_email_for_scrub.as_deref();
     let mut pii_mapping = std::collections::HashMap::new();
 
-    // Voice mode gets a short system prompt for TTS-friendly output.
-    // Regular chat: no system prompt — model responds naturally.
-    // Only inject context (datetime, project instructions, tool hints) when needed.
+    // System prompt selection:
+    //   1. User-provided system message (CLI/API) → respect it, append context
+    //   2. Voice mode → short TTS-friendly prompt
+    //   3. Web chat (user_id is Some) → full Mira Chat personality
+    //   4. CLI/API (user_id is None) → Mira Code personality
     let project_context = match &project_instructions {
         Some(ctx) if !ctx.is_empty() => format!("\n\n--- Project Context ---\n{}", ctx),
         _ => String::new(),
     };
+    let is_web_chat = user_id.is_some();
     let mut full_messages: Vec<serde_json::Value> = Vec::new();
     let has_user_system_msg = messages.first().map_or(false, |m| m.role == "system");
 
     if has_user_system_msg {
         // User provided their own system message (e.g. CLI with custom prompt)
-        // Append our context to theirs instead of injecting a separate one
         let user_sys = &messages[0];
         let extra = format!("{}{}", project_context, datetime_context);
         let scrubbed = crate::services::pii_scrub::scrub(&user_sys.content, user_name, user_email);
@@ -882,15 +912,14 @@ pub fn stream_ai_response(
             "role": "system",
             "content": format!("{}{}{}", MIRA_VOICE_PROMPT, project_context, datetime_context),
         }));
-    } else if !project_context.is_empty() {
-        // Only inject system message when there's project context to include
-        let extra_context = format!("{}{}", project_context, datetime_context).trim().to_string();
+    } else if is_web_chat {
+        // Web chat — full personality + project context + datetime
         full_messages.push(json!({
             "role": "system",
-            "content": extra_context,
+            "content": format!("{}{}{}", MIRA_CHAT_PROMPT, project_context, datetime_context),
         }));
     } else {
-        // Mira Code system prompt — adapted from Claude Code patterns
+        // CLI / API — coding assistant personality
         let mira_code_prompt = format!(
             "You are Mira, an AI coding assistant powered by model {model}.\n\
             \n\

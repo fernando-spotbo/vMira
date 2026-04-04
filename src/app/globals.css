@@ -1,7 +1,9 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
+@source "../../node_modules/streamdown/dist/*.js";
 
 @import "highlight.js/styles/vs2015.css";
+@import "streamdown/styles.css";
 
 /* Override highlight.js background */
 .hljs {
@@ -76,6 +78,14 @@ body {
 .markdown-body {
   overflow-wrap: break-word;
   word-break: break-word;
+}
+
+/* Prevent layout thrashing: isolate each message bubble so reflows
+   during streaming don't cascade to siblings or ancestors. */
+.contain-content {
+  contain: content;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 100px;
 }
 
 .markdown-body pre {

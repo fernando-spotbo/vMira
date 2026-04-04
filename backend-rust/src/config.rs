@@ -75,9 +75,10 @@ pub struct Config {
     // ── Voice STT (local whisper) ─────────────────────────
     pub whisper_url: String,
 
-    // ── Voice TTS (local piper) ───────────────────────────
+    // ── Voice TTS ─────────────────────────────────────────
     pub piper_url: String,
     pub piper_api_key: String,
+    pub elevenlabs_api_key: String,
 
     // ── Telegram bot ────────────────────────────────────
     pub telegram_bot_token: String,
@@ -221,6 +222,7 @@ impl Config {
 
             piper_url: env_or("PIPER_URL", "http://127.0.0.1:5100"),
             piper_api_key: env_or("PIPER_API_KEY", "sk-mira-tts"),
+            elevenlabs_api_key: env_or("ELEVENLABS_API_KEY", ""),
 
             telegram_bot_token,
             telegram_webhook_secret,

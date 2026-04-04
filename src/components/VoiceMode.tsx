@@ -310,9 +310,13 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       if (!stream || !alive || mutedRef.current) return;
       audioChunks = [];
       try {
+        // Pick a supported mime: webm (Chrome/Firefox), mp4 (Safari/iOS), or browser default
         const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus" : "audio/webm";
-        mediaRecorder = new MediaRecorder(stream, { mimeType });
+          ? "audio/webm;codecs=opus"
+          : MediaRecorder.isTypeSupported("audio/mp4")
+            ? "audio/mp4"
+            : undefined;
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
         mediaRecorder.ondataavailable = (e) => {
           if (e.data.size > 0) audioChunks.push(e.data);
         };
@@ -399,9 +403,29 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       .replace(/\[(\d+)\]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_~`#>]/g, "")
       .trim();
 
-    // Play a single audio blob, returns when done
+    // Play a single audio blob via Web Audio API (works on iOS Safari).
+    // Falls back to HTML5 Audio if AudioContext is unavailable.
+    let currentSource: AudioBufferSourceNode | null = null;
     const playBlob = (blob: Blob): Promise<void> => {
       if (blob.size < 100) return Promise.resolve();
+      // Prefer Web Audio API — works on iOS after AudioContext is unlocked
+      if (audioCtx && audioCtx.state === "running") {
+        return blob.arrayBuffer()
+          .then(buf => audioCtx!.decodeAudioData(buf))
+          .then(decoded => new Promise<void>((resolve) => {
+            const source = audioCtx!.createBufferSource();
+            source.buffer = decoded;
+            source.connect(audioCtx!.destination);
+            currentSource = source;
+            let done = false;
+            const finish = () => { if (done) return; done = true; currentSource = null; resolve(); };
+            source.onended = finish;
+            source.start(0);
+            setTimeout(finish, 20000);
+          }))
+          .catch(() => Promise.resolve());
+      }
+      // Fallback: HTML5 Audio (Chrome/desktop)
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       currentAudioRef.current = audio;
@@ -418,6 +442,12 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     const sendToAI = async (text: string) => {
       if (!text.trim() || !alive) return;
       if (!getAccessToken()) { setError(t("voice.loginRequired")); smoothSetPhase("error"); return; }
+
+      // Include session duration so the AI is aware of call length
+      const secs = Math.floor((Date.now() - startRef.current) / 1000);
+      const mm = Math.floor(secs / 60);
+      const ss = (secs % 60).toString().padStart(2, "0");
+      const taggedText = `[Voice call · ${mm}:${ss}] ${text}`;
 
       setResponsePreview("");
 
@@ -436,6 +466,9 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         const m = selectedModelRef.current.toLowerCase().replace(/\s+/g, "-");
         const model = ["mira", "mira-thinking"].includes(m) ? m : "mira";
 
+        // Use taggedText (with session time) for the AI, plain text for display
+        const aiContent = taggedText;
+
         // ── Sentence-streaming TTS ──
         // Fire TTS per sentence as AI streams. Play each immediately when ready.
         // Playback runs in a separate async chain so it doesn't block token processing.
@@ -447,28 +480,30 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         // A background loop plays them in order as they resolve.
         const ttsQueue: Promise<Blob | null>[] = [];
         let playbackStarted = false;
+        let playedAnyAudio = false;
+        let streamDone = false;
+        let playbackPromise: Promise<void> | null = null;
 
         // Background playback — plays blobs in order as they resolve
         const runPlayback = async () => {
           let i = 0;
           while (alive && phaseRef.current === "speaking") {
             if (i >= ttsQueue.length) {
-              // Wait a bit for more sentences
-              await new Promise(r => setTimeout(r, 100));
-              // If stream is done and we've played everything, stop
-              if (i >= ttsQueue.length) break;
-              continue;
+              if (streamDone) break; // stream finished, no more entries coming
+              await new Promise(r => setTimeout(r, 150));
+              continue; // keep waiting for more sentences while stream is active
             }
             const blob = await ttsQueue[i];
             i++;
             if (!alive || phaseRef.current !== "speaking") break;
             if (blob && blob.size >= 100) {
+              playedAnyAudio = true;
               await playBlob(blob);
             }
           }
         };
 
-        for await (const ev of chatApi.streamMessage(cid, text, model, undefined, true)) {
+        for await (const ev of chatApi.streamMessage(cid, aiContent, model, undefined, true)) {
           if (!alive) return;
           if (ev.type === "token") {
             full += ev.content;
@@ -486,8 +521,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
                 if (!playbackStarted) {
                   playbackStarted = true;
                   smoothSetPhase("speaking");
-                  // Start playback loop in background — don't await
-                  runPlayback();
+                  playbackPromise = runPlayback();
                 }
               }
             }
@@ -497,32 +531,51 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         if (!alive) return;
         if (!full.trim()) { resumeListening(); return; }
 
-        // TTS any remaining text
-        if (pendingSentence.trim()) {
-          const lastClean = cleanForTTS(pendingSentence);
-          if (lastClean) {
-            const lang = detectResponseLang(lastClean).split("-")[0];
-            ttsQueue.push(synthesizeAudio(lastClean, lang).catch(() => null));
-          }
+        // TTS any remaining text (final fragment without sentence punctuation)
+        const remaining = cleanForTTS(pendingSentence);
+        if (remaining) {
+          const lang = detectResponseLang(remaining).split("-")[0];
+          ttsQueue.push(synthesizeAudio(remaining, lang).catch(() => null));
         }
+
+        // Signal playback loop that no more entries are coming
+        streamDone = true;
 
         addMessageRef.current(cid, { id: `msg-${Date.now()}`, role: "assistant", content: full });
 
-        // If playback hasn't started yet (very short response, no sentence boundary)
-        if (!playbackStarted && ttsQueue.length > 0) {
+        if (playbackStarted && playbackPromise) {
+          // Wait for the playback loop to finish playing ALL blobs,
+          // not just for the TTS API calls to return.
+          await playbackPromise;
+        } else if (ttsQueue.length > 0) {
+          // Short response — playback never started, drain now
           smoothSetPhase("speaking");
-          await runPlayback();
-        } else if (playbackStarted) {
-          // Wait for playback to finish all queued sentences
-          for (const p of ttsQueue) await p;
-          // Give playback loop time to finish the last blob
-          await new Promise(r => setTimeout(r, 500));
-        } else if (!full.trim()) {
-          resumeListening(); return;
-        } else {
-          // No TTS queued at all — fallback to browser TTS
+          playbackPromise = runPlayback();
+          await playbackPromise;
+        }
+
+        // If server TTS failed entirely (all blobs null), use browser speech.
+        // Go directly to SpeechSynthesis — don't retry the server.
+        if (!playedAnyAudio && full.trim() && alive && phaseRef.current !== "error") {
           smoothSetPhase("speaking");
-          await speakFn(full);
+          const cleanText = cleanForTTS(full).slice(0, 500);
+          if (cleanText && "speechSynthesis" in window) {
+            await new Promise<void>((resolve) => {
+              window.speechSynthesis.cancel();
+              const utt = new SpeechSynthesisUtterance(cleanText);
+              utt.lang = detectResponseLang(cleanText);
+              utt.rate = 1.0;
+              const voices = window.speechSynthesis.getVoices();
+              const matched = voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(utt.lang.split("-")[0]));
+              if (matched) utt.voice = matched;
+              let done = false;
+              const finish = () => { if (!done) { done = true; resolve(); } };
+              utt.onend = finish;
+              utt.onerror = () => { console.warn("[TTS] Browser speech failed"); finish(); };
+              window.speechSynthesis.speak(utt);
+              setTimeout(finish, 20000);
+            });
+          }
         }
 
         if (alive && phaseRef.current === "speaking") resumeListening();
@@ -564,6 +617,8 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         if (!alive) { s.getTracks().forEach(t => t.stop()); return; }
         stream = s;
         audioCtx = new AudioContext();
+        // iOS Safari: AudioContext starts suspended; resume after getUserMedia unlocks it
+        if (audioCtx.state === "suspended") await audioCtx.resume();
         const src = audioCtx.createMediaStreamSource(s);
         const an = audioCtx.createAnalyser();
         an.fftSize = 128; an.smoothingTimeConstant = 0.65; an.minDecibels = -85; an.maxDecibels = -10;
@@ -578,7 +633,8 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           recognition = new SpeechRecognitionCtor();
           recognition.continuous = true;
           recognition.interimResults = true;
-          recognition.lang = ""; // auto-detect
+          // Use browser language for STT; empty string causes silent failure on some browsers
+          recognition.lang = navigator.language || "en-US";
 
           recognition.onresult = (event: any) => {
             let finalText = "";
@@ -668,6 +724,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
           // Interrupt TTS when user speaks loudly
           if (ph === "speaking" && avg > INTERRUPT_THRESHOLD) {
+            if (currentSource) { try { currentSource.stop(); } catch {} currentSource = null; }
             if (currentAudioRef.current) {
               currentAudioRef.current.pause();
               currentAudioRef.current = null;
@@ -702,6 +759,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       if (recognition) { try { recognition.stop(); } catch {} }
       if (mediaRecorder?.state !== "inactive") try { mediaRecorder?.stop(); } catch {}
       stream?.getTracks().forEach(t => t.stop());
+      if (currentSource) { try { currentSource.stop(); } catch {} currentSource = null; }
       if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       audioCtx?.close().catch(() => {});
@@ -735,7 +793,13 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           <p className="text-[16px] text-white/15 line-clamp-2">{transcript}</p>
         )}
       </div>
-      <p className="text-[16px] text-white/10 tabular-nums font-mono mb-14">{fmt(elapsed)}</p>
+      <div className="flex items-center gap-2 mb-14">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/20" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-white/25" />
+        </span>
+        <p className="text-[15px] text-white/20 tabular-nums font-mono">{fmt(elapsed)}</p>
+      </div>
 
       <div className="flex items-center gap-6">
         <button onClick={() => setMuted(!muted)} className={`flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 ${muted ? "bg-white/[0.06] text-white/25 border border-white/[0.08]" : "bg-white/[0.05] text-white/40 border border-white/[0.07] hover:bg-white/[0.08]"}`}>

@@ -96,12 +96,19 @@ export default function ChatArea() {
     const el = scrollRef.current;
     if (!el) return;
 
+    // Throttle to one scroll update per animation frame to prevent
+    // forced synchronous layout from getBoundingClientRect on every DOM mutation.
+    let rafId = 0;
     const observer = new MutationObserver(() => {
       if (!autoFollow.current) return;
-      followOrPin();
+      if (rafId) return; // already scheduled
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        followOrPin();
+      });
     });
     observer.observe(el, { childList: true, subtree: true, characterData: true });
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); cancelAnimationFrame(rafId); };
   }, [generating, followOrPin]);
 
   // Scroll handler

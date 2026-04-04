@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Streamdown } from "streamdown";
+import { code as streamdownCode } from "@streamdown/code";
 import { Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, CreditCard, Clock, Globe } from "lucide-react";
 import { Message, MessageStep, Attachment, MessageError, ReminderInfo } from "@/lib/types";
 import CodeBlock from "./CodeBlock";
@@ -872,7 +874,7 @@ export default function MessageBubble({
           )}
 
           {hasSteps ? (
-            <div className="markdown-body text-[16px] leading-7 text-white">
+            <div className="markdown-body text-[16px] leading-7 text-white contain-content">
               {message.steps!.map((step, i) => {
                 if (step.type === "reasoning") {
                   return <ReasoningBlock key={i} summary={step.summary} thinking={step.thinking} searches={step.searches} searchPhase={step.searchPhase} onExternalLink={setExternalLink} />;
@@ -884,16 +886,28 @@ export default function MessageBubble({
                 const textContent = preprocessCitations(cleanStepText);
                 return (
                   <div key={i}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{textContent}</ReactMarkdown>
+                    <Streamdown
+                      plugins={{ code: streamdownCode }}
+                      isAnimating={isLastStep && isStreaming && !isUser && !isComplete}
+                      components={markdownComponents}
+                      shikiTheme={["github-dark", "github-dark"]}
+                    >
+                      {textContent}
+                    </Streamdown>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="markdown-body text-[16px] leading-7 text-white">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            <div className="markdown-body text-[16px] leading-7 text-white contain-content">
+              <Streamdown
+                plugins={{ code: streamdownCode }}
+                isAnimating={isStreaming && !isUser && !isComplete}
+                components={markdownComponents}
+                shikiTheme={["github-dark", "github-dark"]}
+              >
                 {contentToRender}
-              </ReactMarkdown>
+              </Streamdown>
             </div>
           )}
 

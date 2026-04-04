@@ -184,7 +184,9 @@ export async function transcribeAudio(
   language?: string,
 ): Promise<{ text: string; language?: string; duration?: number }> {
   const formData = new FormData();
-  formData.append("audio", audioBlob, "voice.webm");
+  // Use correct extension based on blob type (Safari/iOS uses mp4, Chrome uses webm)
+  const ext = audioBlob.type.includes("mp4") ? "m4a" : "webm";
+  formData.append("audio", audioBlob, `voice.${ext}`);
   if (language) formData.append("language", language);
 
   const headers: Record<string, string> = {

@@ -144,6 +144,7 @@ export async function getMe() {
   return apiCall<{
     id: string;
     name: string;
+    display_name: string | null;
     email: string | null;
     phone: string | null;
     avatar_url: string | null;

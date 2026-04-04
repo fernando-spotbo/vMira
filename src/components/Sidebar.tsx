@@ -28,6 +28,7 @@ function UserMenuPopup({
   userName,
   userEmail,
   userInitial,
+  avatarUrl,
 }: {
   anchorRect: DOMRect;
   onClose: () => void;
@@ -37,6 +38,7 @@ function UserMenuPopup({
   userName: string;
   userEmail: string;
   userInitial: string;
+  avatarUrl: string | null;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -90,7 +92,9 @@ function UserMenuPopup({
         {/* User info */}
         <div className="px-4 py-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.15] text-white text-sm font-semibold">{userInitial}</div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.15] text-white text-sm font-semibold overflow-hidden">
+              {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : userInitial}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-white truncate">{userName}</div>
               <div className="text-xs text-white/70 truncate">{userEmail}</div>
@@ -212,7 +216,7 @@ export default function Sidebar() {
   } = useChat();
   const { user, logout, switchOrg } = useAuth();
 
-  const userName = user?.name || "User";
+  const userName = user?.display_name || user?.name || "User";
   const userEmail = user?.email || user?.phone || "";
   const userInitial = userName.charAt(0).toUpperCase();
   const userPlan = user?.chat_plan || user?.plan || "free";
@@ -270,6 +274,7 @@ export default function Sidebar() {
           userName={userName}
           userEmail={userEmail}
           userInitial={userInitial}
+          avatarUrl={user?.avatar_url || null}
         />
       )}
 
@@ -308,6 +313,7 @@ export default function Sidebar() {
           onOpenPricing={() => setPricingOpen(true)}
           userName={userName}
           userInitial={userInitial}
+          avatarUrl={user?.avatar_url || null}
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
@@ -339,6 +345,7 @@ export default function Sidebar() {
           onOpenPricing={() => setPricingOpen(true)}
           userName={userName}
           userInitial={userInitial}
+          avatarUrl={user?.avatar_url || null}
           userPlanLabel={planLabels[userPlan] || userPlan}
           showReminders={showReminders}
           setShowReminders={setShowReminders}
@@ -368,6 +375,7 @@ interface SidebarContentProps {
   onOpenPricing: () => void;
   userName: string;
   userInitial: string;
+  avatarUrl: string | null;
   userPlanLabel: string;
   showReminders: boolean;
   setShowReminders: (show: boolean) => void;
@@ -392,6 +400,7 @@ function SidebarContent({
   onOpenPricing,
   userName,
   userInitial,
+  avatarUrl,
   userPlanLabel,
   showReminders,
   setShowReminders,
@@ -560,8 +569,8 @@ function SidebarContent({
               : "flex h-10 w-10 items-center justify-center"
           }
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.15] text-white text-xs font-semibold">
-            {userInitial}
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.15] text-white text-xs font-semibold overflow-hidden">
+            {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : userInitial}
           </div>
           {expanded && (
             <div className="flex-1 text-left overflow-hidden">

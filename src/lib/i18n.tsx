@@ -235,6 +235,18 @@ const translations: Record<string, Record<Locale, string>> = {
   "settings.telegramNotifs": { ru: "Уведомления в Telegram", en: "Telegram notifications" },
   "settings.telegramNotifsDesc": { ru: "Напоминания приходят в Telegram", en: "Reminders sent to Telegram" },
 
+  // ---- Профиль ----
+  "settings.profile": { ru: "Профиль", en: "Profile" },
+  "settings.profilePhoto": { ru: "Фото", en: "Photo" },
+  "settings.profilePhotoChange": { ru: "Изменить", en: "Change" },
+  "settings.profilePhotoRemove": { ru: "Удалить", en: "Remove" },
+  "settings.displayName": { ru: "Как вас называть?", en: "What should Mira call you?" },
+  "settings.displayNameDesc": { ru: "Короткое имя для приветствий", en: "Short name for greetings" },
+  "settings.fullName": { ru: "Полное имя", en: "Full name" },
+  "settings.email": { ru: "Email", en: "Email" },
+  "settings.phone": { ru: "Телефон", en: "Phone" },
+  "settings.profileSaved": { ru: "Сохранено", en: "Saved" },
+
   // ---- Напоминания и уведомления ----
   "reminders.title": { ru: "Напоминания", en: "Reminders" },
   "reminders.empty": { ru: "Нет напоминаний", en: "No reminders" },

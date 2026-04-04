@@ -118,6 +118,13 @@ pub struct UpdateUserRequest {
     #[validate(length(min = 1, max = 128))]
     pub name: Option<String>,
 
+    /// Short name for greetings ("What should Mira call you?")
+    #[validate(length(min = 1, max = 64))]
+    pub display_name: Option<String>,
+
+    /// Base64-encoded avatar image (will be resized server-side)
+    pub avatar_url: Option<String>,
+
     #[validate(custom(function = "validate_language"))]
     pub language: Option<String>,
 
@@ -143,6 +150,7 @@ fn validate_language(lang: &str) -> Result<(), validator::ValidationError> {
 pub struct UserResponse {
     pub id: Uuid,
     pub name: String,
+    pub display_name: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub avatar_url: Option<String>,

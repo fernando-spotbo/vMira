@@ -16,6 +16,7 @@ pub struct User {
     pub yandex_id: Option<String>,
     pub google_id: Option<String>,
 
+    pub display_name: Option<String>,
     pub avatar_url: Option<String>,
     pub language: String,
     pub plan: String,

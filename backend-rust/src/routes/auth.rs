@@ -62,6 +62,7 @@ fn user_response(user: &User) -> UserResponse {
     UserResponse {
         id: user.id,
         name: user.name.clone(),
+        display_name: user.display_name.clone(),
         email: user.email.clone(),
         phone: mask_phone(user.phone.as_deref()),
         avatar_url: user.avatar_url.clone(),
@@ -596,6 +597,8 @@ async fn yandex_auth(
         .map(|s| s.to_string());
     let avatar_url = yandex_user["default_avatar_id"].as_str()
         .map(|id| format!("https://avatars.yandex.net/get-yapic/{}/islands-200", id));
+    let phone = yandex_user["default_phone"]["number"].as_str()
+        .map(|s| s.to_string());
 
     // Look up or create user by yandex_id
     let existing: Option<User> = sqlx::query_as(
@@ -606,9 +609,10 @@ async fn yandex_auth(
     .await?;
 
     let user = if let Some(u) = existing {
-        // Update avatar/email if changed
-        sqlx::query("UPDATE users SET avatar_url = COALESCE($1, avatar_url), updated_at = NOW() WHERE id = $2")
+        // Update avatar/phone if changed
+        sqlx::query("UPDATE users SET avatar_url = COALESCE($1, avatar_url), phone = COALESCE($2, phone), updated_at = NOW() WHERE id = $3")
             .bind(&avatar_url)
+            .bind(&phone)
             .bind(u.id)
             .execute(&state.db)
             .await?;
@@ -640,18 +644,19 @@ async fn yandex_auth(
             // Create new user
             let user_id = Uuid::new_v4();
             sqlx::query(
-                "INSERT INTO users (id, name, email, yandex_id, avatar_url, language, plan, \
+                "INSERT INTO users (id, name, email, phone, yandex_id, avatar_url, language, plan, \
                  daily_messages_used, daily_reset_at, is_active, is_verified, is_admin, \
                  failed_login_attempts, consent_personal_data, consent_personal_data_at, \
                  consent_marketing, \
                  balance_kopecks, total_spent_kopecks, total_topped_up_kopecks, \
                  allow_overage_billing, chat_plan, code_plan, created_at, updated_at) \
-                 VALUES ($1, $2, $3, $4, $5, 'ru', 'free', 0, NOW(), true, true, false, \
+                 VALUES ($1, $2, $3, $4, $5, $6, 'ru', 'free', 0, NOW(), true, true, false, \
                  0, true, NOW(), false, 0, 0, 0, false, 'free', 'free', NOW(), NOW())"
             )
             .bind(user_id)
             .bind(&display_name)
             .bind(&email)
+            .bind(&phone)
             .bind(&yandex_id)
             .bind(&avatar_url)
             .execute(&state.db)
@@ -1354,17 +1359,41 @@ async fn update_me(
     }
 
     let name = body.name.as_deref().unwrap_or(&user.name);
+    let display_name = if body.display_name.is_some() { body.display_name.as_deref() } else { user.display_name.as_deref() };
     let language = body.language.as_deref().unwrap_or(&user.language);
     let allow_overage = body.allow_overage_billing.unwrap_or(user.allow_overage_billing);
     let active_org_id = body.active_organization_id.or(user.active_organization_id);
 
+    // Process avatar: if provided as base64 data URI, validate size
+    let avatar_url = if let Some(ref av) = body.avatar_url {
+        // Accept data:image/... base64 strings (frontend resizes to 64x64 JPEG)
+        if av.starts_with("data:image/") && av.len() <= 10_000 {
+            Some(av.clone())
+        } else if av.is_empty() {
+            // Allow clearing avatar
+            None
+        } else if av.starts_with("http") {
+            // Keep external URLs (e.g. from Yandex OAuth)
+            Some(av.clone())
+        } else {
+            // Base64 too large or invalid format
+            return Err(AppError::BadRequest("Avatar must be a data:image URI under 10KB".into()));
+        }
+    } else {
+        user.avatar_url.clone()
+    };
+
     let updated = sqlx::query_as::<_, User>(
-        "UPDATE users SET name = $1, language = $2, allow_overage_billing = $3, active_organization_id = COALESCE($4, active_organization_id), updated_at = $5 WHERE id = $6 RETURNING *"
+        "UPDATE users SET name = $1, display_name = $2, language = $3, allow_overage_billing = $4, \
+         active_organization_id = COALESCE($5, active_organization_id), avatar_url = $6, \
+         updated_at = $7 WHERE id = $8 RETURNING *"
     )
     .bind(name)
+    .bind(display_name)
     .bind(language)
     .bind(allow_overage)
     .bind(active_org_id)
+    .bind(&avatar_url)
     .bind(Utc::now())
     .bind(user.id)
     .fetch_one(&state.db)

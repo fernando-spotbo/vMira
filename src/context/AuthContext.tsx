@@ -7,6 +7,7 @@ import { setLocale, type Locale } from "@/lib/i18n";
 interface User {
   id: string;
   name: string;
+  display_name: string | null;
   email: string | null;
   phone: string | null;
   avatar_url: string | null;
@@ -42,7 +43,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, consent: boolean) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
-  updateUser: (data: { name?: string; language?: string }) => Promise<void>;
+  updateUser: (data: { name?: string; display_name?: string; language?: string; avatar_url?: string }) => Promise<void>;
   switchOrg: (organizationId: string) => Promise<void>;
 }
 
@@ -237,7 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const updateUser = useCallback(async (data: { name?: string; language?: string }) => {
+  const updateUser = useCallback(async (data: { name?: string; display_name?: string; language?: string; avatar_url?: string }) => {
     const result = await apiCall<User>("/auth/me", {
       method: "PATCH",
       body: JSON.stringify(data),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, User, Palette, Bell, Shield, Keyboard, CalendarDays, ChevronRight, Copy, Check, ExternalLink } from "lucide-react";
+import { X, User, Palette, Bell, Shield, Keyboard, CalendarDays, ChevronRight, Copy, Check, ExternalLink, Camera, Settings2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
 import TelegramLinkModal from "./TelegramLinkModal";
@@ -10,11 +10,12 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-const TAB_KEYS = ["general", "appearance", "notifications", "calendar", "privacy", "shortcuts"] as const;
+const TAB_KEYS = ["profile", "general", "appearance", "notifications", "calendar", "privacy", "shortcuts"] as const;
 type TabId = (typeof TAB_KEYS)[number];
 
 const TABS: { id: TabId; labelKey: string; icon: typeof User }[] = [
-  { id: "general", labelKey: "settings.general", icon: User },
+  { id: "profile", labelKey: "settings.profile", icon: User },
+  { id: "general", labelKey: "settings.general", icon: Settings2 },
   { id: "appearance", labelKey: "settings.appearance", icon: Palette },
   { id: "notifications", labelKey: "settings.notifications", icon: Bell },
   { id: "calendar", labelKey: "settings.calendar", icon: CalendarDays },
@@ -84,18 +85,167 @@ function SelectField({
   );
 }
 
-function GeneralTab() {
+function ProfileTab() {
   const { user, updateUser } = useAuth();
+  const [displayName, setDisplayName] = useState(user?.display_name || "");
+  const [fullName, setFullName] = useState(user?.name || "");
   const [language, setLanguage] = useState(user?.language || "ru");
-  const [archiveChats, setArchiveChats] = useState(true);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null);
+  const [saved, setSaved] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const showSaved = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext("2d")!;
+
+      // Crop to square center, then draw at 64x64
+      const size = Math.min(img.width, img.height);
+      const sx = (img.width - size) / 2;
+      const sy = (img.height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, 64, 64);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+      setAvatarPreview(dataUrl);
+      updateUser({ avatar_url: dataUrl });
+      showSaved();
+    };
+    img.src = URL.createObjectURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarPreview(null);
+    updateUser({ avatar_url: "" });
+    showSaved();
+  };
+
+  const handleDisplayNameBlur = () => {
+    const trimmed = displayName.trim();
+    if (trimmed !== (user?.display_name || "")) {
+      updateUser({ display_name: trimmed || undefined });
+      showSaved();
+    }
+  };
+
+  const handleFullNameBlur = () => {
+    const trimmed = fullName.trim();
+    if (trimmed && trimmed !== user?.name) {
+      updateUser({ name: trimmed });
+      showSaved();
+    }
+  };
 
   const handleLanguageChange = (lang: string) => {
     setLanguage(lang);
     updateUser({ language: lang });
   };
 
+  const userInitial = (user?.display_name || user?.name || "U").charAt(0).toUpperCase();
+
   return (
     <div>
+      {/* Saved indicator */}
+      {saved && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-2 rounded-full bg-white/[0.1] border border-white/[0.08] px-4 py-2 text-[13px] text-white/70 backdrop-blur-sm">
+          <Check size={14} className="text-green-400/80" />
+          {t("settings.profileSaved")}
+        </div>
+      )}
+
+      {/* Avatar */}
+      <div className="flex items-center gap-5 pb-6 border-b border-white/[0.04]">
+        <div className="relative group">
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-white/[0.08] flex items-center justify-center shrink-0">
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[22px] font-medium text-white/60">{userInitial}</span>
+            )}
+          </div>
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+          >
+            <Camera size={18} className="text-white/80" />
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleAvatarChange}
+            className="hidden"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="text-[13px] text-white/60 hover:text-white transition-colors text-left"
+          >
+            {t("settings.profilePhotoChange")}
+          </button>
+          {avatarPreview && (
+            <button
+              onClick={handleRemoveAvatar}
+              className="text-[13px] text-white/30 hover:text-red-400/70 transition-colors text-left"
+            >
+              {t("settings.profilePhotoRemove")}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Display name */}
+      <div className="py-4 border-b border-white/[0.04]">
+        <label className="block text-[16px] text-white mb-0.5">{t("settings.displayName")}</label>
+        <p className="text-[13px] text-white/40 mb-2">{t("settings.displayNameDesc")}</p>
+        <input
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          onBlur={handleDisplayNameBlur}
+          placeholder={user?.name || ""}
+          maxLength={64}
+          className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2.5 text-[16px] text-white placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] transition-colors"
+        />
+      </div>
+
+      {/* Full name */}
+      <div className="py-4 border-b border-white/[0.04]">
+        <label className="block text-[16px] text-white mb-2">{t("settings.fullName")}</label>
+        <input
+          type="text"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          onBlur={handleFullNameBlur}
+          maxLength={128}
+          className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-2.5 text-[16px] text-white placeholder:text-white/20 focus:outline-none focus:border-white/[0.15] transition-colors"
+        />
+      </div>
+
+      {/* Email (read-only) */}
+      <SettingRow label={t("settings.email")}>
+        <span className="text-[16px] text-white/50">{user?.email || "—"}</span>
+      </SettingRow>
+
+      {/* Phone (read-only) */}
+      <SettingRow label={t("settings.phone")}>
+        <span className="text-[16px] text-white/50">{user?.phone || "—"}</span>
+      </SettingRow>
+
+      {/* Language */}
       <SettingRow label={t("settings.language")}>
         <SelectField
           value={language}
@@ -106,6 +256,15 @@ function GeneralTab() {
           ]}
         />
       </SettingRow>
+    </div>
+  );
+}
+
+function GeneralTab() {
+  const [archiveChats, setArchiveChats] = useState(true);
+
+  return (
+    <div>
       <SettingRow label={t("settings.archiveChats")} description={t("settings.archiveDesc")}>
         <ToggleSwitch enabled={archiveChats} onToggle={() => setArchiveChats(!archiveChats)} />
       </SettingRow>
@@ -436,7 +595,7 @@ function ShortcutsTab() {
 }
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("general");
+  const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [visible, setVisible] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -468,6 +627,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   const renderTab = () => {
     switch (activeTab) {
+      case "profile": return <ProfileTab />;
       case "general": return <GeneralTab />;
       case "appearance": return <AppearanceTab />;
       case "notifications": return <NotificationsTab />;

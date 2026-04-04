@@ -230,9 +230,12 @@ async fn chat_completions(
         }
     }
 
+    // Strip system messages — the CLI sends its own system prompt but we don't
+    // want it reaching the model (reduces model capacity, adds wrong instructions)
     let history: Vec<ChatMessage> = body
         .messages
         .iter()
+        .filter(|m| m.role != "system")
         .map(|m| ChatMessage {
             role: m.role.clone(),
             content: sanitize::sanitize_input(&m.content),
@@ -522,13 +525,20 @@ async fn chat_completions(
 
                 if let Some(env_id) = bridge_env {
                     // Store user message (last user message from history)
-                    if let Some(last_user) = history_clone.iter().rev().find(|m| m.role == "user") {
+                    // Skip system prompts, CLI commands, and XML-tagged messages
+                    if let Some(last_user) = history_clone.iter().rev().find(|m| {
+                        m.role == "user"
+                            && !m.content.contains("<command-name>")
+                            && !m.content.contains("<local-command-stdout>")
+                            && !m.content.contains("<system-reminder>")
+                            && !m.content.trim().starts_with('/')
+                    }) {
                         let _ = sqlx::query(
                             "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'user', $2, $3)"
                         )
                         .bind(env_id)
                         .bind(&last_user.content)
-                        .bind(Utc::now() - chrono::Duration::milliseconds(100)) // slightly before response
+                        .bind(Utc::now() - chrono::Duration::milliseconds(100))
                         .execute(&state_clone.db)
                         .await;
                     }
@@ -740,7 +750,13 @@ async fn chat_completions(
             .flatten();
 
             if let Some(env_id) = bridge_env {
-                if let Some(last_user) = history.iter().rev().find(|m| m.role == "user") {
+                if let Some(last_user) = history.iter().rev().find(|m| {
+                    m.role == "user"
+                        && !m.content.contains("<command-name>")
+                        && !m.content.contains("<local-command-stdout>")
+                        && !m.content.contains("<system-reminder>")
+                        && !m.content.trim().starts_with('/')
+                }) {
                     let _ = sqlx::query(
                         "INSERT INTO bridge_messages (environment_id, role, content, created_at) VALUES ($1, 'user', $2, $3)"
                     )

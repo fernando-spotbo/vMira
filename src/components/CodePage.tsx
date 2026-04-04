@@ -500,6 +500,7 @@ function RemoteConsole({
 }) {
   const [session, setSession] = useState<RemoteSession | null>(null);
   const [messages, setMessages] = useState<RemoteMessage[]>([]);
+  const [sending, setSending] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -553,10 +554,16 @@ function RemoteConsole({
           const newMsgs = result.messages.map(mapMessage);
           setMessages(prev => {
             // Only update if there are new messages
-            if (newMsgs.length !== prev.length) return newMsgs;
+            if (newMsgs.length !== prev.length) {
+              setSending(false); // CLI responded, clear sending state
+              return newMsgs;
+            }
             const lastNew = newMsgs[newMsgs.length - 1];
             const lastOld = prev[prev.length - 1];
-            if (lastNew && lastOld && lastNew.id !== lastOld.id) return newMsgs;
+            if (lastNew && lastOld && lastNew.id !== lastOld.id) {
+              setSending(false);
+              return newMsgs;
+            }
             return prev;
           });
         }
@@ -645,10 +652,12 @@ function RemoteConsole({
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg]);
+    setSending(true);
     autoFollow.current = true;
 
     const result = await sendRemotePrompt(sessionId, text);
     if (!result.ok) {
+      setSending(false);
       const errMsg: RemoteMessage = {
         id: `err-${Date.now()}`,
         role: "assistant",
@@ -658,6 +667,7 @@ function RemoteConsole({
       setMessages((prev) => [...prev, errMsg]);
     }
     // CLI picks up the prompt, processes it, response appears via bridge_messages polling
+    // setSending(false) will be called when new messages arrive via polling
   }, [sessionId]);
 
   // ── Derived display values ──
@@ -734,6 +744,27 @@ function RemoteConsole({
                   )}
                 </div>
               ))}
+
+              {/* Waiting for CLI response indicator */}
+              {sending && (
+                <div className="py-2">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08]">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ color: "rgba(255,255,255,0.8)" }}>
+                        <path d="M12 1Q18.5 12 12 23Q5.5 12 12 1Z" fill="currentColor" />
+                        <path d="M1 12Q12 5.5 23 12Q12 18.5 1 12Z" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0 pt-2">
+                      <div className="flex gap-[3px] items-center">
+                        <span className="block w-[3px] h-[3px] rounded-full bg-white/20 animate-[thinking-dot_1.4s_ease-in-out_infinite]" />
+                        <span className="block w-[3px] h-[3px] rounded-full bg-white/20 animate-[thinking-dot_1.4s_ease-in-out_0.2s_infinite]" />
+                        <span className="block w-[3px] h-[3px] rounded-full bg-white/20 animate-[thinking-dot_1.4s_ease-in-out_0.4s_infinite]" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div ref={endRef} className="h-6" aria-hidden="true" />
             </div>

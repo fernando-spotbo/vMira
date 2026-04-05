@@ -943,9 +943,8 @@ pub fn stream_ai_response(
                 datetime_context = &datetime_context,
             )
         } else {
-            // Direct API — neutral general-purpose assistant
-            format!(
-                "You are Mira, an AI assistant powered by model {model}.{datetime_context}",
+            // Direct API — identity only, no format/behavior constraints
+            format!("You are Mira, model {model}.{datetime_context}",
                 model = &model,
                 datetime_context = &datetime_context,
             )

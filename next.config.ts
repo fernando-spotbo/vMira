@@ -15,12 +15,12 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'", // unsafe-eval removed for security; use nonces to eliminate unsafe-inline too
+              "script-src 'self' 'unsafe-inline' blob:", // blob: needed for AudioWorklet (voice mode PCM capture)
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob:",
               "media-src 'self' blob:",
-              "connect-src 'self' https://vmira.ai https://platform.vmira.ai https://api.vmira.ai",
+              "connect-src 'self' https://vmira.ai https://platform.vmira.ai https://api.vmira.ai wss://api.vmira.ai",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

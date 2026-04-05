@@ -539,6 +539,9 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           if (c && alive) {
             convIdRef.current = c.id;
             ensureConvRef.current(c.id, "Voice call");
+            console.log("[Voice] Conversation created:", c.id);
+          } else {
+            console.error("[Voice] Failed to create conversation!", c);
           }
         }
 
@@ -571,6 +574,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
             ) {
               // Audio playback finished
               const currentCid = convIdRef.current;
+              console.log("[Voice] Bot done speaking, cid:", currentCid, "text:", fullBotText.slice(0, 50));
               if (currentCid && fullBotText) {
                 addMessageRef.current(currentCid, {
                   id: `msg-${Date.now()}`,
@@ -635,12 +639,15 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
                 if (msg.final && msg.text) {
                   lastUserText = msg.text;
                   const currentCid = convIdRef.current;
+                  console.log("[Voice] User final transcript, cid:", currentCid, "text:", msg.text);
                   if (currentCid) {
                     addMessageRef.current(currentCid, {
                       id: `user-${Date.now()}`,
                       role: "user",
                       content: msg.text,
                     });
+                  } else {
+                    console.warn("[Voice] No conversation ID — message not saved!");
                   }
                 }
               } else if (msg.type === "bot_text" || msg.type === "bot_llm_text") {

@@ -493,20 +493,8 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         const m = selectedModelRef.current.toLowerCase().replace(/\s+/g, "-");
         const model = ["mira", "mira-thinking"].includes(m) ? m : "mira";
 
-        let cid = convIdRef.current;
-        if (!cid) {
-          const c = await chatApi.createConversation("Voice call", model);
-          if (!c || !alive) {
-            if (alive) {
-              smoothSetPhase("error");
-              setError(t("voice.error"));
-            }
-            return;
-          }
-          cid = c.id;
-          convIdRef.current = cid;
-          ensureConvRef.current(cid, "Voice call");
-        }
+        // Conversation is created lazily on first user speech (see transcript handler)
+        // This avoids empty "Voice call" conversations when users open and close voice mode
 
         // ── Request mic access ──
         let stream: MediaStream;
@@ -552,10 +540,11 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         const lang = navigator.language || "en-US";
         const params = new URLSearchParams({
           token,
-          conversation_id: cid,
           lang,
           model,
         });
+        const currentCid = convIdRef.current;
+        if (currentCid) params.set("conversation_id", currentCid);
         const wsUrl = `${VOICE_WS_URL}?${params.toString()}`;
 
         // ── Connect WebSocket ──
@@ -634,12 +623,24 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
             // ── Text: JSON events from TranscriptRelay ──
             try {
               const msg = JSON.parse(ev.data);
+              console.log("[Voice] Text event:", msg.type, msg.role || "", (msg.text || "").slice(0, 50));
 
               if (msg.type === "transcript" && msg.role === "user") {
                 setTranscript(msg.text || "");
                 if (msg.final && msg.text) {
                   lastUserText = msg.text;
-                  const currentCid = convIdRef.current;
+                  // Create conversation on first user speech (avoids empty "Voice call" convs)
+                  let currentCid = convIdRef.current;
+                  if (!currentCid) {
+                    const title = msg.text.slice(0, 60) || "Voice call";
+                    chatApi.createConversation(title).then((c) => {
+                      if (c) {
+                        convIdRef.current = c.id;
+                        ensureConvRef.current(c.id, title);
+                      }
+                    });
+                  }
+                  currentCid = convIdRef.current;
                   if (currentCid) {
                     addMessageRef.current(currentCid, {
                       id: `user-${Date.now()}`,

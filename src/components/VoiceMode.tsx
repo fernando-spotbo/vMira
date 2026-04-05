@@ -55,16 +55,19 @@ function decodeVarint(
   return { value, bytesRead };
 }
 
-/** Encode PCM16 bytes into a Pipecat protobuf Frame(AudioFrame). */
+/** Encode PCM16 bytes into a Pipecat protobuf Frame(AudioFrame).
+ *  Pipecat AudioFrame proto field numbers:
+ *    1=id(uint64) 2=name(string) 3=audio(bytes) 4=sample_rate(uint32) 5=num_channels(uint32)
+ */
 function encodeAudioFrame(
   pcm16Bytes: ArrayBuffer,
   sampleRate = 16000,
   numChannels = 1,
 ): Uint8Array {
-  // AudioFrame fields
-  const audioTag = 0x0a; // field 1, wire type 2 (length-delimited)
-  const srTag = 0x10; // field 2, wire type 0 (varint)
-  const chTag = 0x18; // field 3, wire type 0 (varint)
+  // AudioFrame proto tags: (field_number << 3) | wire_type
+  const audioTag = 0x1a; // field 3, wire type 2 (length-delimited)
+  const srTag = 0x20; // field 4, wire type 0 (varint)
+  const chTag = 0x28; // field 5, wire type 0 (varint)
 
   const audioLen = pcm16Bytes.byteLength;
   const srBytes = encodeVarint(sampleRate);
@@ -116,17 +119,21 @@ function parseAudioFrame(
     const fieldNum = tag >> 3;
     const wireType = tag & 0x07;
 
-    if (wireType === 2 && fieldNum === 1) {
-      // bytes field — audio data
+    if (wireType === 2 && fieldNum === 3) {
+      // field 3: audio bytes
       const { value: len, bytesRead } = decodeVarint(data, pos);
       pos += bytesRead;
       audio = data.slice(pos, pos + len);
       pos += len;
+    } else if (wireType === 2) {
+      // skip other length-delimited fields (name, etc.)
+      const { value: len, bytesRead } = decodeVarint(data, pos);
+      pos += bytesRead + len;
     } else if (wireType === 0) {
       // varint
       const { value, bytesRead } = decodeVarint(data, pos);
       pos += bytesRead;
-      if (fieldNum === 2) sampleRate = value;
+      if (fieldNum === 4) sampleRate = value;
     } else {
       // skip unknown wire types
       break;

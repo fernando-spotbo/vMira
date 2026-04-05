@@ -419,9 +419,18 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         }
 
         // 1. Get mic stream
-        const s = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
+        let s: MediaStream;
+        try {
+          s = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
+        } catch (micErr) {
+          if (alive) {
+            setError(t("voice.micDenied"));
+            smoothSetPhase("error");
+          }
+          return;
+        }
         if (!alive) { s.getTracks().forEach(t => t.stop()); return; }
         stream = s;
 
@@ -506,9 +515,11 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           }
         };
 
-      } catch {
+      } catch (err) {
         if (alive) {
-          setError(t("voice.micDenied"));
+          const msg = err instanceof Error ? err.message : t("voice.error");
+          console.error("[VoiceMode] Setup failed:", err);
+          setError(msg);
           smoothSetPhase("error");
         }
       }

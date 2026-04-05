@@ -6,6 +6,11 @@ import * as chatApi from "@/lib/api-chat";
 import { getAccessToken } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
+import { PipecatClient } from "@pipecat-ai/client-js";
+import {
+  WebSocketTransport,
+  ProtobufFrameSerializer,
+} from "@pipecat-ai/websocket-transport";
 
 interface VoiceModeProps {
   onClose: (createdConvId?: string) => void;
@@ -129,27 +134,9 @@ function draw(
   ctx.restore();
 }
 
-// ── WebSocket voice endpoint ──
-// Goes directly to the API backend (Next.js proxy doesn't handle WS upgrades).
-const VOICE_WS_URL = process.env.NEXT_PUBLIC_VOICE_WS_URL || "wss://api.vmira.ai/api/v1/voice/ws";
-
-// ── AudioWorklet processor source (inline, turned into a Blob URL) ──
-const WORKLET_SOURCE = `
-class PCMProcessor extends AudioWorkletProcessor {
-  process(inputs) {
-    const input = inputs[0][0];
-    if (input) {
-      const pcm16 = new Int16Array(input.length);
-      for (let i = 0; i < input.length; i++) {
-        pcm16[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
-      }
-      this.port.postMessage(pcm16.buffer, [pcm16.buffer]);
-    }
-    return true;
-  }
-}
-registerProcessor('pcm-processor', PCMProcessor);
-`;
+// ── Voice WS base URL ──
+const VOICE_WS_URL =
+  process.env.NEXT_PUBLIC_VOICE_WS_URL || "wss://api.vmira.ai/api/v1/voice/ws";
 
 export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [phase, setPhase] = useState<Phase>("init");
@@ -159,18 +146,15 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [responsePreview, setResponsePreview] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const { activeConversationId, selectedModel, addMessage, ensureConversation } = useChat();
+  const { activeConversationId, selectedModel, addMessage, ensureConversation } =
+    useChat();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startRef = useRef(Date.now());
   const phaseRef = useRef<Phase>("init");
   const convIdRef = useRef(activeConversationId);
-  const mutedRef = useRef(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const playCtxRef = useRef<AudioContext | null>(null);
-  // Queue of PCM audio chunks to play in order
-  const playQueueRef = useRef<ArrayBuffer[]>([]);
-  const isPlayingRef = useRef(false);
+
+  const clientRef = useRef<PipecatClient | null>(null);
 
   // Refs for latest values (avoids stale closures)
   const selectedModelRef = useRef(selectedModel);
@@ -179,112 +163,33 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { convIdRef.current = activeConversationId; }, [activeConversationId]);
-  useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { selectedModelRef.current = selectedModel; }, [selectedModel]);
   useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
   useEffect(() => { ensureConvRef.current = ensureConversation; }, [ensureConversation]);
 
   // Timer
   useEffect(() => {
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    const id = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)),
+      1000,
+    );
     return () => clearInterval(id);
-  }, []);
-
-  // ── Play audio through AudioContext ──
-  // Pipecat sends protobuf-wrapped frames. Audio data may be raw PCM16 or
-  // encoded (MP3/WAV from ElevenLabs). We try decodeAudioData first (handles
-  // any format the browser supports), and fall back to raw PCM16 interpretation.
-  const playPCMAudio = useCallback(async (rawBuffer: ArrayBuffer) => {
-    if (rawBuffer.byteLength < 10) return; // too small, skip
-
-    let ctx = playCtxRef.current;
-    if (!ctx || ctx.state === "closed") {
-      ctx = new AudioContext({ sampleRate: 24000 });
-      playCtxRef.current = ctx;
-    }
-    if (ctx.state === "suspended") await ctx.resume();
-
-    // Try decoding as encoded audio (MP3/WAV/Opus) — works for ElevenLabs output
-    try {
-      const audioBuffer = await ctx.decodeAudioData(rawBuffer.slice(0));
-      return new Promise<void>((resolve) => {
-        const source = ctx!.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(ctx!.destination);
-        source.onended = () => resolve();
-        source.start(0);
-        setTimeout(resolve, 30000);
-      });
-    } catch {
-      // Not a recognized audio format — try as raw PCM16
-    }
-
-    // Ensure even byte length for Int16Array
-    const usableBytes = rawBuffer.byteLength & ~1; // round down to multiple of 2
-    if (usableBytes < 2) return;
-    const pcm16 = new Int16Array(rawBuffer, 0, usableBytes / 2);
-    const float32 = new Float32Array(pcm16.length);
-    for (let i = 0; i < pcm16.length; i++) {
-      float32[i] = pcm16[i] / 32768;
-    }
-
-    const audioBuffer = ctx.createBuffer(1, float32.length, 24000);
-    audioBuffer.getChannelData(0).set(float32);
-
-    return new Promise<void>((resolve) => {
-      const source = ctx!.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(ctx!.destination);
-      let done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
-      source.onended = finish;
-      source.start(0);
-      // Safety timeout
-      setTimeout(finish, 30000);
-    });
-  }, []);
-
-  // ── Drain the play queue sequentially ──
-  const drainPlayQueue = useCallback(async () => {
-    if (isPlayingRef.current) return;
-    isPlayingRef.current = true;
-
-    while (playQueueRef.current.length > 0) {
-      const buf = playQueueRef.current.shift()!;
-      await playPCMAudio(buf);
-    }
-
-    isPlayingRef.current = false;
-  }, [playPCMAudio]);
-
-  // ── Send mute state to server ──
-  const sendMuteEvent = useCallback((isMuted: boolean) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "mute", muted: isMuted }));
-    }
   }, []);
 
   // ── Handle mute toggle ──
   const handleMuteToggle = useCallback(() => {
-    setMuted(prev => {
+    setMuted((prev) => {
       const next = !prev;
-      sendMuteEvent(next);
+      clientRef.current?.enableMic(!next);
       return next;
     });
-  }, [sendMuteEvent]);
+  }, []);
 
-  // ── Main effect: canvas animation + WebSocket + mic capture ──
+  // ── Main effect: canvas animation + PipecatClient ──
   useEffect(() => {
     let alive = true;
     let raf = 0;
-    let stream: MediaStream | null = null;
-    let audioCtx: AudioContext | null = null;
-    let analyser: AnalyserNode | null = null;
-    let dataArr: Uint8Array<ArrayBuffer> | null = null;
     const sm = new Float32Array(48).fill(0);
-    let workletNode: AudioWorkletNode | null = null;
-    let ws: WebSocket | null = null;
 
     // Smooth phase blend targets
     const blendTarget = { listening: 0, thinking: 0, speaking: 0 };
@@ -294,19 +199,29 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     const SIZE = 300;
-    canvas.width = SIZE * dpr; canvas.height = SIZE * dpr;
-    const ctx = canvas.getContext("2d")!;
+    canvas.width = SIZE * dpr;
+    canvas.height = SIZE * dpr;
+    const ctx2d = canvas.getContext("2d")!;
+
+    // No analyser — Pipecat handles audio; animation is phase-driven only
+    const analyser: AnalyserNode | null = null;
+    const dataArr: Uint8Array<ArrayBuffer> | null = null;
 
     // Draw loop with smooth blending
     const tick = () => {
       if (!alive) return;
       const ease = 0.08;
-      blendCurrent.listening += (blendTarget.listening - blendCurrent.listening) * ease;
-      blendCurrent.thinking += (blendTarget.thinking - blendCurrent.thinking) * ease;
-      blendCurrent.speaking += (blendTarget.speaking - blendCurrent.speaking) * ease;
+      blendCurrent.listening +=
+        (blendTarget.listening - blendCurrent.listening) * ease;
+      blendCurrent.thinking +=
+        (blendTarget.thinking - blendCurrent.thinking) * ease;
+      blendCurrent.speaking +=
+        (blendTarget.speaking - blendCurrent.speaking) * ease;
 
-      draw(ctx, SIZE, dpr, analyser, dataArr, sm, phaseRef.current,
-        (Date.now() - startRef.current) / 1000, blendCurrent);
+      draw(
+        ctx2d, SIZE, dpr, analyser, dataArr, sm, phaseRef.current,
+        (Date.now() - startRef.current) / 1000, blendCurrent,
+      );
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -323,169 +238,32 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       updateBlend(ph);
     };
 
-    // ── Build WebSocket URL ──
-    const buildWsUrl = (): string => {
-      // If the configured URL is absolute, use it directly
-      if (VOICE_WS_URL.startsWith("ws://") || VOICE_WS_URL.startsWith("wss://")) {
-        return VOICE_WS_URL;
-      }
-      // Otherwise build from current page location
-      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-      return `${proto}//${window.location.host}${VOICE_WS_URL}`;
-    };
+    // ── Accumulated bot transcript for addMessage at end of turn ──
+    let fullBotText = "";
+    let lastUserText = "";
 
-    // ── WebSocket message handler ──
-    const handleWsMessage = (ev: MessageEvent) => {
-      if (!alive) return;
-
-      // Binary frame = audio data from server
-      if (ev.data instanceof ArrayBuffer) {
-        playQueueRef.current.push(ev.data);
-        drainPlayQueue();
-        return;
-      }
-      if (ev.data instanceof Blob) {
-        ev.data.arrayBuffer().then(buf => {
-          if (!alive) return;
-          playQueueRef.current.push(buf);
-          drainPlayQueue();
-        });
-        return;
-      }
-
-      // Text frame = JSON event
-      try {
-        const msg = JSON.parse(ev.data as string);
-
-        switch (msg.type) {
-          case "transcript":
-            // User's speech transcribed by server
-            setTranscript(msg.text || "");
-            if (phaseRef.current === "listening") {
-              smoothSetPhase("thinking");
-            }
-            break;
-
-          case "bot_started":
-            smoothSetPhase("speaking");
-            setResponsePreview("");
-            break;
-
-          case "bot_stopped":
-            smoothSetPhase("listening");
-            setTranscript("");
-            break;
-
-          case "bot_text":
-            // Streaming AI response text
-            setResponsePreview(prev => prev + (msg.text || ""));
-            break;
-
-          case "audio": {
-            // Base64-encoded PCM audio from server
-            const raw = atob(msg.data);
-            const buf = new ArrayBuffer(raw.length);
-            const view = new Uint8Array(buf);
-            for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
-            playQueueRef.current.push(buf);
-            drainPlayQueue();
-            break;
-          }
-
-          case "user_message": {
-            // Server confirms user message was saved — add to chat context
-            const cid = convIdRef.current;
-            if (cid && msg.text) {
-              addMessageRef.current(cid, {
-                id: msg.id || `user-${Date.now()}`,
-                role: "user",
-                content: msg.text,
-              });
-            }
-            break;
-          }
-
-          case "bot_message": {
-            // Server confirms bot message was saved — add to chat context
-            const cid = convIdRef.current;
-            if (cid && msg.text) {
-              addMessageRef.current(cid, {
-                id: msg.id || `msg-${Date.now()}`,
-                role: "assistant",
-                content: msg.text,
-              });
-            }
-            break;
-          }
-
-          case "error":
-            setError(msg.message || t("voice.error"));
-            smoothSetPhase("error");
-            break;
-
-          default:
-            break;
-        }
-      } catch {
-        console.warn("[VoiceMode] Failed to parse WebSocket message");
-      }
-    };
-
-    // ── Setup: mic → AudioWorklet → WebSocket ──
+    // ── Setup PipecatClient and connect ──
     (async () => {
       try {
-        if (!getAccessToken()) {
+        const token = getAccessToken();
+        if (!token) {
           setError(t("voice.loginRequired"));
           smoothSetPhase("error");
           return;
         }
 
-        // 1. Get mic stream
-        let s: MediaStream;
-        try {
-          s = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          });
-        } catch (micErr) {
-          if (alive) {
-            setError(t("voice.micDenied"));
-            smoothSetPhase("error");
-          }
-          return;
-        }
-        if (!alive) { s.getTracks().forEach(t => t.stop()); return; }
-        stream = s;
-
-        // 2. Set up AudioContext + analyser (for canvas visualisation)
-        audioCtx = new AudioContext({ sampleRate: 16000 });
-        if (audioCtx.state === "suspended") await audioCtx.resume();
-        const src = audioCtx.createMediaStreamSource(s);
-        const an = audioCtx.createAnalyser();
-        an.fftSize = 128; an.smoothingTimeConstant = 0.65; an.minDecibels = -85; an.maxDecibels = -10;
-        src.connect(an);
-        analyser = an;
-        dataArr = new Uint8Array(an.frequencyBinCount) as Uint8Array<ArrayBuffer>;
-
-        // 3. Set up AudioWorklet for PCM capture
-        const workletBlob = new Blob([WORKLET_SOURCE], { type: "application/javascript" });
-        const workletUrl = URL.createObjectURL(workletBlob);
-        await audioCtx.audioWorklet.addModule(workletUrl);
-        URL.revokeObjectURL(workletUrl);
-
-        workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
-        src.connect(workletNode);
-
-        // 4. Connect WebSocket
-        // Prepare initial config to send after connection
+        // Resolve or create conversation
         const m = selectedModelRef.current.toLowerCase().replace(/\s+/g, "-");
         const model = ["mira", "mira-thinking"].includes(m) ? m : "mira";
 
-        // Resolve or create conversation
         let cid = convIdRef.current;
         if (!cid) {
           const c = await chatApi.createConversation("Voice call", model);
           if (!c || !alive) {
-            if (alive) { smoothSetPhase("error"); setError(t("voice.error")); }
+            if (alive) {
+              smoothSetPhase("error");
+              setError(t("voice.error"));
+            }
             return;
           }
           cid = c.id;
@@ -493,50 +271,103 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           ensureConvRef.current(cid, "Voice call");
         }
 
-        const wsUrl = buildWsUrl();
-        const token = getAccessToken();
-        // Pass auth token and config as query params
+        // Build WS URL with query params
+        const lang = navigator.language || "en-US";
         const params = new URLSearchParams({
-          token: token || "",
+          token,
           conversation_id: cid,
+          lang,
           model,
-          lang: navigator.language || "en-US",
         });
-        ws = new WebSocket(`${wsUrl}?${params.toString()}`);
-        wsRef.current = ws;
+        const wsUrl = `${VOICE_WS_URL}?${params.toString()}`;
 
-        ws.binaryType = "arraybuffer";
+        // Create PipecatClient
+        const client = new PipecatClient({
+          transport: new WebSocketTransport({
+            serializer: new ProtobufFrameSerializer(),
+          }),
+          enableMic: true,
+          enableCam: false,
+          callbacks: {
+            onConnected: () => {
+              if (!alive) return;
+              // WebSocket connected — wait for onBotReady before going to listening
+            },
+            onDisconnected: () => {
+              if (!alive) return;
+              // Only show error if we didn't initiate the close
+              if (phaseRef.current !== "init" && phaseRef.current !== "error") {
+                setError("Connection lost");
+                smoothSetPhase("error");
+              }
+            },
+            onBotReady: () => {
+              if (!alive) return;
+              smoothSetPhase("listening");
+            },
+            onUserStartedSpeaking: () => {
+              if (!alive) return;
+              // Stay in listening — just means user is talking
+            },
+            onUserStoppedSpeaking: () => {
+              if (!alive) return;
+              smoothSetPhase("thinking");
+            },
+            onBotStartedSpeaking: () => {
+              if (!alive) return;
+              fullBotText = "";
+              setResponsePreview("");
+              smoothSetPhase("speaking");
+            },
+            onBotStoppedSpeaking: () => {
+              if (!alive) return;
+              // Add bot message to chat context
+              const currentCid = convIdRef.current;
+              if (currentCid && fullBotText) {
+                addMessageRef.current(currentCid, {
+                  id: `msg-${Date.now()}`,
+                  role: "assistant",
+                  content: fullBotText,
+                });
+              }
+              smoothSetPhase("listening");
+              setTranscript("");
+            },
+            onUserTranscript: (data) => {
+              if (!alive) return;
+              setTranscript(data.text);
+              if (data.final && data.text) {
+                lastUserText = data.text;
+                // Add user message to chat context
+                const currentCid = convIdRef.current;
+                if (currentCid) {
+                  addMessageRef.current(currentCid, {
+                    id: `user-${Date.now()}`,
+                    role: "user",
+                    content: data.text,
+                  });
+                }
+              }
+            },
+            onBotLlmText: (data) => {
+              if (!alive) return;
+              fullBotText += data.text;
+              setResponsePreview(fullBotText);
+            },
+            onError: (error) => {
+              if (!alive) return;
+              const msg =
+                typeof error.data === "string"
+                  ? error.data
+                  : t("voice.error");
+              setError(msg);
+              smoothSetPhase("error");
+            },
+          },
+        });
 
-        ws.onopen = () => {
-          if (!alive) return;
-          smoothSetPhase("listening");
-        };
-
-        ws.onmessage = handleWsMessage;
-
-        ws.onclose = (ev) => {
-          if (!alive) return;
-          if (ev.code !== 1000) {
-            // Abnormal close
-            setError(`Connection lost (${ev.code})`);
-            smoothSetPhase("error");
-          }
-        };
-
-        ws.onerror = () => {
-          if (!alive) return;
-          setError(t("voice.error"));
-          smoothSetPhase("error");
-        };
-
-        // 5. Stream mic PCM frames to WebSocket
-        workletNode.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
-          if (!alive || mutedRef.current) return;
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(ev.data);
-          }
-        };
-
+        clientRef.current = client;
+        await client.connect({ wsUrl });
       } catch (err) {
         if (alive) {
           const msg = err instanceof Error ? err.message : t("voice.error");
@@ -552,32 +383,17 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       alive = false;
       cancelAnimationFrame(raf);
 
-      // Close WebSocket
-      if (ws && ws.readyState !== WebSocket.CLOSED) {
-        ws.close(1000);
+      const client = clientRef.current;
+      if (client) {
+        client.disconnect().catch(() => {});
+        clientRef.current = null;
       }
-      wsRef.current = null;
-
-      // Stop worklet
-      if (workletNode) {
-        workletNode.port.close();
-        workletNode.disconnect();
-      }
-
-      // Stop mic tracks
-      stream?.getTracks().forEach(t => t.stop());
-
-      // Clear play queue
-      playQueueRef.current = [];
-
-      // Close audio contexts
-      audioCtx?.close().catch(() => {});
-      playCtxRef.current?.close().catch(() => {});
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  const fmt = (s: number) =>
+    `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
   return (
     <div className="fixed inset-0 z-[250] flex flex-col items-center justify-center bg-[#080808]">
@@ -587,20 +403,39 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/20" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-white/25" />
         </span>
-        <p className="text-[15px] text-white/25 tabular-nums font-mono">{fmt(elapsed)}</p>
+        <p className="text-[15px] text-white/25 tabular-nums font-mono">
+          {fmt(elapsed)}
+        </p>
       </div>
 
-      <button onClick={() => onClose(convIdRef.current || undefined)} className="absolute top-6 right-6 z-10 flex h-10 w-10 items-center justify-center rounded-full text-white/25 hover:text-white/50 hover:bg-white/[0.05] transition-all">
+      <button
+        onClick={() => onClose(convIdRef.current || undefined)}
+        className="absolute top-6 right-6 z-10 flex h-10 w-10 items-center justify-center rounded-full text-white/25 hover:text-white/50 hover:bg-white/[0.05] transition-all"
+      >
         <X size={22} strokeWidth={1.8} />
       </button>
 
-      <canvas ref={canvasRef} style={{ width: 300, height: 300 }} className="mb-6" />
+      <canvas
+        ref={canvasRef}
+        style={{ width: 300, height: 300 }}
+        className="mb-6"
+      />
 
       {/* Status */}
       <div className="flex items-center gap-2.5 mb-3">
         <span className="text-[16px] text-white/30">
-          {phase === "listening" && <>{t("voice.listening")}<span className="mira-thinking-dots" /></>}
-          {phase === "thinking" && <>{t("voice.thinking")}<span className="mira-thinking-dots" /></>}
+          {phase === "listening" && (
+            <>
+              {t("voice.listening")}
+              <span className="mira-thinking-dots" />
+            </>
+          )}
+          {phase === "thinking" && (
+            <>
+              {t("voice.thinking")}
+              <span className="mira-thinking-dots" />
+            </>
+          )}
           {phase === "speaking" && t("voice.speaking")}
           {phase === "error" && (error || t("voice.error"))}
         </span>
@@ -612,15 +447,27 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           <p className="text-[16px] text-white/15 line-clamp-2">{transcript}</p>
         )}
         {phase === "speaking" && responsePreview && (
-          <p className="text-[16px] text-white/15 line-clamp-2">{responsePreview}</p>
+          <p className="text-[16px] text-white/15 line-clamp-2">
+            {responsePreview}
+          </p>
         )}
       </div>
 
       <div className="flex items-center gap-6">
-        <button onClick={handleMuteToggle} className={`flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 ${muted ? "bg-white/[0.06] text-white/25 border border-white/[0.08]" : "bg-white/[0.05] text-white/40 border border-white/[0.07] hover:bg-white/[0.08]"}`}>
+        <button
+          onClick={handleMuteToggle}
+          className={`flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 ${
+            muted
+              ? "bg-white/[0.06] text-white/25 border border-white/[0.08]"
+              : "bg-white/[0.05] text-white/40 border border-white/[0.07] hover:bg-white/[0.08]"
+          }`}
+        >
           {muted ? <MicOff size={22} /> : <Mic size={22} />}
         </button>
-        <button onClick={() => onClose(convIdRef.current || undefined)} className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.08] border border-white/[0.10] text-white/45 hover:bg-white/[0.12] active:scale-95 transition-all">
+        <button
+          onClick={() => onClose(convIdRef.current || undefined)}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.08] border border-white/[0.10] text-white/45 hover:bg-white/[0.12] active:scale-95 transition-all"
+        >
           <X size={24} strokeWidth={2} />
         </button>
       </div>

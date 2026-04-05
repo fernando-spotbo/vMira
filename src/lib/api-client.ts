@@ -212,6 +212,27 @@ export async function transcribeAudio(
   return res.json();
 }
 
+// ---- Voice message persistence ----
+
+export async function saveVoiceMessage(
+  conversationId: string,
+  role: "user" | "assistant",
+  content: string,
+): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+  fetch(`${PROXY_URL}/voice/save-message/${conversationId}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ role, content }),
+    credentials: "include",
+  }).catch(() => {}); // fire-and-forget
+}
+
 // ---- Voice TTS ----
 
 export async function synthesizeAudio(

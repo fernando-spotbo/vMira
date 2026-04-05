@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Mic, MicOff } from "lucide-react";
 import * as chatApi from "@/lib/api-chat";
-import { getAccessToken } from "@/lib/api-client";
+import { getAccessToken, saveVoiceMessage } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
 
@@ -581,6 +581,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
                   role: "assistant",
                   content: fullBotText,
                 });
+                saveVoiceMessage(currentCid, "assistant", fullBotText);
               }
               fullBotText = "";
               smoothSetPhase("listening");
@@ -648,6 +649,7 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
                       role: "user",
                       content: msg.text,
                     });
+                    saveVoiceMessage(currentCid, "user", msg.text);
                   } else {
                     console.warn("[Voice] No conversation ID — message not saved!");
                   }

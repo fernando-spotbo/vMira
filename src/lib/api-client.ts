@@ -214,22 +214,16 @@ export async function transcribeAudio(
 
 // ---- Voice message persistence ----
 
-export async function saveVoiceMessage(
+export function saveVoiceMessage(
   conversationId: string,
   role: "user" | "assistant",
   content: string,
-): Promise<void> {
-  // Call the backend directly (same as voice WS) — bypasses HMAC proxy
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-
-  fetch(`https://api.vmira.ai/api/v1/voice/save-message`, {
+): void {
+  // Fire-and-forget: save voice transcript via the HMAC-signed proxy
+  apiCall(`/chat/conversations/${conversationId}/voice-message`, {
     method: "POST",
-    headers,
-    body: JSON.stringify({ conversation_id: conversationId, role, content }),
-  }).catch(() => {}); // fire-and-forget
+    body: JSON.stringify({ role, content }),
+  }).catch(() => {});
 }
 
 // ---- Voice TTS ----

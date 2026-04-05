@@ -219,17 +219,16 @@ export async function saveVoiceMessage(
   role: "user" | "assistant",
   content: string,
 ): Promise<void> {
+  // Call the backend directly (same as voice WS) — bypasses HMAC proxy
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Requested-With": "XMLHttpRequest",
   };
   if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
-  fetch(`${PROXY_URL}/voice/save-message/${conversationId}`, {
+  fetch(`https://api.vmira.ai/api/v1/voice/save-message/${conversationId}`, {
     method: "POST",
     headers,
     body: JSON.stringify({ role, content }),
-    credentials: "include",
   }).catch(() => {}); // fire-and-forget
 }
 

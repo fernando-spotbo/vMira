@@ -190,23 +190,45 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     return () => clearInterval(id);
   }, []);
 
-  // ── Play PCM audio through AudioContext ──
-  const playPCMAudio = useCallback(async (pcmBuffer: ArrayBuffer) => {
+  // ── Play audio through AudioContext ──
+  // Pipecat sends protobuf-wrapped frames. Audio data may be raw PCM16 or
+  // encoded (MP3/WAV from ElevenLabs). We try decodeAudioData first (handles
+  // any format the browser supports), and fall back to raw PCM16 interpretation.
+  const playPCMAudio = useCallback(async (rawBuffer: ArrayBuffer) => {
+    if (rawBuffer.byteLength < 10) return; // too small, skip
+
     let ctx = playCtxRef.current;
     if (!ctx || ctx.state === "closed") {
-      ctx = new AudioContext({ sampleRate: 16000 });
+      ctx = new AudioContext({ sampleRate: 24000 });
       playCtxRef.current = ctx;
     }
     if (ctx.state === "suspended") await ctx.resume();
 
-    // Decode base64 PCM16 → Float32 for Web Audio
-    const pcm16 = new Int16Array(pcmBuffer);
+    // Try decoding as encoded audio (MP3/WAV/Opus) — works for ElevenLabs output
+    try {
+      const audioBuffer = await ctx.decodeAudioData(rawBuffer.slice(0));
+      return new Promise<void>((resolve) => {
+        const source = ctx!.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx!.destination);
+        source.onended = () => resolve();
+        source.start(0);
+        setTimeout(resolve, 30000);
+      });
+    } catch {
+      // Not a recognized audio format — try as raw PCM16
+    }
+
+    // Ensure even byte length for Int16Array
+    const usableBytes = rawBuffer.byteLength & ~1; // round down to multiple of 2
+    if (usableBytes < 2) return;
+    const pcm16 = new Int16Array(rawBuffer, 0, usableBytes / 2);
     const float32 = new Float32Array(pcm16.length);
     for (let i = 0; i < pcm16.length; i++) {
       float32[i] = pcm16[i] / 32768;
     }
 
-    const audioBuffer = ctx.createBuffer(1, float32.length, 16000);
+    const audioBuffer = ctx.createBuffer(1, float32.length, 24000);
     audioBuffer.getChannelData(0).set(float32);
 
     return new Promise<void>((resolve) => {

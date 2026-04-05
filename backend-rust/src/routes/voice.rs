@@ -1,14 +1,13 @@
-//! Voice endpoints — TTS only. STT is handled client-side via browser
-//! SpeechRecognition API. The /transcribe endpoint is kept as a stub
-//! that returns 410 Gone for any remaining callers.
+//! Voice endpoints — TTS, STT, and WebSocket proxy to Pipecat voice pipeline.
 
 use axum::{
-    extract::{Multipart, State},
+    extract::{ws::{Message, WebSocket}, Multipart, Query, State, WebSocketUpgrade},
     http::{header, StatusCode},
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
+use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -17,10 +16,9 @@ use crate::middleware::auth::AuthUser;
 use crate::services::tts;
 use crate::services::whisper;
 
-/// POST /api/v1/voice/transcribe
-///
-/// Accepts multipart audio, forwards to local Whisper service.
-/// Required for browsers without SpeechRecognition (iOS Safari).
+// ── REST endpoints (kept for non-voice-call use) ────────────────────────────
+
+/// POST /api/v1/voice/transcribe — multipart audio → Whisper STT
 async fn transcribe(
     State(state): State<AppState>,
     _user: AuthUser,
@@ -79,17 +77,13 @@ async fn transcribe(
     }
 }
 
-// ── TTS ──────────────────────────────────────────────────────────────────────
-
 #[derive(Deserialize)]
 struct SynthesizeRequest {
     text: String,
     language: Option<String>,
 }
 
-/// POST /api/v1/voice/synthesize
-///
-/// Accepts JSON `{ text, language? }`, returns audio/mpeg binary.
+/// POST /api/v1/voice/synthesize — JSON { text, language? } → audio bytes
 async fn synthesize(
     State(state): State<AppState>,
     _user: AuthUser,
@@ -108,7 +102,6 @@ async fn synthesize(
 
     match tts::synthesize(&state.config, text, lang).await {
         Ok(audio) => {
-            // Detect format: WAV starts with "RIFF", otherwise assume MP3
             let mime = if audio.len() > 4 && &audio[..4] == b"RIFF" { "audio/wav" } else { "audio/mpeg" };
             (StatusCode::OK, [(header::CONTENT_TYPE, mime)], audio).into_response()
         }
@@ -123,8 +116,118 @@ async fn synthesize(
     }
 }
 
+// ── WebSocket proxy to Pipecat voice pipeline ───────────────────────────────
+
+#[derive(Deserialize)]
+struct VoiceWsQuery {
+    /// Conversation ID (optional — pipeline can create one)
+    conv_id: Option<String>,
+    /// Language hint for TTS voice selection
+    lang: Option<String>,
+}
+
+/// GET /api/v1/voice/ws — WebSocket upgrade, proxied to Pipecat pipeline
+///
+/// Authenticates the user, then establishes a bidirectional WebSocket proxy
+/// between the browser and the Pipecat voice pipeline on the GPU server.
+async fn voice_ws_handler(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Query(query): Query<VoiceWsQuery>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    let pipeline_url = format!(
+        "ws://{}",
+        std::env::var("VOICE_PIPELINE_URL").unwrap_or_else(|_| "127.0.0.1:8095".to_string())
+    );
+
+    // Pass user context to the pipeline as query params
+    let lang = query.lang.unwrap_or_else(|| "en".to_string());
+    let conv_id = query.conv_id.unwrap_or_default();
+    let upstream_url = format!(
+        "{}?user_id={}&lang={}&conv_id={}",
+        pipeline_url, user.id, lang, conv_id
+    );
+
+    tracing::info!(user_id = %user.id, "Voice WebSocket upgrade, proxying to pipeline");
+
+    ws.on_upgrade(move |client_ws| proxy_websocket(client_ws, upstream_url))
+}
+
+/// Bidirectional WebSocket proxy: browser ↔ Pipecat pipeline
+async fn proxy_websocket(client_ws: WebSocket, upstream_url: String) {
+    // Connect to the Pipecat pipeline
+    let upstream = match tokio_tungstenite::connect_async(&upstream_url).await {
+        Ok((ws, _)) => ws,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to connect to voice pipeline");
+            return;
+        }
+    };
+
+    let (mut client_tx, mut client_rx) = client_ws.split();
+    let (mut upstream_tx, mut upstream_rx) = upstream.split();
+
+    // Client (axum) → Pipeline (tungstenite)
+    let client_to_upstream = async {
+        while let Some(Ok(msg)) = client_rx.next().await {
+            let upstream_msg = match msg {
+                Message::Text(t) => {
+                    let s: String = t.to_string();
+                    Some(tokio_tungstenite::tungstenite::Message::text(s))
+                }
+                Message::Binary(b) => {
+                    let v: Vec<u8> = b.to_vec();
+                    Some(tokio_tungstenite::tungstenite::Message::binary(v))
+                }
+                Message::Ping(p) => Some(tokio_tungstenite::tungstenite::Message::Ping(p.to_vec().into())),
+                Message::Close(_) => None,
+                _ => continue,
+            };
+            if let Some(m) = upstream_msg {
+                if upstream_tx.send(m).await.is_err() { break; }
+            } else {
+                break;
+            }
+        }
+    };
+
+    // Pipeline (tungstenite) → Client (axum)
+    let upstream_to_client = async {
+        while let Some(Ok(msg)) = upstream_rx.next().await {
+            let client_msg = match msg {
+                tokio_tungstenite::tungstenite::Message::Text(t) => {
+                    Some(Message::Text(t.as_str().to_owned().into()))
+                }
+                tokio_tungstenite::tungstenite::Message::Binary(b) => {
+                    Some(Message::Binary(Vec::from(b).into()))
+                }
+                tokio_tungstenite::tungstenite::Message::Ping(p) => Some(Message::Ping(Vec::from(p).into())),
+                tokio_tungstenite::tungstenite::Message::Close(_) => None,
+                _ => continue,
+            };
+            if let Some(m) = client_msg {
+                if client_tx.send(m).await.is_err() { break; }
+            } else {
+                break;
+            }
+        }
+    };
+
+    // Run both directions concurrently — when either ends, both stop
+    tokio::select! {
+        _ = client_to_upstream => {}
+        _ = upstream_to_client => {}
+    }
+
+    tracing::info!("Voice WebSocket session ended");
+}
+
+// ── Router ──────────────────────────────────────────────────────────────────
+
 pub fn voice_routes() -> Router<AppState> {
     Router::new()
         .route("/transcribe", post(transcribe))
         .route("/synthesize", post(synthesize))
+        .route("/ws", get(voice_ws_handler))
 }

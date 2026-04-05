@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Mic, MicOff } from "lucide-react";
 import * as chatApi from "@/lib/api-chat";
-import { getAccessToken, transcribeAudio, synthesizeAudio } from "@/lib/api-client";
+import { getAccessToken } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
 
@@ -129,6 +129,28 @@ function draw(
   ctx.restore();
 }
 
+// ── WebSocket voice endpoint ──
+// Goes directly to the API backend (Next.js proxy doesn't handle WS upgrades).
+const VOICE_WS_URL = process.env.NEXT_PUBLIC_VOICE_WS_URL || "wss://api.vmira.ai/api/v1/voice/ws";
+
+// ── AudioWorklet processor source (inline, turned into a Blob URL) ──
+const WORKLET_SOURCE = `
+class PCMProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0][0];
+    if (input) {
+      const pcm16 = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        pcm16[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+      }
+      this.port.postMessage(pcm16.buffer, [pcm16.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-processor', PCMProcessor);
+`;
+
 export default function VoiceMode({ onClose }: VoiceModeProps) {
   const [phase, setPhase] = useState<Phase>("init");
   const [elapsed, setElapsed] = useState(0);
@@ -144,7 +166,11 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const phaseRef = useRef<Phase>("init");
   const convIdRef = useRef(activeConversationId);
   const mutedRef = useRef(false);
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const playCtxRef = useRef<AudioContext | null>(null);
+  // Queue of PCM audio chunks to play in order
+  const playQueueRef = useRef<ArrayBuffer[]>([]);
+  const isPlayingRef = useRef(false);
 
   // Refs for latest values (avoids stale closures)
   const selectedModelRef = useRef(selectedModel);
@@ -158,69 +184,75 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   useEffect(() => { addMessageRef.current = addMessage; }, [addMessage]);
   useEffect(() => { ensureConvRef.current = ensureConversation; }, [ensureConversation]);
 
+  // Timer
   useEffect(() => {
     const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // TTS — server-side via Piper (natural voice, self-hosted)
-  const speakFn = async (text: string): Promise<void> => {
-    const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1")
-      .replace(/#{1,6}\s/g, "").replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1")
-      .replace(/\[(\d+)\]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_~`#>-]/g, "")
-      .trim().slice(0, 500);
-    if (!clean) return;
-
-    const langCode = detectResponseLang(clean).split("-")[0]; // "ru-RU" → "ru"
-
-    try {
-      const blob = await synthesizeAudio(clean, langCode);
-      if (!blob || blob.size < 100) {
-        console.warn("[TTS] Empty or tiny audio blob, falling back to browser TTS");
-        throw new Error("Empty audio");
-      }
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      currentAudioRef.current = audio;
-
-      return new Promise<void>((resolve) => {
-        let done = false;
-        const finish = () => {
-          if (done) return;
-          done = true;
-          currentAudioRef.current = null;
-          URL.revokeObjectURL(url);
-          resolve();
-        };
-        audio.onended = finish;
-        audio.onerror = (e) => { console.error("[TTS] Audio playback error:", e); finish(); };
-        audio.play().catch((e) => { console.error("[TTS] Audio play() failed:", e); finish(); });
-        setTimeout(finish, 30000);
-      });
-    } catch (e) {
-      console.error("[TTS] Server TTS failed, using browser fallback:", e);
-      // Fallback to browser SpeechSynthesis
-      return new Promise<void>((resolve) => {
-        if (!("speechSynthesis" in window)) { resolve(); return; }
-        window.speechSynthesis.cancel();
-        const utt = new SpeechSynthesisUtterance(clean);
-        utt.lang = detectResponseLang(clean);
-        utt.rate = 1.0;
-        utt.volume = 1;
-        const voices = window.speechSynthesis.getVoices();
-        const prefix = detectResponseLang(clean).split("-")[0];
-        const matched = voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(prefix));
-        if (matched) utt.voice = matched;
-        let done = false;
-        const finish = () => { if (!done) { done = true; resolve(); } };
-        utt.onend = finish; utt.onerror = (e) => { console.error("[TTS] Browser TTS error:", e); finish(); };
-        window.speechSynthesis.speak(utt);
-        setTimeout(finish, 25000);
-      });
+  // ── Play PCM audio through AudioContext ──
+  const playPCMAudio = useCallback(async (pcmBuffer: ArrayBuffer) => {
+    let ctx = playCtxRef.current;
+    if (!ctx || ctx.state === "closed") {
+      ctx = new AudioContext({ sampleRate: 16000 });
+      playCtxRef.current = ctx;
     }
-  };
+    if (ctx.state === "suspended") await ctx.resume();
 
-  // ── Combined effect: canvas + mic + STT + AI ──
+    // Decode base64 PCM16 → Float32 for Web Audio
+    const pcm16 = new Int16Array(pcmBuffer);
+    const float32 = new Float32Array(pcm16.length);
+    for (let i = 0; i < pcm16.length; i++) {
+      float32[i] = pcm16[i] / 32768;
+    }
+
+    const audioBuffer = ctx.createBuffer(1, float32.length, 16000);
+    audioBuffer.getChannelData(0).set(float32);
+
+    return new Promise<void>((resolve) => {
+      const source = ctx!.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx!.destination);
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      source.onended = finish;
+      source.start(0);
+      // Safety timeout
+      setTimeout(finish, 30000);
+    });
+  }, []);
+
+  // ── Drain the play queue sequentially ──
+  const drainPlayQueue = useCallback(async () => {
+    if (isPlayingRef.current) return;
+    isPlayingRef.current = true;
+
+    while (playQueueRef.current.length > 0) {
+      const buf = playQueueRef.current.shift()!;
+      await playPCMAudio(buf);
+    }
+
+    isPlayingRef.current = false;
+  }, [playPCMAudio]);
+
+  // ── Send mute state to server ──
+  const sendMuteEvent = useCallback((isMuted: boolean) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "mute", muted: isMuted }));
+    }
+  }, []);
+
+  // ── Handle mute toggle ──
+  const handleMuteToggle = useCallback(() => {
+    setMuted(prev => {
+      const next = !prev;
+      sendMuteEvent(next);
+      return next;
+    });
+  }, [sendMuteEvent]);
+
+  // ── Main effect: canvas animation + WebSocket + mic capture ──
   useEffect(() => {
     let alive = true;
     let raf = 0;
@@ -229,28 +261,8 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     let analyser: AnalyserNode | null = null;
     let dataArr: Uint8Array<ArrayBuffer> | null = null;
     const sm = new Float32Array(48).fill(0);
-
-    // STT state
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let recognition: any = null;
-    let useNativeSTT = false;
-    let sttTranscript = ""; // accumulated final transcript from SpeechRecognition
-    let sttInterim = "";    // current interim result
-    let silenceCheckId: ReturnType<typeof setInterval> | null = null;
-
-    // Fallback: MediaRecorder + Whisper (when SpeechRecognition unavailable)
-    let mediaRecorder: MediaRecorder | null = null;
-    let audioChunks: Blob[] = [];
-    let recordingStartTime = 0;
-
-    // Silence detection thresholds
-    let voiceDetected = false;
-    let lastVoiceTime = 0;
-
-    const SILENCE_THRESHOLD = 0.04;  // avg frequency level to count as speech
-    const SILENCE_TIMEOUT = 2500;    // 2.5s silence after speech → send to AI
-    const MIN_RECORDING = 400;       // minimum recording duration (ms)
-    const INTERRUPT_THRESHOLD = 0.18; // must speak clearly to interrupt (avoids echo triggers)
+    let workletNode: AudioWorkletNode | null = null;
+    let ws: WebSocket | null = null;
 
     // Smooth phase blend targets
     const blendTarget = { listening: 0, thinking: 0, speaking: 0 };
@@ -283,348 +295,138 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       blendTarget.speaking = ph === "speaking" ? 1 : 0;
     };
 
-    const origSetPhase = setPhase;
     const smoothSetPhase = (ph: Phase) => {
-      phaseRef.current = ph; // sync — so interval checks see it immediately
-      origSetPhase(ph);
+      phaseRef.current = ph;
+      setPhase(ph);
       updateBlend(ph);
     };
 
-    // ── Native SpeechRecognition helpers ──
-
-    const startNativeSTT = () => {
-      if (!alive || mutedRef.current || !recognition) return;
-      sttTranscript = "";
-      sttInterim = "";
-      try { recognition.start(); } catch { /* already started */ }
-    };
-
-    const stopNativeSTT = () => {
-      if (!recognition) return;
-      try { recognition.stop(); } catch { /* already stopped */ }
-    };
-
-    // ── MediaRecorder helpers (fallback) ──
-
-    const startRecording = () => {
-      if (!stream || !alive || mutedRef.current) return;
-      audioChunks = [];
-      try {
-        // Pick a supported mime: webm (Chrome/Firefox), mp4 (Safari/iOS), or browser default
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : MediaRecorder.isTypeSupported("audio/mp4")
-            ? "audio/mp4"
-            : undefined;
-        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) audioChunks.push(e.data);
-        };
-        mediaRecorder.start(500); // collect 500ms chunks
-        recordingStartTime = Date.now();
-        voiceDetected = false;
-        lastVoiceTime = 0;
-      } catch (e) {
-        console.error("MediaRecorder error:", e);
+    // ── Build WebSocket URL ──
+    const buildWsUrl = (): string => {
+      // If the configured URL is absolute, use it directly
+      if (VOICE_WS_URL.startsWith("ws://") || VOICE_WS_URL.startsWith("wss://")) {
+        return VOICE_WS_URL;
       }
+      // Otherwise build from current page location
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto}//${window.location.host}${VOICE_WS_URL}`;
     };
 
-    const stopAndTranscribeFallback = () => {
-      if (!mediaRecorder || mediaRecorder.state === "inactive") return;
-      voiceDetected = false;
+    // ── WebSocket message handler ──
+    const handleWsMessage = (ev: MessageEvent) => {
+      if (!alive) return;
 
-      const recorder = mediaRecorder;
-      mediaRecorder = null;
-
-      recorder.onstop = async () => {
-        if (!alive || audioChunks.length === 0) {
-          if (alive && phaseRef.current !== "error") resumeListening();
-          return;
-        }
-        const blob = new Blob(audioChunks, { type: recorder.mimeType || "audio/webm" });
-        audioChunks = [];
-
-        // Too small — probably just noise
-        if (blob.size < 1000) { if (alive) resumeListening(); return; }
-
-        smoothSetPhase("thinking");
-
-        try {
-          const result = await transcribeAudio(blob);
+      // Binary frame = audio data from server
+      if (ev.data instanceof ArrayBuffer) {
+        playQueueRef.current.push(ev.data);
+        drainPlayQueue();
+        return;
+      }
+      if (ev.data instanceof Blob) {
+        ev.data.arrayBuffer().then(buf => {
           if (!alive) return;
+          playQueueRef.current.push(buf);
+          drainPlayQueue();
+        });
+        return;
+      }
 
-          const text = result.text?.trim();
-          if (!text) { resumeListening(); return; }
+      // Text frame = JSON event
+      try {
+        const msg = JSON.parse(ev.data as string);
 
-          setTranscript(text);
-          sendToAI(text);
-        } catch (e: unknown) {
-          if (alive) {
-            const msg = e instanceof Error ? e.message : t("voice.error");
-            setError(msg);
+        switch (msg.type) {
+          case "transcript":
+            // User's speech transcribed by server
+            setTranscript(msg.text || "");
+            if (phaseRef.current === "listening") {
+              smoothSetPhase("thinking");
+            }
+            break;
+
+          case "bot_started":
+            smoothSetPhase("speaking");
+            setResponsePreview("");
+            break;
+
+          case "bot_stopped":
+            smoothSetPhase("listening");
+            setTranscript("");
+            break;
+
+          case "bot_text":
+            // Streaming AI response text
+            setResponsePreview(prev => prev + (msg.text || ""));
+            break;
+
+          case "audio": {
+            // Base64-encoded PCM audio from server
+            const raw = atob(msg.data);
+            const buf = new ArrayBuffer(raw.length);
+            const view = new Uint8Array(buf);
+            for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+            playQueueRef.current.push(buf);
+            drainPlayQueue();
+            break;
+          }
+
+          case "user_message": {
+            // Server confirms user message was saved — add to chat context
+            const cid = convIdRef.current;
+            if (cid && msg.text) {
+              addMessageRef.current(cid, {
+                id: msg.id || `user-${Date.now()}`,
+                role: "user",
+                content: msg.text,
+              });
+            }
+            break;
+          }
+
+          case "bot_message": {
+            // Server confirms bot message was saved — add to chat context
+            const cid = convIdRef.current;
+            if (cid && msg.text) {
+              addMessageRef.current(cid, {
+                id: msg.id || `msg-${Date.now()}`,
+                role: "assistant",
+                content: msg.text,
+              });
+            }
+            break;
+          }
+
+          case "error":
+            setError(msg.message || t("voice.error"));
             smoothSetPhase("error");
-          }
+            break;
+
+          default:
+            break;
         }
-      };
-
-      try { recorder.stop(); } catch {}
-    };
-
-    // ── Unified silence-end handler ──
-
-    const handleSilenceEnd = () => {
-      if (useNativeSTT) {
-        // Native STT path: take accumulated transcript + interim
-        const text = (sttTranscript + sttInterim).trim();
-        sttTranscript = "";
-        sttInterim = "";
-        stopNativeSTT();
-
-        if (!text) {
-          resumeListening();
-          return;
-        }
-
-        setTranscript(text);
-        smoothSetPhase("thinking");
-        sendToAI(text);
-      } else {
-        // Fallback: MediaRecorder + Whisper
-        stopAndTranscribeFallback();
+      } catch {
+        console.warn("[VoiceMode] Failed to parse WebSocket message");
       }
     };
 
-    // ── AI send ──
-
-    // Clean text for TTS (strip markdown)
-    const cleanForTTS = (t: string) => t
-      .replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1")
-      .replace(/#{1,6}\s/g, "").replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1")
-      .replace(/\[(\d+)\]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_~`#>]/g, "")
-      .trim();
-
-    // Play a single audio blob via Web Audio API (works on iOS Safari).
-    // Falls back to HTML5 Audio if AudioContext is unavailable.
-    let currentSource: AudioBufferSourceNode | null = null;
-    const playBlob = (blob: Blob): Promise<void> => {
-      if (blob.size < 100) return Promise.resolve();
-      // Prefer Web Audio API — works on iOS after AudioContext is unlocked
-      if (audioCtx && audioCtx.state === "running") {
-        return blob.arrayBuffer()
-          .then(buf => audioCtx!.decodeAudioData(buf))
-          .then(decoded => new Promise<void>((resolve) => {
-            const source = audioCtx!.createBufferSource();
-            source.buffer = decoded;
-            source.connect(audioCtx!.destination);
-            currentSource = source;
-            let done = false;
-            const finish = () => { if (done) return; done = true; currentSource = null; resolve(); };
-            source.onended = finish;
-            source.start(0);
-            setTimeout(finish, 20000);
-          }))
-          .catch(() => Promise.resolve());
-      }
-      // Fallback: HTML5 Audio (Chrome/desktop)
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      currentAudioRef.current = audio;
-      return new Promise<void>((resolve) => {
-        let done = false;
-        const finish = () => { if (done) return; done = true; currentAudioRef.current = null; URL.revokeObjectURL(url); resolve(); };
-        audio.onended = finish;
-        audio.onerror = finish;
-        audio.play().catch(finish);
-        setTimeout(finish, 20000);
-      });
-    };
-
-    const sendToAI = async (text: string) => {
-      if (!text.trim() || !alive) return;
-      if (!getAccessToken()) { setError(t("voice.loginRequired")); smoothSetPhase("error"); return; }
-
-      // Include session duration so the AI is aware of call length
-      const secs = Math.floor((Date.now() - startRef.current) / 1000);
-      const mm = Math.floor(secs / 60);
-      const ss = (secs % 60).toString().padStart(2, "0");
-      const taggedText = `[Voice call · ${mm}:${ss}] ${text}`;
-
-      setResponsePreview("");
-
-      try {
-        let cid = convIdRef.current;
-        if (!cid) {
-          const c = await chatApi.createConversation(text.slice(0, 60));
-          if (!c || !alive) { if (alive) { smoothSetPhase("error"); setError(t("voice.error")); } return; }
-          cid = c.id;
-          convIdRef.current = cid;
-          ensureConvRef.current(cid!, text.slice(0, 60));
-        }
-
-        addMessageRef.current(cid, { id: `user-${Date.now()}`, role: "user", content: text });
-
-        const m = selectedModelRef.current.toLowerCase().replace(/\s+/g, "-");
-        const model = ["mira", "mira-thinking"].includes(m) ? m : "mira";
-
-        // Use taggedText (with session time) for the AI, plain text for display
-        const aiContent = taggedText;
-
-        // ── Sentence-streaming TTS ──
-        // Fire TTS per sentence as AI streams. Play each immediately when ready.
-        // Playback runs in a separate async chain so it doesn't block token processing.
-        let full = "";
-        let pendingSentence = "";
-        const clauseBoundary = /[.!?,;:。！？，；]\s*$/;
-
-        // Playback chain: each sentence's TTS promise is pushed here.
-        // A background loop plays them in order as they resolve.
-        const ttsQueue: Promise<Blob | null>[] = [];
-        let playbackStarted = false;
-        let playedAnyAudio = false;
-        let streamDone = false;
-        let playbackPromise: Promise<void> | null = null;
-
-        // Background playback — plays blobs in order as they resolve
-        const runPlayback = async () => {
-          let i = 0;
-          while (alive && phaseRef.current === "speaking") {
-            if (i >= ttsQueue.length) {
-              if (streamDone) break; // stream finished, no more entries coming
-              await new Promise(r => setTimeout(r, 150));
-              continue; // keep waiting for more sentences while stream is active
-            }
-            const blob = await ttsQueue[i];
-            i++;
-            if (!alive || phaseRef.current !== "speaking") break;
-            if (blob && blob.size >= 100) {
-              playedAnyAudio = true;
-              await playBlob(blob);
-            }
-          }
-        };
-
-        for await (const ev of chatApi.streamMessage(cid, aiContent, model, undefined, true)) {
-          if (!alive) return;
-          if (ev.type === "token") {
-            full += ev.content;
-            pendingSentence += ev.content;
-            setResponsePreview(full);
-
-            // Sentence boundary → fire TTS immediately, start playback on first
-            if (clauseBoundary.test(pendingSentence) && pendingSentence.trim().length > 3) {
-              const sentence = cleanForTTS(pendingSentence);
-              pendingSentence = "";
-              if (sentence) {
-                const lang = detectResponseLang(sentence).split("-")[0];
-                ttsQueue.push(synthesizeAudio(sentence, lang).catch(() => null));
-
-                if (!playbackStarted) {
-                  playbackStarted = true;
-                  smoothSetPhase("speaking");
-                  playbackPromise = runPlayback();
-                }
-              }
-            }
-          }
-          if (ev.type === "error") { setError(ev.message); smoothSetPhase("error"); return; }
-        }
-        if (!alive) return;
-        if (!full.trim()) { resumeListening(); return; }
-
-        // TTS any remaining text (final fragment without sentence punctuation)
-        const remaining = cleanForTTS(pendingSentence);
-        if (remaining) {
-          const lang = detectResponseLang(remaining).split("-")[0];
-          ttsQueue.push(synthesizeAudio(remaining, lang).catch(() => null));
-        }
-
-        // Signal playback loop that no more entries are coming
-        streamDone = true;
-
-        addMessageRef.current(cid, { id: `msg-${Date.now()}`, role: "assistant", content: full });
-
-        if (playbackStarted && playbackPromise) {
-          // Wait for the playback loop to finish playing ALL blobs,
-          // not just for the TTS API calls to return.
-          await playbackPromise;
-        } else if (ttsQueue.length > 0) {
-          // Short response — playback never started, drain now
-          smoothSetPhase("speaking");
-          playbackPromise = runPlayback();
-          await playbackPromise;
-        }
-
-        // If server TTS failed entirely (all blobs null), use browser speech.
-        // Go directly to SpeechSynthesis — don't retry the server.
-        if (!playedAnyAudio && full.trim() && alive && phaseRef.current !== "error") {
-          smoothSetPhase("speaking");
-          const cleanText = cleanForTTS(full).slice(0, 500);
-          if (cleanText && "speechSynthesis" in window) {
-            await new Promise<void>((resolve) => {
-              window.speechSynthesis.cancel();
-              const utt = new SpeechSynthesisUtterance(cleanText);
-              utt.lang = detectResponseLang(cleanText);
-              utt.rate = 1.0;
-              const voices = window.speechSynthesis.getVoices();
-              const matched = voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(utt.lang.split("-")[0]));
-              if (matched) utt.voice = matched;
-              let done = false;
-              const finish = () => { if (!done) { done = true; resolve(); } };
-              utt.onend = finish;
-              utt.onerror = () => { console.warn("[TTS] Browser speech failed"); finish(); };
-              window.speechSynthesis.speak(utt);
-              setTimeout(finish, 20000);
-            });
-          }
-        }
-
-        if (alive && phaseRef.current === "speaking") resumeListening();
-      } catch (e: unknown) {
-        if (alive && !(e instanceof Error && e.name === "AbortError")) {
-          setError(e instanceof Error ? e.message : t("voice.error"));
-          smoothSetPhase("error");
-        }
-      }
-    };
-
-    // Cooldown after speaking — ignore mic to avoid catching echo tail
-    let echoCooldownUntil = 0;
-
-    const resumeListening = () => {
-      setTranscript(""); setResponsePreview("");
-      smoothSetPhase("listening");
-      voiceDetected = false;
-      lastVoiceTime = 0;
-      sttTranscript = "";
-      sttInterim = "";
-      // 600ms echo cooldown — mic levels are ignored during this window
-      echoCooldownUntil = Date.now() + 600;
-      setTimeout(() => {
-        if (!alive || mutedRef.current) return;
-        if (useNativeSTT) {
-          startNativeSTT();
-        } else {
-          startRecording();
-        }
-      }, 300);
-    };
-
-    // ── TTS voices preload ──
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-    }
-
-    // ── Mic + STT + Silence detection setup ──
+    // ── Setup: mic → AudioWorklet → WebSocket ──
     (async () => {
       try {
+        if (!getAccessToken()) {
+          setError(t("voice.loginRequired"));
+          smoothSetPhase("error");
+          return;
+        }
+
+        // 1. Get mic stream
         const s = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
         if (!alive) { s.getTracks().forEach(t => t.stop()); return; }
         stream = s;
-        audioCtx = new AudioContext();
-        // iOS Safari: AudioContext starts suspended; resume after getUserMedia unlocks it
+
+        // 2. Set up AudioContext + analyser (for canvas visualisation)
+        audioCtx = new AudioContext({ sampleRate: 16000 });
         if (audioCtx.state === "suspended") await audioCtx.resume();
         const src = audioCtx.createMediaStreamSource(s);
         const an = audioCtx.createAnalyser();
@@ -633,146 +435,111 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         analyser = an;
         dataArr = new Uint8Array(an.frequencyBinCount) as Uint8Array<ArrayBuffer>;
 
-        // ── Detect native SpeechRecognition support ──
-        const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (SpeechRecognitionCtor) {
-          useNativeSTT = true;
-          recognition = new SpeechRecognitionCtor();
-          recognition.continuous = true;
-          recognition.interimResults = true;
-          // Use browser language; echo cancellation prevents AI voice contamination
-          recognition.lang = navigator.language || "en-US";
+        // 3. Set up AudioWorklet for PCM capture
+        const workletBlob = new Blob([WORKLET_SOURCE], { type: "application/javascript" });
+        const workletUrl = URL.createObjectURL(workletBlob);
+        await audioCtx.audioWorklet.addModule(workletUrl);
+        URL.revokeObjectURL(workletUrl);
 
-          recognition.onresult = (event: any) => {
-            let finalText = "";
-            let interimText = "";
-            for (let i = 0; i < event.results.length; i++) {
-              const result = event.results[i];
-              if (result.isFinal) {
-                finalText += result[0].transcript;
-              } else {
-                interimText += result[0].transcript;
-              }
-            }
-            sttTranscript = finalText;
-            sttInterim = interimText;
+        workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
+        src.connect(workletNode);
 
-            // Show live transcript while listening
-            if (phaseRef.current === "listening") {
-              setTranscript((finalText + interimText).trim());
-            }
-          };
+        // 4. Connect WebSocket
+        // Prepare initial config to send after connection
+        const m = selectedModelRef.current.toLowerCase().replace(/\s+/g, "-");
+        const model = ["mira", "mira-thinking"].includes(m) ? m : "mira";
 
-          recognition.onerror = (event: any) => {
-            console.warn("[SpeechRecognition] error:", event.error);
-            // "no-speech" and "aborted" are non-fatal — ignore
-            if (event.error !== "no-speech" && event.error !== "aborted") {
-              console.error("[SpeechRecognition] Fatal error:", event.error);
-            }
-          };
-
-          recognition.onend = () => {
-            // Auto-restart if still in listening phase and not muted
-            if (alive && phaseRef.current === "listening" && !mutedRef.current) {
-              try { recognition.start(); } catch { /* already started */ }
-            }
-          };
-        }
-
-        smoothSetPhase("listening");
-
-        // Start STT (native or fallback)
-        if (useNativeSTT) {
-          startNativeSTT();
-        } else {
-          startRecording();
-        }
-
-        // ── Silence & interrupt detection loop ──
-        silenceCheckId = setInterval(() => {
-          if (!alive || !analyser || !dataArr) return;
-
-          const ph = phaseRef.current;
-
-          // Handle mute
-          if (mutedRef.current) {
-            if (useNativeSTT) {
-              stopNativeSTT();
-            } else {
-              if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                audioChunks = [];
-                try { mediaRecorder.stop(); } catch {}
-                mediaRecorder = null;
-              }
-            }
-            voiceDetected = false;
-            sttTranscript = "";
-            sttInterim = "";
+        // Resolve or create conversation
+        let cid = convIdRef.current;
+        if (!cid) {
+          const c = await chatApi.createConversation("Voice call", model);
+          if (!c || !alive) {
+            if (alive) { smoothSetPhase("error"); setError(t("voice.error")); }
             return;
           }
+          cid = c.id;
+          convIdRef.current = cid;
+          ensureConvRef.current(cid, "Voice call");
+        }
 
-          // If listening but STT/recorder not active (after unmute or resume), restart
-          if (ph === "listening") {
-            if (useNativeSTT) {
-              // Recognition auto-restarts via onend, but ensure it's running
-              // (no-op if already started — caught by try/catch in startNativeSTT)
-            } else if (!mediaRecorder) {
-              startRecording();
-            }
+        const wsUrl = buildWsUrl();
+        const token = getAccessToken();
+        // Pass auth token and config as query params
+        const params = new URLSearchParams({
+          token: token || "",
+          conversation_id: cid,
+          model,
+          lang: navigator.language || "en-US",
+        });
+        ws = new WebSocket(`${wsUrl}?${params.toString()}`);
+        wsRef.current = ws;
+
+        ws.binaryType = "arraybuffer";
+
+        ws.onopen = () => {
+          if (!alive) return;
+          smoothSetPhase("listening");
+        };
+
+        ws.onmessage = handleWsMessage;
+
+        ws.onclose = (ev) => {
+          if (!alive) return;
+          if (ev.code !== 1000) {
+            // Abnormal close
+            setError(`Connection lost (${ev.code})`);
+            smoothSetPhase("error");
           }
+        };
 
-          // Read audio level
-          analyser.getByteFrequencyData(dataArr);
-          let sum = 0;
-          for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
-          const avg = sum / dataArr.length / 255;
+        ws.onerror = () => {
+          if (!alive) return;
+          setError(t("voice.error"));
+          smoothSetPhase("error");
+        };
 
-          const now = Date.now();
-
-          // Echo cooldown — ignore all mic activity right after TTS ends
-          if (now < echoCooldownUntil) return;
-
-          // Interrupt TTS when user speaks clearly (high threshold avoids echo triggers)
-          if (ph === "speaking" && avg > INTERRUPT_THRESHOLD) {
-            if (currentSource) { try { currentSource.stop(); } catch {} currentSource = null; }
-            if (currentAudioRef.current) {
-              currentAudioRef.current.pause();
-              currentAudioRef.current = null;
-            }
-            if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-            resumeListening();
-            return;
+        // 5. Stream mic PCM frames to WebSocket
+        workletNode.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
+          if (!alive || mutedRef.current) return;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(ev.data);
           }
+        };
 
-          // Silence detection during listening
-          if (ph === "listening") {
-            if (avg > SILENCE_THRESHOLD) {
-              voiceDetected = true;
-              lastVoiceTime = now;
-            }
-            // Voice was detected, now silent for timeout → send
-            if (voiceDetected && lastVoiceTime > 0 && now - lastVoiceTime > SILENCE_TIMEOUT) {
-              if (useNativeSTT || (now - recordingStartTime > MIN_RECORDING)) {
-                handleSilenceEnd();
-              }
-            }
-          }
-        }, 100);
-
-      } catch { setError(t("voice.micDenied")); smoothSetPhase("error"); }
+      } catch {
+        if (alive) {
+          setError(t("voice.micDenied"));
+          smoothSetPhase("error");
+        }
+      }
     })();
 
+    // ── Cleanup ──
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
-      if (silenceCheckId) clearInterval(silenceCheckId);
-      if (recognition) { try { recognition.stop(); } catch {} }
-      if (mediaRecorder?.state !== "inactive") try { mediaRecorder?.stop(); } catch {}
+
+      // Close WebSocket
+      if (ws && ws.readyState !== WebSocket.CLOSED) {
+        ws.close(1000);
+      }
+      wsRef.current = null;
+
+      // Stop worklet
+      if (workletNode) {
+        workletNode.port.close();
+        workletNode.disconnect();
+      }
+
+      // Stop mic tracks
       stream?.getTracks().forEach(t => t.stop());
-      if (currentSource) { try { currentSource.stop(); } catch {} currentSource = null; }
-      if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+      // Clear play queue
+      playQueueRef.current = [];
+
+      // Close audio contexts
       audioCtx?.close().catch(() => {});
+      playCtxRef.current?.close().catch(() => {});
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -811,10 +578,13 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         {(phase === "listening" || phase === "thinking") && transcript && (
           <p className="text-[16px] text-white/15 line-clamp-2">{transcript}</p>
         )}
+        {phase === "speaking" && responsePreview && (
+          <p className="text-[16px] text-white/15 line-clamp-2">{responsePreview}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-6">
-        <button onClick={() => setMuted(!muted)} className={`flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 ${muted ? "bg-white/[0.06] text-white/25 border border-white/[0.08]" : "bg-white/[0.05] text-white/40 border border-white/[0.07] hover:bg-white/[0.08]"}`}>
+        <button onClick={handleMuteToggle} className={`flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300 ${muted ? "bg-white/[0.06] text-white/25 border border-white/[0.08]" : "bg-white/[0.05] text-white/40 border border-white/[0.07] hover:bg-white/[0.08]"}`}>
           {muted ? <MicOff size={22} /> : <Mic size={22} />}
         </button>
         <button onClick={() => onClose(convIdRef.current || undefined)} className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.08] border border-white/[0.10] text-white/45 hover:bg-white/[0.12] active:scale-95 transition-all">

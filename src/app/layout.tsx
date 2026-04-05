@@ -11,7 +11,7 @@ const dmSans = DM_Sans({
 });
 
 const sourceSerif = Source_Serif_4({
-  subsets: ["latin", "latin-ext"],
+  subsets: ["latin", "latin-ext", "cyrillic", "cyrillic-ext"],
   weight: ["400", "500", "600"],
   style: ["normal", "italic"],
   variable: "--font-serif",
@@ -95,10 +95,14 @@ export const metadata: Metadata = {
     description: SITE_DESC,
   },
 
-  // Icons — SVG for modern browsers, apple-icon.tsx generates PNG
+  // Icons — SVG for modern, PNG fallbacks, apple touch icon
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: { url: "/apple-icon", sizes: "180x180" },
   },
 
   // Verification

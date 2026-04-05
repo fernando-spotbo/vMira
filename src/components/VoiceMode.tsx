@@ -6,11 +6,6 @@ import * as chatApi from "@/lib/api-chat";
 import { getAccessToken } from "@/lib/api-client";
 import { t } from "@/lib/i18n";
 import { useChat } from "@/context/ChatContext";
-import { PipecatClient } from "@pipecat-ai/client-js";
-import {
-  WebSocketTransport,
-  ProtobufFrameSerializer,
-} from "@pipecat-ai/websocket-transport";
 
 interface VoiceModeProps {
   onClose: (createdConvId?: string) => void;
@@ -18,7 +13,7 @@ interface VoiceModeProps {
 
 type Phase = "init" | "listening" | "thinking" | "speaking" | "error";
 
-// Detect language from AI response text for correct TTS voice
+// ── Detect language from AI response text for correct TTS voice ──
 function detectResponseLang(text: string): string {
   if (/[\u0400-\u04FF]/.test(text)) return "ru-RU";
   if (/[\u4E00-\u9FFF]/.test(text)) return "zh-CN";
@@ -29,7 +24,154 @@ function detectResponseLang(text: string): string {
   return "en-US"; // default
 }
 
-// ── Smooth canvas draw with phase interpolation ──
+// ══════════════════════════════════════════════════════════════════
+//  Protobuf codec — manual, no library needed
+// ══════════════════════════════════════════════════════════════════
+
+function encodeVarint(value: number): Uint8Array {
+  const bytes: number[] = [];
+  while (value > 0x7f) {
+    bytes.push((value & 0x7f) | 0x80);
+    value >>>= 7;
+  }
+  bytes.push(value & 0x7f);
+  return new Uint8Array(bytes);
+}
+
+function decodeVarint(
+  data: Uint8Array,
+  pos: number,
+): { value: number; bytesRead: number } {
+  let value = 0,
+    shift = 0,
+    bytesRead = 0;
+  while (pos < data.length) {
+    const byte = data[pos++];
+    bytesRead++;
+    value |= (byte & 0x7f) << shift;
+    if ((byte & 0x80) === 0) break;
+    shift += 7;
+  }
+  return { value, bytesRead };
+}
+
+/** Encode PCM16 bytes into a Pipecat protobuf Frame(AudioFrame). */
+function encodeAudioFrame(
+  pcm16Bytes: ArrayBuffer,
+  sampleRate = 16000,
+  numChannels = 1,
+): Uint8Array {
+  // AudioFrame fields
+  const audioTag = 0x0a; // field 1, wire type 2 (length-delimited)
+  const srTag = 0x10; // field 2, wire type 0 (varint)
+  const chTag = 0x18; // field 3, wire type 0 (varint)
+
+  const audioLen = pcm16Bytes.byteLength;
+  const srBytes = encodeVarint(sampleRate);
+  const chBytes = encodeVarint(numChannels);
+  const audioLenBytes = encodeVarint(audioLen);
+
+  // Build AudioFrame message
+  const audioFrameLen =
+    1 +
+    audioLenBytes.length +
+    audioLen +
+    1 +
+    srBytes.length +
+    1 +
+    chBytes.length;
+  const audioFrame = new Uint8Array(audioFrameLen);
+  let offset = 0;
+  audioFrame[offset++] = audioTag;
+  audioFrame.set(audioLenBytes, offset);
+  offset += audioLenBytes.length;
+  audioFrame.set(new Uint8Array(pcm16Bytes), offset);
+  offset += audioLen;
+  audioFrame[offset++] = srTag;
+  audioFrame.set(srBytes, offset);
+  offset += srBytes.length;
+  audioFrame[offset++] = chTag;
+  audioFrame.set(chBytes, offset);
+
+  // Wrap in Frame message: field 2 (audio), wire type 2 (length-delimited)
+  const frameTag = 0x12;
+  const frameLenBytes = encodeVarint(audioFrameLen);
+  const frame = new Uint8Array(1 + frameLenBytes.length + audioFrameLen);
+  frame[0] = frameTag;
+  frame.set(frameLenBytes, 1);
+  frame.set(audioFrame, 1 + frameLenBytes.length);
+  return frame;
+}
+
+/** Parse an AudioFrame submessage, returning raw audio bytes + sample rate. */
+function parseAudioFrame(
+  data: Uint8Array,
+): { audio: Uint8Array; sampleRate: number } | null {
+  let pos = 0;
+  let audio: Uint8Array | null = null;
+  let sampleRate = 16000;
+
+  while (pos < data.length) {
+    const tag = data[pos++];
+    const fieldNum = tag >> 3;
+    const wireType = tag & 0x07;
+
+    if (wireType === 2 && fieldNum === 1) {
+      // bytes field — audio data
+      const { value: len, bytesRead } = decodeVarint(data, pos);
+      pos += bytesRead;
+      audio = data.slice(pos, pos + len);
+      pos += len;
+    } else if (wireType === 0) {
+      // varint
+      const { value, bytesRead } = decodeVarint(data, pos);
+      pos += bytesRead;
+      if (fieldNum === 2) sampleRate = value;
+    } else {
+      // skip unknown wire types
+      break;
+    }
+  }
+
+  return audio ? { audio, sampleRate } : null;
+}
+
+/** Decode a top-level Pipecat protobuf Frame, extracting the AudioFrame. */
+function decodeAudioFromFrame(
+  data: ArrayBuffer,
+): { audio: Uint8Array; sampleRate: number } | null {
+  const view = new Uint8Array(data);
+  let pos = 0;
+
+  while (pos < view.length) {
+    const tag = view[pos++];
+    const fieldNum = tag >> 3;
+    const wireType = tag & 0x07;
+
+    if (wireType === 2) {
+      // length-delimited
+      const { value: len, bytesRead } = decodeVarint(view, pos);
+      pos += bytesRead;
+      if (fieldNum === 2) {
+        // Frame.audio (field 2)
+        return parseAudioFrame(view.slice(pos, pos + len));
+      }
+      pos += len;
+    } else if (wireType === 0) {
+      // varint — skip
+      const { bytesRead } = decodeVarint(view, pos);
+      pos += bytesRead;
+    } else {
+      break;
+    }
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Smooth canvas draw with phase interpolation (preserved exactly)
+// ══════════════════════════════════════════════════════════════════
+
 function draw(
   ctx: CanvasRenderingContext2D, S: number, dpr: number,
   analyser: AnalyserNode | null, data: Uint8Array<ArrayBuffer> | null,
@@ -154,7 +296,18 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const phaseRef = useRef<Phase>("init");
   const convIdRef = useRef(activeConversationId);
 
-  const clientRef = useRef<PipecatClient | null>(null);
+  // WebSocket + audio refs
+  const wsRef = useRef<WebSocket | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micCtxRef = useRef<AudioContext | null>(null);
+  const playCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+
+  // Playback scheduling
+  const nextPlayTimeRef = useRef(0);
+  const playbackActiveRef = useRef(false);
+  const receivedSampleRateRef = useRef(16000);
 
   // Refs for latest values (avoids stale closures)
   const selectedModelRef = useRef(selectedModel);
@@ -180,12 +333,84 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
   const handleMuteToggle = useCallback(() => {
     setMuted((prev) => {
       const next = !prev;
-      clientRef.current?.enableMic(!next);
+      // Mute/unmute by toggling the mic stream tracks
+      const stream = micStreamRef.current;
+      if (stream) {
+        for (const track of stream.getAudioTracks()) {
+          track.enabled = !next;
+        }
+      }
       return next;
     });
   }, []);
 
-  // ── Main effect: canvas animation + PipecatClient ──
+  // ── Schedule a PCM16 chunk for seamless gapless playback ──
+  const schedulePlayback = useCallback(
+    (pcm16: Uint8Array, sr: number) => {
+      let ctx = playCtxRef.current;
+      if (!ctx || ctx.state === "closed") {
+        ctx = new AudioContext({ sampleRate: sr });
+        playCtxRef.current = ctx;
+      }
+
+      // Convert PCM16 (little-endian Int16) → Float32
+      const sampleCount = pcm16.length / 2;
+      const float32 = new Float32Array(sampleCount);
+      const dv = new DataView(
+        pcm16.buffer,
+        pcm16.byteOffset,
+        pcm16.byteLength,
+      );
+      for (let i = 0; i < sampleCount; i++) {
+        float32[i] = dv.getInt16(i * 2, true) / 32768;
+      }
+
+      // If the playback context sample rate differs from the frame's, resample
+      const ctxSr = ctx.sampleRate;
+      let samples = float32;
+      let finalSampleCount = sampleCount;
+      if (ctxSr !== sr) {
+        const ratio = ctxSr / sr;
+        finalSampleCount = Math.round(sampleCount * ratio);
+        const resampled = new Float32Array(finalSampleCount);
+        for (let i = 0; i < finalSampleCount; i++) {
+          const srcIdx = Math.min(
+            Math.floor(i / ratio),
+            sampleCount - 1,
+          );
+          resampled[i] = float32[srcIdx];
+        }
+        samples = resampled;
+      }
+
+      const buffer = ctx.createBuffer(1, finalSampleCount, ctxSr);
+      buffer.getChannelData(0).set(samples);
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+
+      // Gapless scheduling: chain buffers back-to-back
+      const now = ctx.currentTime;
+      const startTime = Math.max(now + 0.005, nextPlayTimeRef.current);
+      source.start(startTime);
+      nextPlayTimeRef.current = startTime + buffer.duration;
+
+      if (!playbackActiveRef.current) {
+        playbackActiveRef.current = true;
+      }
+
+      source.onended = () => {
+        // If this was the last chunk and nothing new is scheduled, playback ended
+        if (ctx && ctx.currentTime >= nextPlayTimeRef.current - 0.01) {
+          playbackActiveRef.current = false;
+        }
+      };
+    },
+    [],
+  );
+
+  // ── Main effect: canvas animation + WebSocket voice client ──
   useEffect(() => {
     let alive = true;
     let raf = 0;
@@ -203,9 +428,9 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
     canvas.height = SIZE * dpr;
     const ctx2d = canvas.getContext("2d")!;
 
-    // No analyser — Pipecat handles audio; animation is phase-driven only
-    const analyser: AnalyserNode | null = null;
-    const dataArr: Uint8Array<ArrayBuffer> | null = null;
+    // Analyser will be set up after mic access
+    let analyser: AnalyserNode | null = null;
+    let dataArr: Uint8Array<ArrayBuffer> | null = null;
 
     // Draw loop with smooth blending
     const tick = () => {
@@ -240,9 +465,14 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
     // ── Accumulated bot transcript for addMessage at end of turn ──
     let fullBotText = "";
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     let lastUserText = "";
 
-    // ── Setup PipecatClient and connect ──
+    // Track audio reception to detect speaking/listening transitions
+    let lastAudioReceived = 0;
+    let silenceCheckTimer: ReturnType<typeof setInterval> | null = null;
+
+    // ── Setup WebSocket + mic capture ──
     (async () => {
       try {
         const token = getAccessToken();
@@ -271,7 +501,47 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
           ensureConvRef.current(cid, "Voice call");
         }
 
-        // Build WS URL with query params
+        // ── Request mic access ──
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+        } catch {
+          if (!alive) return;
+          setError(t("voice.micDenied"));
+          smoothSetPhase("error");
+          return;
+        }
+        if (!alive) {
+          stream.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+        micStreamRef.current = stream;
+
+        // ── Set up AudioContext for mic capture + analyser ──
+        const micCtx = new AudioContext();
+        micCtxRef.current = micCtx;
+        const source = micCtx.createMediaStreamSource(stream);
+
+        // Analyser for the canvas visualization
+        const micAnalyser = micCtx.createAnalyser();
+        micAnalyser.fftSize = 128;
+        source.connect(micAnalyser);
+        analyserRef.current = micAnalyser;
+        analyser = micAnalyser;
+        dataArr = new Uint8Array(micAnalyser.frequencyBinCount);
+
+        // ── AudioWorklet for resampling to 16 kHz PCM16 ──
+        await micCtx.audioWorklet.addModule("/pcm-processor.js");
+        const workletNode = new AudioWorkletNode(micCtx, "pcm-processor");
+        source.connect(workletNode);
+
+        // ── Build WS URL with query params ──
         const lang = navigator.language || "en-US";
         const params = new URLSearchParams({
           token,
@@ -281,47 +551,24 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
         });
         const wsUrl = `${VOICE_WS_URL}?${params.toString()}`;
 
-        // Create PipecatClient
-        const client = new PipecatClient({
-          transport: new WebSocketTransport({
-            serializer: new ProtobufFrameSerializer(),
-          }),
-          enableMic: true,
-          enableCam: false,
-          callbacks: {
-            onConnected: () => {
-              if (!alive) return;
-              // WebSocket connected — wait for onBotReady before going to listening
-            },
-            onDisconnected: () => {
-              if (!alive) return;
-              // Only show error if we didn't initiate the close
-              if (phaseRef.current !== "init" && phaseRef.current !== "error") {
-                setError("Connection lost");
-                smoothSetPhase("error");
-              }
-            },
-            onBotReady: () => {
-              if (!alive) return;
-              smoothSetPhase("listening");
-            },
-            onUserStartedSpeaking: () => {
-              if (!alive) return;
-              // Stay in listening — just means user is talking
-            },
-            onUserStoppedSpeaking: () => {
-              if (!alive) return;
-              smoothSetPhase("thinking");
-            },
-            onBotStartedSpeaking: () => {
-              if (!alive) return;
-              fullBotText = "";
-              setResponsePreview("");
-              smoothSetPhase("speaking");
-            },
-            onBotStoppedSpeaking: () => {
-              if (!alive) return;
-              // Add bot message to chat context
+        // ── Connect WebSocket ──
+        const ws = new WebSocket(wsUrl);
+        ws.binaryType = "arraybuffer";
+        wsRef.current = ws;
+
+        ws.addEventListener("open", () => {
+          if (!alive) return;
+          smoothSetPhase("listening");
+
+          // Start silence detection — if we stop receiving audio, go back to listening
+          silenceCheckTimer = setInterval(() => {
+            if (!alive) return;
+            if (
+              phaseRef.current === "speaking" &&
+              Date.now() - lastAudioReceived > 500 &&
+              !playbackActiveRef.current
+            ) {
+              // Audio playback finished
               const currentCid = convIdRef.current;
               if (currentCid && fullBotText) {
                 addMessageRef.current(currentCid, {
@@ -330,44 +577,106 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
                   content: fullBotText,
                 });
               }
+              fullBotText = "";
               smoothSetPhase("listening");
               setTranscript("");
-            },
-            onUserTranscript: (data) => {
-              if (!alive) return;
-              setTranscript(data.text);
-              if (data.final && data.text) {
-                lastUserText = data.text;
-                // Add user message to chat context
-                const currentCid = convIdRef.current;
-                if (currentCid) {
-                  addMessageRef.current(currentCid, {
-                    id: `user-${Date.now()}`,
-                    role: "user",
-                    content: data.text,
-                  });
-                }
-              }
-            },
-            onBotLlmText: (data) => {
-              if (!alive) return;
-              fullBotText += data.text;
-              setResponsePreview(fullBotText);
-            },
-            onError: (error) => {
-              if (!alive) return;
-              const msg =
-                typeof error.data === "string"
-                  ? error.data
-                  : t("voice.error");
-              setError(msg);
-              smoothSetPhase("error");
-            },
-          },
+            }
+          }, 200);
         });
 
-        clientRef.current = client;
-        await client.connect({ wsUrl });
+        ws.addEventListener("close", () => {
+          if (!alive) return;
+          if (
+            phaseRef.current !== "init" &&
+            phaseRef.current !== "error"
+          ) {
+            setError("Connection lost");
+            smoothSetPhase("error");
+          }
+        });
+
+        ws.addEventListener("error", () => {
+          if (!alive) return;
+          setError(t("voice.error"));
+          smoothSetPhase("error");
+        });
+
+        ws.addEventListener("message", (ev: MessageEvent) => {
+          if (!alive) return;
+
+          if (ev.data instanceof ArrayBuffer) {
+            // ── Binary: protobuf Frame with audio ──
+            const decoded = decodeAudioFromFrame(ev.data);
+            if (decoded) {
+              lastAudioReceived = Date.now();
+              receivedSampleRateRef.current = decoded.sampleRate;
+
+              if (phaseRef.current !== "speaking") {
+                // Bot started speaking — reset text accumulator
+                fullBotText = "";
+                setResponsePreview("");
+                smoothSetPhase("speaking");
+                // Reset playback scheduling so new utterance starts fresh
+                nextPlayTimeRef.current = 0;
+                playbackActiveRef.current = false;
+              }
+
+              schedulePlayback(decoded.audio, decoded.sampleRate);
+            }
+          } else if (typeof ev.data === "string") {
+            // ── Text: JSON events from TranscriptRelay ──
+            try {
+              const msg = JSON.parse(ev.data);
+
+              if (msg.type === "transcript" && msg.role === "user") {
+                setTranscript(msg.text || "");
+                if (msg.final && msg.text) {
+                  lastUserText = msg.text;
+                  const currentCid = convIdRef.current;
+                  if (currentCid) {
+                    addMessageRef.current(currentCid, {
+                      id: `user-${Date.now()}`,
+                      role: "user",
+                      content: msg.text,
+                    });
+                  }
+                }
+              } else if (msg.type === "bot_text" || msg.type === "bot_llm_text") {
+                fullBotText += msg.text || "";
+                setResponsePreview(fullBotText);
+              } else if (
+                msg.type === "transcript" &&
+                msg.role === "assistant"
+              ) {
+                fullBotText += msg.text || "";
+                setResponsePreview(fullBotText);
+              } else if (msg.type === "user_started_speaking") {
+                // User speaking — stay in listening
+              } else if (msg.type === "user_stopped_speaking") {
+                smoothSetPhase("thinking");
+              } else if (msg.type === "bot_ready") {
+                smoothSetPhase("listening");
+              } else if (msg.type === "error") {
+                const errMsg =
+                  typeof msg.data === "string" ? msg.data : t("voice.error");
+                setError(errMsg);
+                smoothSetPhase("error");
+              }
+            } catch {
+              // Ignore malformed JSON
+            }
+          }
+        });
+
+        // ── Pipe AudioWorklet output → WebSocket as protobuf frames ──
+        workletNode.port.onmessage = (ev: MessageEvent) => {
+          if (!alive) return;
+          if (ws.readyState !== WebSocket.OPEN) return;
+
+          const pcmBuffer: ArrayBuffer = ev.data;
+          const frame = encodeAudioFrame(pcmBuffer, 16000, 1);
+          ws.send(frame);
+        };
       } catch (err) {
         if (alive) {
           const msg = err instanceof Error ? err.message : t("voice.error");
@@ -383,11 +692,36 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
       alive = false;
       cancelAnimationFrame(raf);
 
-      const client = clientRef.current;
-      if (client) {
-        client.disconnect().catch(() => {});
-        clientRef.current = null;
+      if (silenceCheckTimer) clearInterval(silenceCheckTimer);
+
+      // Close WebSocket
+      const ws = wsRef.current;
+      if (ws) {
+        ws.close();
+        wsRef.current = null;
       }
+
+      // Stop mic tracks
+      const stream = micStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((tr) => tr.stop());
+        micStreamRef.current = null;
+      }
+
+      // Close AudioContexts
+      const micCtx = micCtxRef.current;
+      if (micCtx && micCtx.state !== "closed") {
+        micCtx.close().catch(() => {});
+        micCtxRef.current = null;
+      }
+
+      const playCtx = playCtxRef.current;
+      if (playCtx && playCtx.state !== "closed") {
+        playCtx.close().catch(() => {});
+        playCtxRef.current = null;
+      }
+
+      analyserRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -617,9 +617,8 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
               receivedSampleRateRef.current = decoded.sampleRate;
 
               if (phaseRef.current !== "speaking") {
-                // Bot started speaking — reset text accumulator
-                fullBotText = "";
-                setResponsePreview("");
+                // Bot started speaking — DON'T reset fullBotText here,
+                // text events arrive before audio and are already accumulated
                 smoothSetPhase("speaking");
                 // Reset playback scheduling so new utterance starts fresh
                 nextPlayTimeRef.current = 0;
@@ -636,6 +635,9 @@ export default function VoiceMode({ onClose }: VoiceModeProps) {
 
               if (msg.type === "transcript" && msg.role === "user") {
                 setTranscript(msg.text || "");
+                // Reset bot text accumulator for the new turn
+                fullBotText = "";
+                setResponsePreview("");
                 if (msg.final && msg.text) {
                   lastUserText = msg.text;
                   const currentCid = convIdRef.current;

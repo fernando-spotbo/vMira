@@ -17,6 +17,23 @@ export function proxy(request: NextRequest) {
   const isLocalhost = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
   const isDocsSubdomain = hostname === "docs.vmira.ai";
   const isStatusSubdomain = hostname === "status.vmira.ai";
+  const isDownloadsSubdomain = hostname.startsWith("downloads.");
+
+  // downloads.vmira.ai → serve plugin downloads
+  if (isDownloadsSubdomain) {
+    // /mira-code-releases/* routes are already in the app, pass through
+    if (pathname.startsWith("/mira-code-releases")) {
+      return NextResponse.next();
+    }
+    // Root → simple index page
+    if (pathname === "/" || pathname === "") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/downloads";
+      return NextResponse.rewrite(url);
+    }
+    // Block everything else on this subdomain
+    return new NextResponse("Not found", { status: 404 });
+  }
 
   // status.vmira.ai → /status page
   if (isStatusSubdomain) {

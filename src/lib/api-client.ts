@@ -225,10 +225,10 @@ export async function saveVoiceMessage(
   };
   if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
-  fetch(`https://api.vmira.ai/api/v1/voice/save-message/${conversationId}`, {
+  fetch(`https://api.vmira.ai/api/v1/voice/save-message`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ role, content }),
+    body: JSON.stringify({ conversation_id: conversationId, role, content }),
   }).catch(() => {}); // fire-and-forget
 }
 
